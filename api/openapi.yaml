@@ -418,6 +418,117 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+    delete:
+      operationId: problems.delete
+      tags: [problems]
+      summary: Delete a problem
+      description: |
+        Soft-deletes the problem from any status. Versions and attempts are
+        kept; the problem stops appearing in reads and lists. Requires
+        `If-Match` (412 when stale, 428 when missing). Deleting an already
+        deleted problem is 404.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      parameters:
+        - $ref: "#/components/parameters/ProblemId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: The problem was deleted.
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}/publish:
+    post:
+      operationId: problems.publish
+      tags: [problems]
+      summary: Publish a problem
+      description: |
+        Moves a `draft` problem to `live`, so it can enter review. Any other
+        status is 409 (`live` to `draft` and `archived` to `live` are not
+        allowed). Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      parameters:
+        - $ref: "#/components/parameters/ProblemId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: The problem, now `live`.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemView"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}/archive:
+    post:
+      operationId: problems.archive
+      tags: [problems]
+      summary: Archive a problem
+      description: |
+        Moves a `live` problem to `archived`, so it leaves review. Any other
+        status is 409 (a draft is discarded by deleting it; `archived` is
+        terminal). Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      parameters:
+        - $ref: "#/components/parameters/ProblemId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: The problem, now `archived`.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemView"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   /problems/{id}/versions:
     get:
       operationId: problems.versions
@@ -1168,6 +1279,13 @@ components:
       in: path
       required: true
       description: A tag ID, slug or alias.
+      schema:
+        type: string
+    ProblemId:
+      name: id
+      in: path
+      required: true
+      description: A problem ID.
       schema:
         type: string
     QuizId:
