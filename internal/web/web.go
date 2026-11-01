@@ -30,6 +30,8 @@ type Config struct {
 	// Gate protects every page.
 	Gate   Gate
 	Logger *slog.Logger
+	// Settings backs the Settings page; the page is not mounted when nil.
+	Settings SettingsService
 }
 
 // Web is the website adapter. Pages call feature services only; it holds no
@@ -42,7 +44,7 @@ type Web struct {
 type navItem struct{ Href, Label string }
 
 // nav lists the top-level pages. Entries are added as their pages land.
-var nav = []navItem{{"/", "Today"}}
+var nav = []navItem{{"/", "Today"}, {"/settings", "Settings"}}
 
 // page is the data every template receives.
 type page struct {
@@ -51,6 +53,7 @@ type page struct {
 	Nav       []navItem
 	CSRFToken string
 	Rendered  template.HTML
+	Settings  settingsForm
 }
 
 // New parses the embedded templates.
@@ -63,7 +66,7 @@ func New(cfg Config) (*Web, error) {
 		return nil, err
 	}
 	w := &Web{cfg: cfg, tmpl: map[string]*template.Template{}}
-	for _, name := range []string{"shell"} {
+	for _, name := range []string{"shell", "settings"} {
 		t, err := layout.Clone()
 		if err != nil {
 			return nil, err
@@ -93,6 +96,10 @@ func (w *Web) Register(mux *http.ServeMux) {
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(sub)))
 	mux.Handle("GET /{$}", w.gate(http.HandlerFunc(w.today)))
+	if w.cfg.Settings != nil {
+		mux.Handle("GET /settings", w.gate(http.HandlerFunc(w.settingsPage)))
+		mux.Handle("POST /settings", w.gate(http.HandlerFunc(w.settingsSave)))
+	}
 }
 
 func (w *Web) gate(h http.Handler) http.Handler {

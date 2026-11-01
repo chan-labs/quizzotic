@@ -109,3 +109,16 @@ func (s *Service) Update(ctx context.Context, userID domain.ID, o Overrides) (Se
 	}
 	return after, nil
 }
+
+// Overrides returns the user's stored overrides (nil fields use the default).
+// Callers that edit only some fields read this first so Update does not turn
+// untouched defaults into overrides.
+func (s *Service) Overrides(ctx context.Context, userID domain.ID) (Overrides, error) {
+	var out Overrides
+	err := s.tx.InTx(ctx, func(r Repos) error {
+		var err error
+		out, err = r.Settings.Get(ctx, userID)
+		return err
+	})
+	return out, err
+}

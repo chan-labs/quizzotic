@@ -1,0 +1,30 @@
+{{define "content"}}<h1>{{.Title}}</h1>
+{{with .Settings}}
+{{if .Saved}}<p class="notice" role="status">Settings saved.</p>{{end}}
+{{if .Errors}}<p class="error" role="alert">Fix the highlighted fields.</p>{{end}}
+<form method="post" action="/settings" class="settings">
+  <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+  <label>Desired retention (0 to 1, exclusive)
+    <input name="desired_retention" inputmode="decimal" value="{{.Retention}}" required>
+    {{with index .Errors "desired_retention"}}<span class="error">{{.}}</span>{{end}}
+  </label>
+  <label>New cards per day
+    <input name="new_per_day" inputmode="numeric" value="{{.NewPerDay}}" required>
+    {{with index .Errors "new_per_day"}}<span class="error">{{.}}</span>{{end}}
+  </label>
+  <label>Maximum reviews per day
+    <input name="max_reviews_per_day" inputmode="numeric" value="{{.MaxReviews}}" required>
+    {{with index .Errors "max_reviews_per_day"}}<span class="error">{{.}}</span>{{end}}
+  </label>
+  <label>Time zone (IANA name)
+    <input name="timezone" value="{{.Timezone}}" placeholder="America/New_York" required>
+    {{with index .Errors "timezone"}}<span class="error">{{.}}</span>{{end}}
+  </label>
+  <label>Day rolls over at hour (0 to 23)
+    <input name="rollover_hour" inputmode="numeric" value="{{.Rollover}}" required>
+    {{with index .Errors "rollover_hour"}}<span class="error">{{.}}</span>{{end}}
+  </label>
+  <button type="submit">Save</button>
+</form>
+{{end}}
+{{end}}
