@@ -313,6 +313,95 @@ components:
           type: string
         detail:
           type: string
+    MCQPayload:
+      type: object
+      description: |
+        Payload of an `mcq` problem. Needs at least 2 choices and at least 1
+        correct id; when `multiple` is false, exactly 1 correct id. Every
+        `correct` entry must be a choice id.
+      additionalProperties: false
+      required: [choices, correct]
+      properties:
+        choices:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/MCQChoice"
+        correct:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+        multiple:
+          type: boolean
+          default: false
+        shuffle:
+          type: boolean
+          default: false
+    MCQChoice:
+      type: object
+      additionalProperties: false
+      required: [id, text]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        text:
+          type: string
+          minLength: 1
+    ClozePayload:
+      type: object
+      description: |
+        Payload of a `cloze` problem. The problem prompt carries one
+        `{{blank_id}}` marker per entry in `blanks`; markers and blanks match
+        one-to-one.
+      additionalProperties: false
+      required: [blanks]
+      properties:
+        blanks:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ClozeBlank"
+    ClozeBlank:
+      type: object
+      additionalProperties: false
+      required: [id, accepted]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        accepted:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        case_sensitive:
+          type: boolean
+          default: false
+        max_edits:
+          type: integer
+          minimum: 0
+          maximum: 3
+          default: 0
+    OpenPayload:
+      type: object
+      description: Payload of an `open` problem.
+      additionalProperties: false
+      required: [reference_answer]
+      properties:
+        reference_answer:
+          type: string
+          minLength: 1
+          description: Markdown. Must not be blank.
+        rubric:
+          type: array
+          description: Optional key points, Markdown.
+          items:
+            type: string
+            minLength: 1
     PageResult:
       type: object
       description: |
