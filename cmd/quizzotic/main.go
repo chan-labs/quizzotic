@@ -19,6 +19,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/admin"
 	"github.com/chan-labs/quizzotic/internal/cli"
 	"github.com/chan-labs/quizzotic/internal/config"
+	"github.com/chan-labs/quizzotic/internal/mcp"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/server"
 )
@@ -52,8 +53,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return cli.Logout(ctx, args[1:], env)
 	case "mcp":
-		fmt.Fprintf(stderr, "quizzotic: %s is not implemented yet\n", args[0])
-		return 1
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		return mcp.Run(ctx, args[1:], cli.Env{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr}, version)
 	case "help", "-h", "--help":
 		usage(stdout)
 		return 0
