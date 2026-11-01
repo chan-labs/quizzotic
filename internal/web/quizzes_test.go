@@ -366,7 +366,7 @@ func TestQuizStartThroughReviewToCompletion(t *testing.T) {
 			form.Set(m[1], m[2])
 		}
 		order = append(order, form.Get("problem_id"))
-		if rec := e.do("POST", "/review/"+sid.String()+"/answer", form, true); rec.Code != http.StatusOK {
+		if rec := e.do("POST", "/review/"+sid.String()+"/answer", form, true); rec.Code != http.StatusSeeOther {
 			t.Fatalf("answer %d: %d\n%s", i, rec.Code, rec.Body)
 		}
 	}
