@@ -106,6 +106,9 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 	out := *p // do not mutate a shared Problem
 	if out.Instance == "" {
 		out.Instance = r.URL.Path
+		if full, ok := r.Context().Value(fullPathKey{}).(string); ok {
+			out.Instance = full
+		}
 	}
 	if out.RequestID == "" {
 		out.RequestID = RequestIDFrom(r.Context())
