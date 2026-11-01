@@ -9,12 +9,14 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/store"
+	"github.com/chan-labs/quizzotic/internal/store/sqlite"
 )
 
 // fakeStore fails WithTx itself (a store error) when txErr is set; otherwise
@@ -49,9 +51,15 @@ func TestMeteredStoreCountsOnlyStoreErrors(t *testing.T) {
 	}
 }
 
-func testHandler(opts ...HandlerOption) http.Handler {
+func testHandler(t *testing.T, opts ...HandlerOption) http.Handler {
+	t.Helper()
+	st, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "q.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return Handler(logger, nil, auth.NewProvider("http://127.0.0.1:1"), opts...)
+	return Handler(logger, st, auth.NewProvider("http://127.0.0.1:1"), opts...)
 }
 
 func fetch(h http.Handler, path string) *httptest.ResponseRecorder {
@@ -61,13 +69,13 @@ func fetch(h http.Handler, path string) *httptest.ResponseRecorder {
 }
 
 func TestMetricsEndpointOffByDefault(t *testing.T) {
-	if rec := fetch(testHandler(), "/metrics"); rec.Code != http.StatusNotFound {
+	if rec := fetch(testHandler(t), "/metrics"); rec.Code != http.StatusNotFound {
 		t.Errorf("/metrics without WithMetrics = %d, want 404", rec.Code)
 	}
 }
 
 func TestMetricsEndpointCountsRequests(t *testing.T) {
-	h := testHandler(WithMetrics(platform.NewMetrics()))
+	h := testHandler(t, WithMetrics(platform.NewMetrics()))
 	fetch(h, "/healthz")
 	fetch(h, "/api/v1/openapi.yaml")
 	fetch(h, "/api/v1/nope")

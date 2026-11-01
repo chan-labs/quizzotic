@@ -19,6 +19,7 @@ type Router struct {
 	patterns []string
 	registry map[string]bool
 	authz    Authorizer
+	after    []func(http.Handler) http.Handler
 }
 
 // Authorizer decides whether a request may reach the handler registered under
@@ -32,6 +33,12 @@ type Authorizer func(pattern string, w http.ResponseWriter, r *http.Request) (*h
 // a match whose pattern was not registered with Handle (such as the mux's
 // path-cleaning redirects) is answered 404 and never served.
 func (rt *Router) SetAuthorizer(a Authorizer) { rt.authz = a }
+
+// UseAfterAuth adds middleware that wraps the matched handler after the
+// authorizer has run, so it sees the authenticated principal in the request
+// context. Middleware added first is outermost. Requests the authorizer
+// rejects, and unknown routes, never reach it.
+func (rt *Router) UseAfterAuth(mw func(http.Handler) http.Handler) { rt.after = append(rt.after, mw) }
 
 // NewRouter returns an empty API router.
 func NewRouter() *Router { return &Router{api: http.NewServeMux(), registry: map[string]bool{}} }
@@ -92,7 +99,11 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	setMatchedRoute(r.Context(), strings.Replace(pattern, " /", " "+APIPrefix+"/", 1))
-	rt.api.ServeHTTP(w, r2)
+	var h2 http.Handler = rt.api
+	for i := len(rt.after) - 1; i >= 0; i-- {
+		h2 = rt.after[i](h2)
+	}
+	h2.ServeHTTP(w, r2)
 }
 
 // fullPathKey carries the request path as received, before APIPrefix is

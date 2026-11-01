@@ -217,6 +217,30 @@ func (s *Service) ListProblems(ctx context.Context, ownerID domain.ID, ref strin
 	return out, next, err
 }
 
+// ResolveTagFilter turns ref (ID, slug or alias) into the ID of the tag whose
+// problems a list should show. A merged tag stands for the tag it was merged
+// into. found is false when the owner has no such tag. It lets the problems
+// service filter by tag without importing this package.
+func (s *Service) ResolveTagFilter(ctx context.Context, ownerID domain.ID, ref string) (id domain.ID, found bool, err error) {
+	err = s.tx.InTx(ctx, func(r Repos) error {
+		t, err := Resolve(ctx, r.Tags, ownerID, ref)
+		if err != nil {
+			return err
+		}
+		if t.Status == StatusMerged {
+			if t, err = r.Tags.Get(ctx, ownerID, t.MergedInto); err != nil {
+				return err
+			}
+		}
+		id = t.ID
+		return nil
+	})
+	if errors.Is(err, ErrNotFound) {
+		return domain.Nil, false, nil
+	}
+	return id, err == nil, err
+}
+
 // SetProblemTags replaces the tags on a problem with those refs name. A merged
 // tag stands for the tag it was merged into; unknown and retired tags are
 // validation errors. It returns the resulting tags ordered by slug.

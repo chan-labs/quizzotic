@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/store"
+	"github.com/chan-labs/quizzotic/internal/tags"
 )
 
 func runProblems(t *testing.T, newStore NewStore) {
@@ -256,6 +258,135 @@ func runProblems(t *testing.T, newStore NewStore) {
 		if len(next) != 1 || next[0].ID != l2.ID {
 			t.Fatalf("next = %+v", next)
 		}
+	})
+
+	t.Run("list current filters by type, creator kind and prompt substring", func(t *testing.T) {
+		s, a, b := setup(t)
+		// mkWith creates a live problem whose first version has the given type and prompt.
+		mkWith := func(owner auth.User, typ, prompt string, kind domain.ActorKind) problems.Problem {
+			t.Helper()
+			p, v := mk(owner, problems.StatusLive)
+			p.CreatedBy.Kind, v.CreatedBy.Kind = kind, kind
+			v.Type, v.Prompt = typ, prompt
+			if err := s.Problems().Create(ctx, owner.ID, p, v); err != nil {
+				t.Fatal(err)
+			}
+			return p
+		}
+		p1 := mkWith(a, problems.TypeMCQ, "Capital of Japan? 100% sure", domain.ActorHuman)
+		p2 := mkWith(a, problems.TypeCloze, "The {{w}} of japan_city", domain.ActorAgent)
+		p3 := mkWith(a, problems.TypeOpen, `Back\slash`, domain.ActorAgent)
+		mkWith(b, problems.TypeMCQ, "Capital of Japan? (other owner)", domain.ActorAgent)
+
+		// A later version changes the current type and prompt; filters follow it.
+		pv := extra(a, "Capital of France?", problems.ChangeMinor, t0.Add(time.Hour))
+		pv.Type = problems.TypeOpen
+		if _, err := s.Problems().AppendVersion(ctx, a.ID, p1.ID, pv); err != nil {
+			t.Fatal(err)
+		}
+
+		cases := []struct {
+			name string
+			f    problems.ListFilter
+			want []problems.Problem
+		}{
+			{"type follows current version", problems.ListFilter{Type: problems.TypeOpen}, []problems.Problem{p1, p3}},
+			{"type mcq: old version no longer matches", problems.ListFilter{Type: problems.TypeMCQ}, nil},
+			{"creator kind", problems.ListFilter{CreatedByKind: domain.ActorAgent}, []problems.Problem{p2, p3}},
+			{"query is case-insensitive", problems.ListFilter{Query: "JAPAN"}, []problems.Problem{p2}},
+			{"query matches the current prompt only", problems.ListFilter{Query: "france"}, []problems.Problem{p1}},
+			{"query percent is literal", problems.ListFilter{Query: "100%"}, nil},
+			{"query underscore is literal", problems.ListFilter{Query: "japan_c"}, []problems.Problem{p2}},
+			{"query underscore does not match any char", problems.ListFilter{Query: "japan-c"}, nil},
+			{"query backslash is literal", problems.ListFilter{Query: `k\s`}, []problems.Problem{p3}},
+			{"filters combine", problems.ListFilter{Type: problems.TypeOpen, CreatedByKind: domain.ActorAgent}, []problems.Problem{p3}},
+			{"filters page", problems.ListFilter{Type: problems.TypeOpen, After: p1.ID}, []problems.Problem{p3}},
+		}
+		for _, c := range cases {
+			cur, err := s.Problems().ListCurrent(ctx, a.ID, c.f)
+			if err != nil {
+				t.Fatalf("%s: %v", c.name, err)
+			}
+			var got []domain.ID
+			for _, x := range cur {
+				got = append(got, x.Problem.ID)
+				if x.Version.Version != x.Problem.CurrentVersion || x.Version.ProblemID != x.Problem.ID {
+					t.Errorf("%s: version %d of %s paired with problem at v%d", c.name, x.Version.Version, x.Version.ProblemID, x.Problem.CurrentVersion)
+				}
+			}
+			var want []domain.ID
+			for _, p := range c.want {
+				want = append(want, p.ID)
+			}
+			if len(got) != len(want) || (len(got) > 0 && !slices.Equal(got, want)) {
+				t.Errorf("%s: got %v, want %v", c.name, got, want)
+			}
+			plain, err := s.Problems().List(ctx, a.ID, c.f)
+			if err != nil || len(plain) != len(got) {
+				t.Errorf("%s: List = %d rows (err %v), ListCurrent = %d", c.name, len(plain), err, len(got))
+			}
+		}
+	})
+
+	t.Run("list current filters by tag", func(t *testing.T) {
+		s, a, b := setup(t)
+		mkTag := func(owner auth.User, slug string) tags.Tag {
+			t.Helper()
+			tg := tags.Tag{ID: ids.New(), OwnerID: owner.ID, Slug: slug, Name: slug, Status: tags.StatusActive,
+				CreatedAt: t0, UpdatedAt: t0}
+			if err := s.Tags().Create(ctx, owner.ID, tg); err != nil {
+				t.Fatal(err)
+			}
+			return tg
+		}
+		tagA, tagA2, tagB := mkTag(a, "x"), mkTag(a, "y"), mkTag(b, "x")
+		p1 := create(t, s, a, problems.StatusLive)
+		p2 := create(t, s, a, problems.StatusLive)
+		p3 := create(t, s, a, problems.StatusLive)
+		pb := create(t, s, b, problems.StatusLive)
+		for _, c := range []struct {
+			owner auth.User
+			p     problems.Problem
+			tags  []domain.ID
+		}{{a, p1, []domain.ID{tagA.ID}}, {a, p2, []domain.ID{tagA.ID, tagA2.ID}}, {a, p3, []domain.ID{tagA2.ID}}, {b, pb, []domain.ID{tagB.ID}}} {
+			if err := s.Tags().SetProblemTags(ctx, c.owner.ID, c.p.ID, c.tags); err != nil {
+				t.Fatal(err)
+			}
+		}
+		list := func(owner auth.User, f problems.ListFilter) []domain.ID {
+			t.Helper()
+			cur, err := s.Problems().ListCurrent(ctx, owner.ID, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := []domain.ID{}
+			for _, c := range cur {
+				out = append(out, c.Problem.ID)
+			}
+			return out
+		}
+		eq := func(name string, got []domain.ID, want ...problems.Problem) {
+			t.Helper()
+			w := []domain.ID{}
+			for _, p := range want {
+				w = append(w, p.ID)
+			}
+			if !slices.Equal(got, w) {
+				t.Errorf("%s: got %v, want %v", name, got, w)
+			}
+		}
+		eq("tag x", list(a, problems.ListFilter{TagID: tagA.ID}), p1, p2)
+		eq("tag y", list(a, problems.ListFilter{TagID: tagA2.ID}), p2, p3)
+		eq("tag paged", list(a, problems.ListFilter{TagID: tagA2.ID, After: p2.ID}), p3)
+		eq("tag and status", list(a, problems.ListFilter{TagID: tagA.ID, Status: problems.StatusDraft}))
+		// A tag ID of another owner matches nothing, even for that owner's problem.
+		eq("foreign tag", list(a, problems.ListFilter{TagID: tagB.ID}))
+		eq("owner b", list(b, problems.ListFilter{TagID: tagB.ID}), pb)
+		// Soft-deleted problems stay hidden.
+		if err := s.Problems().SoftDelete(ctx, a.ID, p1.ID, t0); err != nil {
+			t.Fatal(err)
+		}
+		eq("deleted hidden", list(a, problems.ListFilter{TagID: tagA.ID}), p2)
 	})
 
 	t.Run("owner filtering", func(t *testing.T) {

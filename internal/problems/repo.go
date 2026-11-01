@@ -19,8 +19,25 @@ var ErrNotFound = errors.New("problems: not found")
 type ListFilter struct {
 	Status         Status // empty: any
 	IncludeDeleted bool
-	After          domain.ID // keyset cursor: only IDs greater than this
-	Limit          int       // <= 0: no limit
+	// Type, when set, keeps problems whose current version has this type.
+	Type string
+	// CreatedByKind, when set, keeps problems created by this kind of actor.
+	CreatedByKind domain.ActorKind
+	// TagID, when set, keeps problems carrying this tag. The caller has
+	// resolved it for the same owner.
+	TagID domain.ID
+	// Query, when set, keeps problems whose current version's prompt contains
+	// it as a case-insensitive substring. Matching is literal: wildcard
+	// characters in Query have no special meaning.
+	Query string
+	After domain.ID // keyset cursor: only IDs greater than this
+	Limit int       // <= 0: no limit
+}
+
+// Current is a problem with its current version.
+type Current struct {
+	Problem Problem
+	Version Version
 }
 
 // Repo persists problems and their immutable versions. Every method is scoped
@@ -43,6 +60,9 @@ type Repo interface {
 
 	// List returns the owner's problems ordered by ID.
 	List(ctx context.Context, ownerID domain.ID, f ListFilter) ([]Problem, error)
+
+	// ListCurrent is List with each problem's current version, in one query.
+	ListCurrent(ctx context.Context, ownerID domain.ID, f ListFilter) ([]Current, error)
 
 	// AppendVersion assigns v the next version number, stores it, and moves
 	// the problem's current_version to it (updated_at becomes v.CreatedAt). It returns the stored version, or

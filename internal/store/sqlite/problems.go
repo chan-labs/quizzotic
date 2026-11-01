@@ -40,62 +40,86 @@ func parseActorUser(s string) (domain.ID, error) {
 
 type scanner interface{ Scan(dest ...any) error }
 
-func scanProblem(r scanner) (problems.Problem, error) {
-	var (
-		p                 problems.Problem
-		id, owner, status string
-		kind, actorUID    string
-		created, updated  int64
-		deleted           sql.NullInt64
-	)
-	err := r.Scan(&id, &owner, &status, &p.CurrentVersion, &kind, &actorUID, &p.CreatedBy.ClientID,
-		&created, &updated, &deleted)
-	if err != nil {
+// problemRow holds the raw columns of a problems row (problemCols order).
+type problemRow struct {
+	p                 problems.Problem
+	id, owner, status string
+	kind, actorUID    string
+	created, updated  int64
+	deleted           sql.NullInt64
+}
+
+func (r *problemRow) dests() []any {
+	return []any{&r.id, &r.owner, &r.status, &r.p.CurrentVersion, &r.kind, &r.actorUID,
+		&r.p.CreatedBy.ClientID, &r.created, &r.updated, &r.deleted}
+}
+
+func (r *problemRow) finish() (problems.Problem, error) {
+	p := r.p
+	var err error
+	if p.ID, err = domain.ParseID(r.id); err != nil {
 		return problems.Problem{}, err
 	}
-	if p.ID, err = domain.ParseID(id); err != nil {
+	if p.OwnerID, err = domain.ParseID(r.owner); err != nil {
 		return problems.Problem{}, err
 	}
-	if p.OwnerID, err = domain.ParseID(owner); err != nil {
+	if p.CreatedBy.UserID, err = parseActorUser(r.actorUID); err != nil {
 		return problems.Problem{}, err
 	}
-	if p.CreatedBy.UserID, err = parseActorUser(actorUID); err != nil {
-		return problems.Problem{}, err
-	}
-	p.Status = problems.Status(status)
-	p.CreatedBy.Kind = domain.ActorKind(kind)
-	p.CreatedAt, p.UpdatedAt = FromMillis(created), FromMillis(updated)
-	if deleted.Valid {
-		t := FromMillis(deleted.Int64)
+	p.Status = problems.Status(r.status)
+	p.CreatedBy.Kind = domain.ActorKind(r.kind)
+	p.CreatedAt, p.UpdatedAt = FromMillis(r.created), FromMillis(r.updated)
+	if r.deleted.Valid {
+		t := FromMillis(r.deleted.Int64)
 		p.DeletedAt = &t
 	}
 	return p, nil
 }
 
-func scanVersion(r scanner) (problems.Version, error) {
-	var (
-		v                   problems.Version
-		pid, kind, change   string
-		actorKind, actorUID string
-		payload             string
-		created             int64
-	)
-	err := r.Scan(&pid, &v.Version, &kind, &v.Prompt, &payload, &v.Explanation, &v.Source, &change,
-		&actorKind, &actorUID, &v.CreatedBy.ClientID, &created)
-	if err != nil {
+func scanProblem(r scanner) (problems.Problem, error) {
+	var row problemRow
+	if err := r.Scan(row.dests()...); err != nil {
+		return problems.Problem{}, err
+	}
+	return row.finish()
+}
+
+// versionRow holds the raw columns of a problem_versions row (versionCols order).
+type versionRow struct {
+	v                   problems.Version
+	pid, kind, change   string
+	actorKind, actorUID string
+	payload             string
+	created             int64
+}
+
+func (r *versionRow) dests() []any {
+	return []any{&r.pid, &r.v.Version, &r.kind, &r.v.Prompt, &r.payload, &r.v.Explanation, &r.v.Source,
+		&r.change, &r.actorKind, &r.actorUID, &r.v.CreatedBy.ClientID, &r.created}
+}
+
+func (r *versionRow) finish() (problems.Version, error) {
+	v := r.v
+	var err error
+	if v.ProblemID, err = domain.ParseID(r.pid); err != nil {
 		return problems.Version{}, err
 	}
-	if v.ProblemID, err = domain.ParseID(pid); err != nil {
+	if v.CreatedBy.UserID, err = parseActorUser(r.actorUID); err != nil {
 		return problems.Version{}, err
 	}
-	if v.CreatedBy.UserID, err = parseActorUser(actorUID); err != nil {
-		return problems.Version{}, err
-	}
-	v.Type, v.Payload = kind, []byte(payload)
-	v.ChangeKind = problems.ChangeKind(change)
-	v.CreatedBy.Kind = domain.ActorKind(actorKind)
-	v.CreatedAt = FromMillis(created)
+	v.Type, v.Payload = r.kind, []byte(r.payload)
+	v.ChangeKind = problems.ChangeKind(r.change)
+	v.CreatedBy.Kind = domain.ActorKind(r.actorKind)
+	v.CreatedAt = FromMillis(r.created)
 	return v, nil
+}
+
+func scanVersion(r scanner) (problems.Version, error) {
+	var row versionRow
+	if err := r.Scan(row.dests()...); err != nil {
+		return problems.Version{}, err
+	}
+	return row.finish()
 }
 
 func insertVersion(ctx context.Context, q execer, v problems.Version) error {
@@ -179,20 +203,54 @@ func (r problemRepo) ListVersions(ctx context.Context, ownerID, id domain.ID) ([
 }
 
 func (r problemRepo) List(ctx context.Context, ownerID domain.ID, f problems.ListFilter) ([]problems.Problem, error) {
-	q := `SELECT ` + problemCols + ` FROM problems WHERE owner_id = ?`
+	cur, err := r.ListCurrent(ctx, ownerID, f)
+	if err != nil {
+		return nil, err
+	}
+	var out []problems.Problem
+	for _, c := range cur {
+		out = append(out, c.Problem)
+	}
+	return out, nil
+}
+
+// likeEscaper makes a string literal inside a LIKE pattern (ESCAPE '\').
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+func (r problemRepo) ListCurrent(ctx context.Context, ownerID domain.ID, f problems.ListFilter) ([]problems.Current, error) {
+	// LIKE is case-insensitive for ASCII in SQLite, which is the contract.
+	q := `SELECT ` + prefixed("p.", problemCols) + `, ` + prefixed("v.", versionCols) + `
+		FROM problems p JOIN problem_versions v ON v.problem_id = p.id AND v.version = p.current_version
+		WHERE p.owner_id = ?`
 	args := []any{ownerID.String()}
 	if !f.IncludeDeleted {
-		q += ` AND deleted_at IS NULL`
+		q += ` AND p.deleted_at IS NULL`
 	}
 	if f.Status != "" {
-		q += ` AND status = ?`
+		q += ` AND p.status = ?`
 		args = append(args, string(f.Status))
 	}
+	if f.Type != "" {
+		q += ` AND v.type = ?`
+		args = append(args, f.Type)
+	}
+	if f.CreatedByKind != "" {
+		q += ` AND p.created_by_kind = ?`
+		args = append(args, string(f.CreatedByKind))
+	}
+	if !f.TagID.IsNil() {
+		q += ` AND EXISTS (SELECT 1 FROM problem_tags pt WHERE pt.problem_id = p.id AND pt.tag_id = ?)`
+		args = append(args, f.TagID.String())
+	}
+	if f.Query != "" {
+		q += ` AND v.prompt LIKE ? ESCAPE '\'`
+		args = append(args, "%"+likeEscaper.Replace(f.Query)+"%")
+	}
 	if !f.After.IsNil() {
-		q += ` AND id > ?`
+		q += ` AND p.id > ?`
 		args = append(args, f.After.String())
 	}
-	q += ` ORDER BY id`
+	q += ` ORDER BY p.id`
 	if f.Limit > 0 {
 		q += ` LIMIT ?`
 		args = append(args, f.Limit)
@@ -202,13 +260,22 @@ func (r problemRepo) List(ctx context.Context, ownerID domain.ID, f problems.Lis
 		return nil, err
 	}
 	defer rows.Close()
-	var out []problems.Problem
+	var out []problems.Current
 	for rows.Next() {
-		p, err := scanProblem(rows)
+		var pr problemRow
+		var vr versionRow
+		if err := rows.Scan(append(pr.dests(), vr.dests()...)...); err != nil {
+			return nil, err
+		}
+		p, err := pr.finish()
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, p)
+		v, err := vr.finish()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, problems.Current{Problem: p, Version: v})
 	}
 	return out, rows.Err()
 }

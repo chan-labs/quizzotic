@@ -19,11 +19,16 @@ import (
 	"github.com/chan-labs/quizzotic/internal/me"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
+	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/store"
 	"github.com/chan-labs/quizzotic/internal/store/driver"
 	"github.com/chan-labs/quizzotic/internal/tags"
 	"github.com/chan-labs/quizzotic/internal/web"
 )
+
+// IdempotencySweepInterval is how often expired Idempotency-Key records are
+// deleted. Records are ignored once expired, so this only bounds table size.
+const IdempotencySweepInterval = time.Hour
 
 // ShutdownTimeout bounds how long in-flight requests get to finish.
 const ShutdownTimeout = 15 * time.Second
@@ -68,6 +73,18 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 		}
 		logger.Info("migrations checked", slog.Int("applied", len(applied)))
 	}
+
+	// Expired idempotency records are ignored on read; the sweep reclaims them.
+	sweepCtx, stopSweep := context.WithCancel(ctx)
+	sweepDone := make(chan struct{})
+	go func() {
+		defer close(sweepDone)
+		platform.SweepIdempotency(sweepCtx, st.Idempotency(), domain.SystemClock{}, IdempotencySweepInterval, logger)
+	}()
+	defer func() {
+		stopSweep()
+		<-sweepDone // finish before the deferred st.Close
+	}()
 
 	var provOpts []auth.Option
 	if opts.HTTPClient != nil {
@@ -212,10 +229,10 @@ func WithAPIAuth(a auth.Authenticator) HandlerOption {
 // operation of the pattern the router matched. It panics if the embedded spec
 // cannot be parsed (a build-time invariant covered by tests).
 func NewAPIRouter(a auth.Authenticator) (*platform.Router, *auth.ScopeGuard) {
-	return newAPIRouter(a, me.NewHandler(nil, nil), tags.NewHandler(nil, nil), nil, nil)
+	return newAPIRouter(a, me.NewHandler(nil, nil), tags.NewHandler(nil, nil), problems.NewHandler(nil, nil), nil, nil)
 }
 
-func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
+func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, problemsH *problems.Handler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
 	ops, err := openapi.SpecOperations()
 	if err != nil {
 		panic("server: embedded OpenAPI spec: " + err.Error())
@@ -226,6 +243,7 @@ func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, ext
 	openapi.Register(rt)
 	meH.Register(rt)
 	tagH.Register(rt)
+	problemsH.Register(rt)
 	if extraRegister != nil {
 		extraRegister(rt)
 	}
@@ -254,7 +272,8 @@ func webClient(is config.Issuer) (config.Client, bool) {
 }
 
 // Handler builds Tracing(RequestID(Metrics(TraceRoute(mux)))) with the health probes
-// at the root and the API router under /api/v1. Each feature registers its
+// at the root and the API router under /api/v1, whose authenticated requests
+// pass through the Idempotency-Key middleware. Each feature registers its
 // routes on the router here as it lands.
 func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...HandlerOption) http.Handler {
 	var ho handlerOptions
@@ -268,8 +287,20 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		return st.WithTx(ctx, func(store.Store) error { return nil })
 	})
 
+	clock := domain.SystemClock{}
 	meH := me.NewHandler(ho.me, logger)
-	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
+	var popts []problems.Option
+	if ho.tags != nil {
+		popts = append(popts, problems.WithTagResolver(ho.tags))
+	}
+	problemsH := problems.NewHandler(
+		problems.NewService(st.Problems(), store.ProblemsTx(st), clock, domain.NewIDGenerator(clock), popts...), logger)
+	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
+	// After the scope guard has authenticated the request: replays are per user.
+	rt.UseAfterAuth(platform.Idempotency(st.Idempotency(), clock, func(ctx context.Context) (domain.ID, bool) {
+		p, ok := auth.PrincipalFrom(ctx)
+		return p.UserID, ok
+	}))
 
 	mux := http.NewServeMux()
 	health.Register(mux)

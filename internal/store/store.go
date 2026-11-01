@@ -65,6 +65,15 @@ func (a authTx) InTx(ctx context.Context, fn func(auth.Repos) error) error {
 	})
 }
 
+// ProblemsTx adapts a Store to problems.Transactor.
+func ProblemsTx(s Store) problems.Transactor { return problemsTx{s} }
+
+type problemsTx struct{ s Store }
+
+func (a problemsTx) InTx(ctx context.Context, fn func(problems.Repo) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Problems()) })
+}
+
 // SettingsTx adapts a Store to settings.Transactor.
 func SettingsTx(s Store) settings.Transactor { return settingsTx{s} }
 
