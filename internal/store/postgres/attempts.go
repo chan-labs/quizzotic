@@ -59,6 +59,37 @@ func (r attemptRepo) Create(ctx context.Context, ownerID domain.ID, a attempts.A
 	return nil
 }
 
+// SetRating fills a missing rating. The WHERE clause only matches an unrated
+// attempt; the table trigger enforces the same rule underneath.
+func (r attemptRepo) SetRating(ctx context.Context, ownerID, id domain.ID, rating int, score *float64) error {
+	var sc any
+	if score != nil {
+		sc = *score
+	}
+	res, err := r.q.ExecContext(ctx, `UPDATE attempts SET rating = ?::integer, score = COALESCE(score, ?::double precision)
+		WHERE user_id = ? AND id = ? AND rating IS NULL`, rating, sc, ownerID.String(), id.String())
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	var one int
+	err = r.q.QueryRowContext(ctx, `SELECT 1 FROM attempts WHERE user_id = ? AND id = ?`,
+		ownerID.String(), id.String()).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return attempts.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return attempts.ErrAlreadyRated
+}
+
 func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.Attempt, error) {
 	var (
 		a                          attempts.Attempt
