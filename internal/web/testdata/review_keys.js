@@ -25,7 +25,11 @@ function load({ keys = [], blank = false, withForm = true } = {}) {
     addEventListener: (n, f) => { if (n === "submit") submitHandlers.push(f); },
     elements: { namedItem: (n) => (n === "latency_ms" ? field : null) },
     requestSubmit() { env.submits++; submitHandlers.forEach((f) => f()); },
+    // The submit button: clicking it submits, as in a browser.
+    querySelector(sel) { return sel === '[type="submit"]' ? env.submitBtn : null; },
   };
+  env.submitBtn = el("BUTTON", { type: "submit" });
+  env.submitBtn.click = () => { env.submits++; submitHandlers.forEach((f) => f()); };
   env.form = form;
   const byKey = {};
   keys.forEach((k) => { byKey[k] = el("BUTTON", { "data-key": k }); });
@@ -44,6 +48,7 @@ function load({ keys = [], blank = false, withForm = true } = {}) {
   vm.runInNewContext(src, { document, window, performance: { now: () => env.now } });
   env.press = (key, o = {}) => {
     const e = { key, target: o.target || el("BODY"), repeat: !!o.repeat, shiftKey: !!o.shift,
+      isComposing: !!o.composing, keyCode: o.keyCode || 0,
       ctrlKey: !!o.ctrl, metaKey: false, altKey: false, defaultPrevented: false,
       preventDefault() { this.defaultPrevented = true; } };
     handlers.keydown(e);
@@ -94,6 +99,28 @@ const tests = {
     plain.form = e.form;
     assert.ok(!e.press("Enter", { target: plain }).defaultPrevented);
     assert.strictEqual(e.submits, 1);
+  },
+  "Enter that confirms an IME composition does not submit"() {
+    const e = load();
+    const ta = el("TEXTAREA", { "data-submit-enter": "" });
+    ta.form = e.form;
+    assert.ok(!e.press("Enter", { target: ta, composing: true }).defaultPrevented);
+    assert.ok(!e.press("Enter", { target: ta, keyCode: 229 }).defaultPrevented);
+    assert.strictEqual(e.submits, 0);
+    assert.ok(e.press("Enter", { target: ta }).defaultPrevented); // not composing: submits
+    assert.strictEqual(e.submits, 1);
+  },
+  "Enter in the open box falls back to the submit button without requestSubmit"() {
+    const e = load();
+    delete e.form.requestSubmit;
+    const ta = el("TEXTAREA", { "data-submit-enter": "" });
+    ta.form = e.form;
+    const ev = e.press("Enter", { target: ta });
+    assert.ok(ev.defaultPrevented);
+    assert.strictEqual(e.submits, 1);
+    e.now = 4000;
+    e.press("Enter", { target: ta });
+    assert.strictEqual(e.field.value, "3000"); // submit event ran: latency stamped
   },
   "digits pick a checkbox, but Space on it is its native toggle"() {
     const e = load({ keys: ["1", "Space"] });

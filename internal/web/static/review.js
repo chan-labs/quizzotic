@@ -34,9 +34,17 @@
 
     if (tag === "TEXTAREA") {
       // Enter submits the answer; Shift+Enter adds a line. Other keys type.
-      if (key === "Enter" && !e.shiftKey && t.hasAttribute("data-submit-enter") && t.form) {
+      // Enter that confirms an IME composition (CJK) is not a submit.
+      var composing = e.isComposing || e.keyCode === 229;
+      if (key === "Enter" && !e.shiftKey && !composing && t.hasAttribute("data-submit-enter") && t.form) {
         e.preventDefault();
-        t.form.requestSubmit(); // fires "submit", so latency is stamped
+        if (t.form.requestSubmit) {
+          t.form.requestSubmit(); // fires "submit", so latency is stamped
+        } else {
+          // Older Safari: click the submit button, which fires "submit" too.
+          var btn = t.form.querySelector('[type="submit"]');
+          if (btn) btn.click();
+        }
       }
       return;
     } else if (tag === "INPUT" && !checkable) {
