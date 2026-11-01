@@ -15,6 +15,7 @@ import (
 
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/config"
+	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/store"
@@ -70,10 +71,28 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 	if opts.HTTPClient != nil {
 		provOpts = append(provOpts, auth.WithHTTPClient(opts.HTTPClient))
 	}
-	idp := auth.NewProvider(cfg.Auth.Issuers[0].Issuer, provOpts...)
+	issuer := cfg.Auth.Issuers[0]
+	idp := auth.NewProvider(issuer.Issuer, provOpts...)
+
+	var hopts []HandlerOption
+	if wc, ok := webClient(issuer); ok {
+		clock := domain.SystemClock{}
+		ids := domain.NewIDGenerator(clock)
+		svc := auth.NewLoginService(auth.LoginConfig{
+			ClientID:     wc.ID,
+			ClientSecret: wc.Secret,
+			Scopes:       issuer.Scopes,
+			PublicURL:    cfg.Server.PublicURL,
+			SessionTTL:   cfg.Server.SessionTTL.Std(),
+		}, st, idp, auth.NewVerifier(issuer.Issuer, idp), auth.NewService(store.AuthTx(st), clock, ids),
+			clock, ids, opts.HTTPClient)
+		hopts = append(hopts, WithWebLogin(auth.NewLoginHandler(svc, logger)))
+	} else {
+		logger.Warn("web login disabled: no human client with a secret under auth.issuers[0].clients")
+	}
 
 	srv := &http.Server{
-		Handler:           Handler(logger, st, idp),
+		Handler:           Handler(logger, st, idp, hopts...),
 		ReadHeaderTimeout: 10 * time.Second,
 		// In-flight requests must outlive the signal that starts shutdown.
 		BaseContext: func(net.Listener) context.Context { return context.WithoutCancel(ctx) },
@@ -110,10 +129,35 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 	return nil
 }
 
+// HandlerOption adds optional features to Handler.
+type HandlerOption func(*handlerOptions)
+
+type handlerOptions struct{ web *auth.LoginHandler }
+
+// WithWebLogin mounts /auth/login, /auth/callback and /auth/logout.
+func WithWebLogin(h *auth.LoginHandler) HandlerOption {
+	return func(o *handlerOptions) { o.web = h }
+}
+
+// webClient picks the confidential human client used for browser login: the
+// first human client that has a secret.
+func webClient(is config.Issuer) (config.Client, bool) {
+	for _, c := range is.Clients {
+		if c.Kind == "human" && c.Secret != "" {
+			return c, true
+		}
+	}
+	return config.Client{}, false
+}
+
 // Handler builds Tracing(RequestID(TraceRoute(mux))) with the health probes
 // at the root and the API router under /api/v1. Each feature registers its
 // routes on the router here as it lands.
-func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider) http.Handler {
+func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...HandlerOption) http.Handler {
+	var ho handlerOptions
+	for _, o := range opts {
+		o(&ho)
+	}
 	health := platform.NewHealth(logger)
 	health.AddCheck("jwks", idp.Ready)
 	health.AddCheck("store", func(ctx context.Context) error {
@@ -127,6 +171,9 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider) http.Handl
 	mux := http.NewServeMux()
 	health.Register(mux)
 	rt.Mount(mux)
+	if ho.web != nil {
+		ho.web.Register(mux)
+	}
 
 	return platform.Tracing(nil)(platform.RequestID(logger)(platform.TraceRoute(mux)))
 }

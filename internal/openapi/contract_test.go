@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
 )
@@ -97,8 +98,9 @@ func TestRoutesMatchSpec(t *testing.T) {
 
 	diff(t, "registered route without spec operation", routes, apiOps)
 	diff(t, "spec operation without registered route", apiOps, routes)
-	diff(t, "root route without spec operation", platform.RootRoutes, rootOps)
-	diff(t, "spec root operation without route", rootOps, platform.RootRoutes)
+	rootRoutes := append(append([]string(nil), platform.RootRoutes...), auth.WebRoutes...)
+	diff(t, "root route without spec operation", rootRoutes, rootOps)
+	diff(t, "spec root operation without route", rootOps, rootRoutes)
 }
 
 func TestServesSpec(t *testing.T) {

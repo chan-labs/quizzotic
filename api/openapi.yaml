@@ -45,6 +45,8 @@ servers:
 tags:
   - name: meta
     description: Service metadata and probes.
+  - name: auth
+    description: Browser login and web sessions (host root, not under /api/v1).
 paths:
   /openapi.yaml:
     get:
@@ -107,8 +109,119 @@ paths:
                 $ref: "#/components/schemas/Readiness"
         default:
           $ref: "#/components/responses/Problem"
+  /auth/login:
+    servers:
+      - url: /
+    get:
+      operationId: auth.login
+      tags: [auth]
+      summary: Start a web login
+      description: |
+        Starts the OIDC Authorization Code + PKCE flow. Generates and stores
+        state, nonce and the PKCE verifier server-side, then redirects the
+        browser to the issuer's authorization endpoint.
+      security: []
+      x-quizzotic-scopes: []
+      parameters:
+        - name: return_to
+          in: query
+          description: |
+            Local path to return to after login. Must start with a single `/`;
+            anything else is ignored and `/` is used.
+          schema:
+            type: string
+      responses:
+        "303":
+          description: Redirect to the issuer's authorization endpoint.
+          headers:
+            Location:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Problem"
+  /auth/callback:
+    servers:
+      - url: /
+    get:
+      operationId: auth.callback
+      tags: [auth]
+      summary: Complete a web login
+      description: |
+        The redirect URI registered with the issuer. Consumes the one-time
+        state, exchanges the code, verifies the ID token (signature, `iss`,
+        `aud`, `exp`, `nonce`), provisions the user on first login, creates a
+        server-side session and sets the session cookie (HttpOnly, Secure,
+        SameSite=Lax, 30-day sliding expiry).
+      security: []
+      x-quizzotic-scopes: []
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: error
+          in: query
+          description: Error code from the issuer; the login is rejected.
+          schema:
+            type: string
+      responses:
+        "303":
+          description: Login succeeded; redirect to the original local path.
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              description: The `quizzotic_session` cookie.
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Problem"
+  /auth/logout:
+    servers:
+      - url: /
+    post:
+      operationId: auth.logout
+      tags: [auth]
+      summary: End the web session
+      description: |
+        Deletes the server-side session and clears the cookie. Requires the
+        session's CSRF token, as form field `csrf_token` or header
+        `X-CSRF-Token`. With no valid session it only clears the cookie.
+      security:
+        - sessionCookie: []
+      x-quizzotic-scopes: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                csrf_token:
+                  type: string
+      responses:
+        "303":
+          description: Logged out; redirect to `/`.
+          headers:
+            Location:
+              schema:
+                type: string
+        "403":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: quizzotic_session
+      description: Opaque server-side web session token set by the login flow.
     bearer:
       type: http
       scheme: bearer
