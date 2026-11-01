@@ -81,6 +81,18 @@ func (a problemsTx) InTx(ctx context.Context, fn func(problems.Repo) error) erro
 	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Problems()) })
 }
 
+// ProblemsBatchTx adapts a Store to problems.BatchTransactor: problems and
+// their tags are written in one store transaction.
+func ProblemsBatchTx(s Store) problems.BatchTransactor { return problemsBatchTx{s} }
+
+type problemsBatchTx struct{ s Store }
+
+func (a problemsBatchTx) InBatchTx(ctx context.Context, fn func(problems.BatchScope) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error {
+		return fn(problems.BatchScope{Problems: tx.Problems(), Tags: tags.NewBinder(tx.Tags())})
+	})
+}
+
 // SettingsTx adapts a Store to settings.Transactor.
 func SettingsTx(s Store) settings.Transactor { return settingsTx{s} }
 

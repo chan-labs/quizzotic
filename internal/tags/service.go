@@ -255,34 +255,9 @@ func (s *Service) SetProblemTags(ctx context.Context, ownerID, problemID domain.
 		if _, err := r.Problems.Get(ctx, ownerID, problemID); err != nil {
 			return err
 		}
-		var (
-			ids  []domain.ID
-			seen = map[domain.ID]bool{}
-			fe   []platform.FieldError
-		)
-		for i, ref := range refs {
-			field := fmt.Sprintf("tags[%d]", i)
-			t, err := Resolve(ctx, r.Tags, ownerID, ref)
-			if errors.Is(err, ErrNotFound) {
-				fe = append(fe, platform.FieldError{Field: field, Detail: "no such tag"})
-				continue
-			}
-			if err != nil {
-				return err
-			}
-			if t.Status == StatusMerged {
-				if t, err = r.Tags.Get(ctx, ownerID, t.MergedInto); err != nil {
-					return err
-				}
-			}
-			if t.Status != StatusActive {
-				fe = append(fe, platform.FieldError{Field: field, Detail: "tag is " + string(t.Status)})
-				continue
-			}
-			if !seen[t.ID] {
-				seen[t.ID] = true
-				ids = append(ids, t.ID)
-			}
+		ids, fe, err := resolveRefs(ctx, r.Tags, ownerID, refs)
+		if err != nil {
+			return err
 		}
 		if len(fe) > 0 {
 			return platform.Validation("invalid tags", fe...)
@@ -290,7 +265,6 @@ func (s *Service) SetProblemTags(ctx context.Context, ownerID, problemID domain.
 		if err := r.Tags.SetProblemTags(ctx, ownerID, problemID, ids); err != nil {
 			return err
 		}
-		var err error
 		out, err = r.Tags.ProblemTags(ctx, ownerID, problemID)
 		return err
 	})

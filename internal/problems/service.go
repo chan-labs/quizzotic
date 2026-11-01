@@ -129,6 +129,7 @@ type Service struct {
 	ids     *domain.IDGenerator
 	shuffle func(n int, swap func(i, j int))
 	tags    TagResolver
+	batch   BatchTransactor
 	onMajor MajorEditHandler
 }
 
@@ -157,28 +158,51 @@ func NewService(repo Repo, tx Transactor, clock domain.Clock, ids *domain.IDGene
 // by actor's user. Validation failures are a *platform.Problem listing every
 // invalid field.
 func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput) (View, error) {
+	if err := checkCreateActor(actor); err != nil {
+		return View{}, err
+	}
+	if fields := validateCreate(in); len(fields) > 0 {
+		return View{}, platform.Validation("the problem is invalid", fields...)
+	}
+	p, v, err := s.newProblem(actor, in)
+	if err != nil {
+		return View{}, err
+	}
+	err = s.tx.InTx(ctx, func(r Repo) error { return r.Create(ctx, actor.UserID, p, v) })
+	if err != nil {
+		return View{}, err
+	}
+	return newView(p, v), nil
+}
+
+func checkCreateActor(actor domain.Actor) error {
 	if err := actor.Validate(); err != nil || actor.Kind == domain.ActorSystem {
-		return View{}, errors.New("problems: create needs a human or agent actor")
+		return errors.New("problems: create needs a human or agent actor")
 	}
-	status := in.Status
-	if status == "" {
-		status = StatusDraft
-	}
+	return nil
+}
+
+// validateCreate lists every invalid field of in, rooted at the problem body.
+func validateCreate(in CreateInput) []platform.FieldError {
 	var fields []platform.FieldError
-	if status != StatusDraft && status != StatusLive {
+	if st := in.Status; st != "" && st != StatusDraft && st != StatusLive {
 		fields = append(fields, platform.FieldError{Field: "status", Detail: "must be draft or live"})
 	}
 	if strings.TrimSpace(in.Prompt) == "" {
 		fields = append(fields, platform.FieldError{Field: "prompt", Detail: "required"})
 	}
-	fields = append(fields, ValidatePayload(in.Type, in.Prompt, in.Payload)...)
-	if len(fields) > 0 {
-		return View{}, platform.Validation("the problem is invalid", fields...)
-	}
+	return append(fields, ValidatePayload(in.Type, in.Prompt, in.Payload)...)
+}
 
+// newProblem builds the rows of a validated create.
+func (s *Service) newProblem(actor domain.Actor, in CreateInput) (Problem, Version, error) {
+	status := in.Status
+	if status == "" {
+		status = StatusDraft
+	}
 	var payload bytes.Buffer
 	if err := json.Compact(&payload, in.Payload); err != nil {
-		return View{}, platform.BadRequest("payload is not valid JSON")
+		return Problem{}, Version{}, platform.BadRequest("payload is not valid JSON")
 	}
 	now := s.clock.Now()
 	id := s.ids.New()
@@ -186,11 +210,7 @@ func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput
 		CreatedBy: actor, CreatedAt: now, UpdatedAt: now}
 	v := Version{ProblemID: id, Version: 1, Type: in.Type, Prompt: in.Prompt, Payload: payload.Bytes(),
 		Explanation: in.Explanation, Source: in.Source, ChangeKind: ChangeMajor, CreatedBy: actor, CreatedAt: now}
-	err := s.tx.InTx(ctx, func(r Repo) error { return r.Create(ctx, actor.UserID, p, v) })
-	if err != nil {
-		return View{}, err
-	}
-	return newView(p, v), nil
+	return p, v, nil
 }
 
 // Get returns the owner's problem in the full view.
