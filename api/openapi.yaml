@@ -73,6 +73,10 @@ tags:
     description: Quizzes and their ordered items.
   - name: attempts
     description: Answers to problems and their grades.
+  - name: sessions
+    description: Review and quiz sessions, the frozen lists a client works through.
+  - name: cards
+    description: Per-user scheduling state of each problem.
 paths:
   /me:
     get:
@@ -580,8 +584,7 @@ paths:
         Records one attempt. In a single transaction the server grades the
         response, stores the attempt and updates the card, then returns the
         grade, the full answer, the explanation and the card's next due date
-        (null until scheduling lands, and for an `open` attempt that has no
-        rating yet).
+        (`next_due`; null for an `open` attempt that has no rating yet).
 
         `problem_version` must be the problem's current version (409
         otherwise, so the client refetches); the problem must be `live`.
@@ -788,6 +791,260 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "422":
           $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /sessions:
+    post:
+      operationId: sessions.create
+      tags: [sessions]
+      summary: Start a review or quiz session
+      description: |
+        Builds and freezes the ordered list of problems to work through, and
+        returns it. Humans only: `sessions:write` is never granted to agents.
+
+        `kind: review` collects the caller's due cards (lowest current recall
+        first, within the daily review budget) and a weighted sample of new
+        problems (within the daily new-card budget), interleaving one new card
+        after every `new_interval` reviews. The same session ID over the same
+        data always builds the same list. The daily budgets are measured
+        against the attempt log of the caller's study day, so quiz answers
+        count toward them like any other answer.
+
+        `kind: quiz` serves the live problems of the quiz named by `quiz_id`
+        in authored order, or shuffled when `shuffle` is true. The quiz must be
+        `live`; a draft or archived quiz is refused with 422, and so is
+        `shuffle` on a review session. Daily limits do not apply to a quiz.
+        Answers update cards like any other attempt.
+
+        A session with nothing to serve is valid: it is created with no items,
+        and `next` reports that nothing remains. Answers join the session by
+        sending its `id` as `session_id` to `POST /attempts`.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [sessions:write]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "201":
+          description: The new session and its frozen list.
+          headers:
+            Location:
+              description: URL of the new session.
+              schema:
+                type: string
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /sessions/{id}:
+    get:
+      operationId: sessions.get
+      tags: [sessions]
+      summary: Get a session
+      description: |
+        Returns the session with its frozen list, marking which items have been
+        answered. An item is answered when the caller has sent an attempt with
+        this session's ID for its problem. Humans only.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [sessions:write]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: The session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /sessions/{id}/next:
+    get:
+      operationId: sessions.next
+      tags: [sessions]
+      summary: Get the next problem of a session
+      description: |
+        Returns the first unanswered item of the session as a prompt (no
+        correct answers, reference answer or explanation), and how many
+        unanswered items remain, this one included. Items whose problem is no
+        longer live are skipped.
+
+        For a review session, learning-step cards that have come due since the
+        session started are first appended to its list, so a card answered
+        Again is offered again once its step has elapsed. `item` is null when
+        nothing is left to serve right now; a learning card that is not yet due
+        may still be appended by a later call. Returns 409 once the session is
+        completed. Humans only.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [sessions:write]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: The next item, or none.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionNext"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: The session is already completed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /sessions/{id}/complete:
+    post:
+      operationId: sessions.complete
+      tags: [sessions]
+      summary: Complete a session
+      description: |
+        Marks the session completed. Unanswered items are left unanswered; no
+        card changes. Completing a completed session returns it unchanged.
+        Humans only.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [sessions:write]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The completed session.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /cards:
+    get:
+      operationId: cards.list
+      tags: [cards]
+      summary: List cards
+      description: |
+        Lists the caller's cards ordered by problem ID, with cursor pagination.
+        A card exists once its problem has a scheduled attempt; a problem never
+        answered has none. `due_before` keeps cards due strictly before that
+        RFC 3339 time. `tag` accepts a tag ID, slug or alias and keeps cards of
+        problems that carry it; an unknown tag is answered 422. Agents with
+        `attempts:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [problem_id, state, due, reps, lapses]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: due_before
+          in: query
+          description: Only cards due before this RFC 3339 time.
+          schema:
+            type: string
+            format: date-time
+        - name: tag
+          in: query
+          description: Only cards of problems carrying this tag (ID, slug or alias).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: One page of cards.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /cards/{problem_id}:
+    get:
+      operationId: cards.get
+      tags: [cards]
+      summary: Get a card
+      description: |
+        Returns the caller's card for a problem. Answers 404 when the problem
+        does not exist or has no card yet (it has not been answered, or is not
+        live). Agents with `attempts:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:read]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/CardProblemId"
+      responses:
+        "200":
+          description: The card.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
   /openapi.yaml:
@@ -1762,6 +2019,20 @@ components:
       description: Attempt ID.
       schema:
         type: string
+    SessionId:
+      name: id
+      in: path
+      required: true
+      description: Session ID.
+      schema:
+        type: string
+    CardProblemId:
+      name: problem_id
+      in: path
+      required: true
+      description: The ID of the problem the card is for.
+      schema:
+        type: string
     TagOperationId:
       name: id
       in: path
@@ -2432,6 +2703,136 @@ components:
           type: [string, "null"]
           format: date-time
           description: The card's next due time; null while the attempt is unscheduled (an open attempt still waiting for its rating).
+    SessionKind:
+      type: string
+      enum: [review, quiz]
+    SessionItemKind:
+      type: string
+      description: >-
+        `review` is a card that was due, `new` a problem with no card yet,
+        `quiz` a problem served by a quiz session.
+      enum: [review, new, quiz]
+    CreateSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          $ref: "#/components/schemas/SessionKind"
+        quiz_id:
+          type: string
+          description: The quiz to serve. Required for `quiz`, not allowed for `review`.
+        shuffle:
+          type: boolean
+          default: false
+          description: >-
+            Quiz only: serve the quiz's problems in an order that is a pure
+            function of the session ID instead of the authored order. `true`
+            on a review session is refused with 422.
+    SessionItem:
+      type: object
+      required: [position, problem_id, card_epoch, kind, answered]
+      properties:
+        position:
+          type: integer
+          minimum: 0
+        problem_id:
+          type: string
+        card_epoch:
+          type: integer
+          description: The card epoch the item was frozen at.
+        kind:
+          $ref: "#/components/schemas/SessionItemKind"
+        answered:
+          type: boolean
+    Session:
+      type: object
+      required: [id, kind, quiz_id, items, answered, created_at, completed_at]
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: "#/components/schemas/SessionKind"
+        quiz_id:
+          type: [string, "null"]
+        items:
+          type: array
+          description: The frozen list in serving order. Only appends ever change it.
+          items:
+            $ref: "#/components/schemas/SessionItem"
+        answered:
+          type: integer
+          description: How many items have been answered.
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+    SessionNextItem:
+      type: object
+      required: [position, kind, problem]
+      properties:
+        position:
+          type: integer
+          minimum: 0
+        kind:
+          $ref: "#/components/schemas/SessionItemKind"
+        problem:
+          $ref: "#/components/schemas/ProblemPromptView"
+    SessionNext:
+      type: object
+      required: [session_id, remaining, item]
+      properties:
+        session_id:
+          type: string
+        remaining:
+          type: integer
+          minimum: 0
+          description: Unanswered items still servable, `item` included.
+        item:
+          oneOf:
+            - $ref: "#/components/schemas/SessionNextItem"
+            - type: "null"
+    CardState:
+      type: string
+      enum: [new, learning, review, relearning]
+    Card:
+      type: object
+      required: [problem_id, card_epoch, state, step, stability, difficulty, due, last_review, reps, lapses]
+      properties:
+        problem_id:
+          type: string
+        card_epoch:
+          type: integer
+        state:
+          $ref: "#/components/schemas/CardState"
+        step:
+          type: integer
+          description: Index into the learning steps while the card is in a learning state.
+        stability:
+          type: number
+        difficulty:
+          type: number
+        due:
+          type: string
+          format: date-time
+        last_review:
+          type: [string, "null"]
+          format: date-time
+        reps:
+          type: integer
+        lapses:
+          type: integer
+    CardPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Card"
     TagStatus:
       type: string
       enum: [active, merged, retired]

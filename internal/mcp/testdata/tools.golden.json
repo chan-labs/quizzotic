@@ -54,6 +54,51 @@
     "name": "attempts_list"
   },
   {
+    "description": "Get a card\n\nReturns the caller's card for a problem. Answers 404 when the problem\ndoes not exist or has no card yet (it has not been answered, or is not\nlive). Agents with `attempts:read` may read.",
+    "inputSchema": {
+      "properties": {
+        "problem_id": {
+          "description": "The ID of the problem the card is for.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "problem_id"
+      ],
+      "type": "object"
+    },
+    "name": "cards_get"
+  },
+  {
+    "description": "List cards\n\nLists the caller's cards ordered by problem ID, with cursor pagination.\nA card exists once its problem has a scheduled attempt; a problem never\nanswered has none. `due_before` keeps cards due strictly before that\nRFC 3339 time. `tag` accepts a tag ID, slug or alias and keeps cards of\nproblems that carry it; an unknown tag is answered 422. Agents with\n`attempts:read` may read.",
+    "inputSchema": {
+      "properties": {
+        "cursor": {
+          "description": "Opaque cursor from a previous page's `next_cursor`.",
+          "type": "string"
+        },
+        "due_before": {
+          "description": "Only cards due before this RFC 3339 time.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Page size.",
+          "maximum": 200,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tag": {
+          "description": "Only cards of problems carrying this tag (ID, slug or alias).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "cards_list"
+  },
+  {
     "description": "Create a problem\n\nCreates a problem and its first version. `status` is `draft` (the\ndefault) or `live`. The payload is validated against the type; every\nfailure is listed in `errors` of a 422 response.\n\nCheck for duplicates first (call problems.similar before creating), default to status draft so a human can review, and always tag the problem. List tags first (tags.list) and prefer existing tags; an alias resolves to its tag.",
     "inputSchema": {
       "properties": {
