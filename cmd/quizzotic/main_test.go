@@ -27,7 +27,7 @@ func TestDispatch(t *testing.T) {
 		{[]string{"bogus"}, 2},
 		{[]string{"serve"}, 1},
 		{[]string{"mcp"}, 1},
-		{[]string{"admin"}, 1},
+		{[]string{"admin"}, 2},
 		{[]string{"help"}, 0},
 	}
 	for _, c := range cases {
