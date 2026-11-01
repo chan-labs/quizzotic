@@ -133,7 +133,7 @@ func runTagOperations(t *testing.T, newStore NewStore) {
 		}
 		if back.Status != tags.OpApplied || back.DecidedBy != human(a) || !back.AppliedAt.Equal(dec.AppliedAt) ||
 			!back.DecidedAt.Equal(dec.DecidedAt) || back.ProposedBy != agent(a) || back.Kind != tags.OpMerge ||
-			string(back.Payload) != string(op.Payload) || !back.CreatedAt.Equal(t0) {
+			!sameJSON(back.Payload, op.Payload) || !back.CreatedAt.Equal(t0) {
 			t.Fatalf("operation = %+v", back)
 		}
 	})

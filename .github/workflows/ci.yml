@@ -50,6 +50,34 @@ jobs:
       - name: go test
         run: go test -race ./...
 
+  test-postgres:
+    name: test (postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: quizzotic
+          POSTGRES_PASSWORD: quizzotic
+          POSTGRES_DB: quizzotic
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quizzotic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      QUIZZOTIC_TEST_POSTGRES_URL: postgres://quizzotic:quizzotic@localhost:5432/quizzotic?sslmode=disable
+      QUIZZOTIC_REQUIRE_POSTGRES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.3' # keep in sync with .tool-versions
+      - name: conformance suite on postgres
+        run: go test -race -count=1 -v -run 'TestConformance|TestMigrat|TestProblemVersions' ./internal/store/postgres
+
   build:
     name: build (${{ matrix.name }})
     runs-on: ubuntu-latest
