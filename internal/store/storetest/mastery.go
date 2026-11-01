@@ -23,6 +23,7 @@ import (
 func runMastery(t *testing.T, newStore NewStore) {
 	t.Run("repo", func(t *testing.T) { runMasteryRepo(t, newStore) })
 	t.Run("inputs", func(t *testing.T) { runMasteryInputs(t, newStore) })
+	t.Run("user stats", func(t *testing.T) { runUserStats(t, newStore) })
 	t.Run("full recompute equals incremental", func(t *testing.T) { runMasteryProperty(t, newStore) })
 }
 

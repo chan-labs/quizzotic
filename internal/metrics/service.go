@@ -4,8 +4,10 @@ package metrics
 
 import (
 	"context"
+	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/settings"
 )
 
 // Projector maintains the mastery projection inside one transaction-bound
@@ -113,6 +115,84 @@ type Service struct {
 
 // NewService builds a Service over tx.
 func NewService(tx Transactor, clock domain.Clock) *Service { return &Service{tx, clock} }
+
+// StatsOptions sizes the user-level metrics; zero fields take the defaults.
+type StatsOptions struct {
+	// RetentionDays is the true-retention window in days.
+	RetentionDays int
+	// ActivityDays is how many study days of activity to report.
+	ActivityDays int
+}
+
+// UserStats are the user-level metrics at one moment.
+type UserStats struct {
+	// Day is the study day containing the moment.
+	Day settings.StudyDay
+	// RetentionDays is the window the retention figures cover.
+	RetentionDays int
+	// Retention is true retention over all of the user's reviews; ByTag has
+	// one entry per tag that was reviewed in the window.
+	Retention Retention
+	ByTag     map[domain.ID]Retention
+	// DueLoad is today and the next DueLoadDays study days.
+	DueLoad []DueDay
+	// Activity is the daily activity, oldest first, ending today.
+	Activity []DayActivity
+}
+
+// UserStats computes the user's true retention, due load and daily activity as
+// of the service clock, in the day boundaries of cfg (the user's effective
+// settings), reading one consistent snapshot.
+func (s *Service) UserStats(ctx context.Context, userID domain.ID, cfg settings.Settings, opts StatsOptions) (UserStats, error) {
+	if opts.RetentionDays <= 0 {
+		opts.RetentionDays = DefaultRetentionDays
+	}
+	if opts.ActivityDays <= 0 {
+		opts.ActivityDays = DefaultActivityDays
+	}
+	loc, err := cfg.Location()
+	if err != nil {
+		return UserStats{}, err
+	}
+	now := s.clock.Now()
+	today := settings.StudyDayAt(now, loc, cfg.RolloverHour)
+	activity := Activity(nil, today, loc, cfg.RolloverHour, opts.ActivityDays)
+	window := time.Duration(opts.RetentionDays) * 24 * time.Hour
+	since := now.Add(-window)
+	if start := activity[0].Start; start.Before(since) {
+		since = start
+	}
+	horizon := DueLoad(nil, today, loc, cfg.RolloverHour)
+
+	st := UserStats{Day: today, RetentionDays: opts.RetentionDays}
+	err = s.tx.InTx(ctx, func(sc Scope) error {
+		params, err := sc.Params.Params(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if err := params.Validate(); err != nil {
+			return err
+		}
+		log, err := sc.Repo.AttemptLog(ctx, userID, since)
+		if err != nil {
+			return err
+		}
+		tags, err := sc.Repo.ProblemTags(ctx, userID)
+		if err != nil {
+			return err
+		}
+		due, err := sc.Repo.DueTimes(ctx, userID, horizon[len(horizon)-1].End)
+		if err != nil {
+			return err
+		}
+		ev := Replay(params, log, tags)
+		st.Retention, st.ByTag = TrueRetention(ev, now, window)
+		st.DueLoad = DueLoad(due, today, loc, cfg.RolloverHour)
+		st.Activity = Activity(ev, today, loc, cfg.RolloverHour, opts.ActivityDays)
+		return nil
+	})
+	return st, err
+}
 
 // RebuildUser drops and recomputes all of one user's mastery rows.
 func (s *Service) RebuildUser(ctx context.Context, userID domain.ID) error {

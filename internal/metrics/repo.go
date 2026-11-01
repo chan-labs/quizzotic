@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/fsrs"
 	"github.com/chan-labs/quizzotic/internal/review"
@@ -62,6 +63,21 @@ type Repo interface {
 	// non-deleted problem carrying each tag in tagIDs (all of the owner's
 	// tags when tagIDs is empty). Tags with no attempt are absent.
 	LastAttempts(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) (map[domain.ID]time.Time, error)
+
+	// AttemptLog returns the owner's attempts on non-deleted problems that
+	// belong to a card (problem and epoch) with at least one attempt answered
+	// at or after since, ordered by problem ID, card epoch, answered_at, ID.
+	// Whole card histories are returned so a card's state before each answer
+	// can be replayed.
+	AttemptLog(ctx context.Context, ownerID domain.ID, since time.Time) ([]attempts.Attempt, error)
+
+	// ProblemTags maps each of the owner's problems to its active tags,
+	// ascending. A problem with no active tag is absent.
+	ProblemTags(ctx context.Context, ownerID domain.ID) (map[domain.ID][]domain.ID, error)
+
+	// DueTimes returns, ascending, the due instants before the cutoff of the
+	// owner's cards on live, non-deleted problems.
+	DueTimes(ctx context.Context, ownerID domain.ID, before time.Time) ([]time.Time, error)
 }
 
 // ParamsSource supplies the scheduler parameters for a user (the same source
