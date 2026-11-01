@@ -56,7 +56,7 @@ The Quizzotic image is distroless: it has no shell or `curl`, so Compose cannot 
 
 ## Image tags
 
-`QUIZZOTIC_TAG` defaults to `latest`; pin a release version in production. The image must be public on GHCR (see [docs/releasing.md](../docs/releasing.md)). To test a locally built image set `QUIZZOTIC_IMAGE` and `QUIZZOTIC_TAG` in `.env` (after `make snapshot`, tag one of the built images).
+`QUIZZOTIC_TAG` defaults to `latest`; pin a release version in production. The image must be public on GHCR (see [docs/releasing.md](../docs/releasing.md)). To test a locally built image set `QUIZZOTIC_IMAGE` and `QUIZZOTIC_TAG` in `.env` (after `mise run snapshot`, tag one of the built images).
 
 ## Local trial without public DNS
 

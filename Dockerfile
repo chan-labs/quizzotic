@@ -1,5 +1,5 @@
 # Used by GoReleaser: the prebuilt static binary is placed at the root of the
-# build context. For a local build, run `make snapshot`.
+# build context. For a local build, run `mise run snapshot`.
 FROM gcr.io/distroless/static-debian12:nonroot
 ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/quizzotic /usr/local/bin/quizzotic
