@@ -7,7 +7,8 @@ is checked against that file. Nothing here ships in the Quizzotic binary or
 runs in CI.
 
 py-fsrs is pinned in `requirements.txt` (`fsrs==6.3.2`, FSRS-6 default
-parameters, desired retention 0.90, learning steps 1 m and 10 m, fuzzing off).
+parameters, desired retention 0.90, learning and relearning steps both 1 m and
+10 m as the spec requires, fuzzing off).
 
 ## Regenerate
 

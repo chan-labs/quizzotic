@@ -34,6 +34,7 @@
   600
  ],
  "relearning_steps_seconds": [
+  60,
   600
  ],
  "maximum_interval_days": 36500,
@@ -940,7 +941,7 @@
      "stability": 2.5625081682260777,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2026-01-01T12:20:00Z"
+     "due": "2026-01-01T12:11:00Z"
     }
    ]
   },
@@ -973,7 +974,7 @@
      "stability": 1.2161783702767177,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2026-01-02T12:10:00Z"
+     "due": "2026-01-02T12:01:00Z"
     }
    ]
   },
@@ -1656,7 +1657,7 @@
      "stability": 1.915328737189362,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-01-09T12:20:00Z"
+     "due": "2026-01-09T12:11:00Z"
     },
     {
      "rating": 2,
@@ -1668,19 +1669,19 @@
      "stability": 1.915328737189362,
      "difficulty": 8.251072322512018,
      "retrievability_after": 1.0,
-     "due": "2026-01-09T12:35:00Z"
+     "due": "2026-01-09T12:25:30Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 86400,
      "reviewed_at": "2026-01-10T12:20:00Z",
      "retrievability_before": 0.9382532849262091,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 3.4631276596712097,
      "difficulty": 8.238049619486343,
      "retrievability_after": 1.0,
-     "due": "2026-01-13T12:20:00Z"
+     "due": "2026-01-10T12:30:00Z"
     },
     {
      "rating": 3,
@@ -1761,19 +1762,19 @@
      "stability": 1.915328737189362,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-01-09T12:20:00Z"
+     "due": "2026-01-09T12:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 600,
      "reviewed_at": "2026-01-09T12:20:00Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 1.928230143531377,
      "difficulty": 7.375556359621658,
      "retrievability_after": 1.0,
-     "due": "2026-01-11T12:20:00Z"
+     "due": "2026-01-09T12:30:00Z"
     },
     {
      "rating": 3,
@@ -1866,7 +1867,7 @@
      "stability": 1.915328737189362,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-01-09T12:20:00Z"
+     "due": "2026-01-09T12:11:00Z"
     },
     {
      "rating": 4,
@@ -1971,7 +1972,7 @@
      "stability": 2.027926539199431,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-01-16T12:20:00Z"
+     "due": "2026-01-16T12:11:00Z"
     },
     {
      "rating": 2,
@@ -1983,19 +1984,19 @@
      "stability": 2.027926539199431,
      "difficulty": 8.251072322512018,
      "retrievability_after": 1.0,
-     "due": "2026-01-16T12:35:00Z"
+     "due": "2026-01-16T12:25:30Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 86400,
      "reviewed_at": "2026-01-17T12:20:00Z",
      "retrievability_before": 0.9410028355187534,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 3.5772014550439524,
      "difficulty": 8.238049619486343,
      "retrievability_after": 1.0,
-     "due": "2026-01-21T12:20:00Z"
+     "due": "2026-01-17T12:30:00Z"
     },
     {
      "rating": 3,
@@ -2076,19 +2077,19 @@
      "stability": 2.027926539199431,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-01-16T12:20:00Z"
+     "due": "2026-01-16T12:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 600,
      "reviewed_at": "2026-01-16T12:20:00Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 2.0339268832158646,
      "difficulty": 7.375556359621658,
      "retrievability_after": 1.0,
-     "due": "2026-01-18T12:20:00Z"
+     "due": "2026-01-16T12:30:00Z"
     },
     {
      "rating": 3,
@@ -2181,7 +2182,7 @@
      "stability": 2.027926539199431,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-01-16T12:20:00Z"
+     "due": "2026-01-16T12:11:00Z"
     },
     {
      "rating": 4,
@@ -2286,7 +2287,7 @@
      "stability": 2.3468802278233505,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-02-15T12:20:00Z"
+     "due": "2026-02-15T12:11:00Z"
     },
     {
      "rating": 2,
@@ -2298,19 +2299,19 @@
      "stability": 2.3468802278233505,
      "difficulty": 8.251072322512018,
      "retrievability_after": 1.0,
-     "due": "2026-02-15T12:35:00Z"
+     "due": "2026-02-15T12:25:30Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 86400,
      "reviewed_at": "2026-02-16T12:20:00Z",
      "retrievability_before": 0.9475990037105712,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 3.896974623045751,
      "difficulty": 8.238049619486343,
      "retrievability_after": 1.0,
-     "due": "2026-02-20T12:20:00Z"
+     "due": "2026-02-16T12:30:00Z"
     },
     {
      "rating": 3,
@@ -2391,19 +2392,19 @@
      "stability": 2.3468802278233505,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-02-15T12:20:00Z"
+     "due": "2026-02-15T12:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 600,
      "reviewed_at": "2026-02-15T12:20:00Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 2.3468802278233505,
      "difficulty": 7.375556359621658,
      "retrievability_after": 1.0,
-     "due": "2026-02-17T12:20:00Z"
+     "due": "2026-02-15T12:30:00Z"
     },
     {
      "rating": 3,
@@ -2496,7 +2497,7 @@
      "stability": 2.3468802278233505,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-02-15T12:20:00Z"
+     "due": "2026-02-15T12:11:00Z"
     },
     {
      "rating": 4,
@@ -2601,7 +2602,7 @@
      "stability": 2.7731087662872835,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-05-06T12:20:00Z"
+     "due": "2026-05-06T12:11:00Z"
     },
     {
      "rating": 2,
@@ -2613,19 +2614,19 @@
      "stability": 2.7731087662872835,
      "difficulty": 8.251072322512018,
      "retrievability_after": 1.0,
-     "due": "2026-05-06T12:35:00Z"
+     "due": "2026-05-06T12:25:30Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 86400,
      "reviewed_at": "2026-05-07T12:20:00Z",
      "retrievability_before": 0.9543950952583973,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 4.319250485521072,
      "difficulty": 8.238049619486343,
      "retrievability_after": 1.0,
-     "due": "2026-05-11T12:20:00Z"
+     "due": "2026-05-07T12:30:00Z"
     },
     {
      "rating": 3,
@@ -2706,19 +2707,19 @@
      "stability": 2.7731087662872835,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-05-06T12:20:00Z"
+     "due": "2026-05-06T12:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 600,
      "reviewed_at": "2026-05-06T12:20:00Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 2.7731087662872835,
      "difficulty": 7.375556359621658,
      "retrievability_after": 1.0,
-     "due": "2026-05-09T12:20:00Z"
+     "due": "2026-05-06T12:30:00Z"
     },
     {
      "rating": 3,
@@ -2811,7 +2812,7 @@
      "stability": 2.7731087662872835,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2026-05-06T12:20:00Z"
+     "due": "2026-05-06T12:11:00Z"
     },
     {
      "rating": 4,
@@ -2904,7 +2905,7 @@
      "stability": 1.1973845923062585,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2026-01-07T12:20:00Z"
+     "due": "2026-01-07T12:11:00Z"
     },
     {
      "rating": 1,
@@ -2916,7 +2917,7 @@
      "stability": 0.42011049515496973,
      "difficulty": 9.12733115898188,
      "retrievability_after": 1.0,
-     "due": "2026-01-07T12:30:00Z"
+     "due": "2026-01-07T12:21:00Z"
     },
     {
      "rating": 1,
@@ -2928,7 +2929,7 @@
      "stability": 0.21339478081617583,
      "difficulty": 9.698388055402301,
      "retrievability_after": 1.0,
-     "due": "2026-01-12T12:30:00Z"
+     "due": "2026-01-12T12:21:00Z"
     },
     {
      "rating": 1,
@@ -2940,7 +2941,7 @@
      "stability": 0.08386893739557848,
      "difficulty": 9.886090574068795,
      "retrievability_after": 1.0,
-     "due": "2026-01-12T12:40:00Z"
+     "due": "2026-01-12T12:31:00Z"
     },
     {
      "rating": 1,
@@ -2952,7 +2953,7 @@
      "stability": 0.05958618463980871,
      "difficulty": 9.947787115577347,
      "retrievability_after": 1.0,
-     "due": "2026-01-17T12:40:00Z"
+     "due": "2026-01-17T12:31:00Z"
     },
     {
      "rating": 1,
@@ -2964,19 +2965,19 @@
      "stability": 0.025469395648491867,
      "difficulty": 9.968066349234725,
      "retrievability_after": 1.0,
-     "due": "2026-01-17T12:50:00Z"
+     "due": "2026-01-17T12:41:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 600,
      "reviewed_at": "2026-01-17T12:50:00Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 0.03407138336967777,
      "difficulty": 9.953326652182328,
      "retrievability_after": 1.0,
-     "due": "2026-01-18T12:50:00Z"
+     "due": "2026-01-17T13:00:00Z"
     }
    ]
   },
@@ -3032,7 +3033,7 @@
      "stability": 1.5186753586921367,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2026-02-01T12:20:00Z"
+     "due": "2026-02-01T12:11:00Z"
     }
    ]
   },
@@ -3256,7 +3257,7 @@
      "stability": 1.8112588749950032,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2026-04-02T12:20:00Z"
+     "due": "2026-04-02T12:11:00Z"
     }
    ]
   },
@@ -3480,7 +3481,7 @@
      "stability": 2.0146276059424473,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2026-07-01T12:20:00Z"
+     "due": "2026-07-01T12:11:00Z"
     }
    ]
   },
@@ -3704,7 +3705,7 @@
      "stability": 2.2281297243139035,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2027-01-02T12:20:00Z"
+     "due": "2027-01-02T12:11:00Z"
     }
    ]
   },
@@ -3928,7 +3929,7 @@
      "stability": 2.438388390699832,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2028-01-02T12:20:00Z"
+     "due": "2028-01-02T12:11:00Z"
     }
    ]
   },
@@ -4152,7 +4153,7 @@
      "stability": 2.711884309078442,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2031-01-01T12:20:00Z"
+     "due": "2031-01-01T12:11:00Z"
     }
    ]
   },
@@ -4376,7 +4377,7 @@
      "stability": 2.9123545569913505,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2035-12-31T12:20:00Z"
+     "due": "2035-12-31T12:11:00Z"
     }
    ]
   },
@@ -4728,19 +4729,19 @@
      "stability": 2.279600686258619,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2026-01-02T14:20:00Z"
+     "due": "2026-01-02T14:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 86400,
      "reviewed_at": "2026-01-03T14:10:00Z",
      "retrievability_before": 0.9463346778640156,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 4.315477925008993,
      "difficulty": 7.377814181523433,
      "retrievability_after": 1.0,
-     "due": "2026-01-07T14:10:00Z"
+     "due": "2026-01-03T14:20:00Z"
     }
    ]
   },
@@ -5720,7 +5721,7 @@
      "stability": 4.494053223732063,
      "difficulty": 9.008706675196215,
      "retrievability_after": 1.0,
-     "due": "2027-06-22T18:20:00Z"
+     "due": "2027-06-22T18:11:00Z"
     },
     {
      "rating": 2,
@@ -5732,7 +5733,7 @@
      "stability": 17.775787938714764,
      "difficulty": 9.32716166602315,
      "retrievability_after": 1.0,
-     "due": "2028-07-26T18:25:00Z"
+     "due": "2028-07-26T18:15:30Z"
     }
    ]
   },
@@ -5868,7 +5869,7 @@
      "stability": 2.6050634727683626,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2026-02-17T12:10:00Z"
+     "due": "2026-02-17T12:01:00Z"
     },
     {
      "rating": 1,
@@ -5880,19 +5881,19 @@
      "stability": 0.6049028764927171,
      "difficulty": 9.008020057195637,
      "retrievability_after": 1.0,
-     "due": "2026-02-19T12:10:00Z"
+     "due": "2026-02-19T12:01:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 432000,
      "reviewed_at": "2026-02-24T12:00:00Z",
      "retrievability_before": 0.7113629743675497,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 2.80548965303009,
      "difficulty": 8.994240406435278,
      "retrievability_after": 1.0,
-     "due": "2026-02-27T12:00:00Z"
+     "due": "2026-02-24T12:10:00Z"
     },
     {
      "rating": 3,
@@ -6416,7 +6417,7 @@
      "stability": 167.66804698885878,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2026-06-17T12:10:10Z"
+     "due": "2026-06-17T12:01:10Z"
     },
     {
      "rating": 4,
@@ -6592,7 +6593,7 @@
      "stability": 3.997422182776201,
      "difficulty": 8.832361721091896,
      "retrievability_after": 1.0,
-     "due": "2026-06-29T13:10:05Z"
+     "due": "2026-06-29T13:01:05Z"
     }
    ]
   },
@@ -6800,19 +6801,19 @@
      "stability": 3.7953367815834294,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2026-03-02T19:13:00Z"
+     "due": "2026-03-02T19:04:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 90,
      "reviewed_at": "2026-03-02T19:04:30Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 3.7953367815834294,
      "difficulty": 7.0151909490243805,
      "retrievability_after": 1.0,
-     "due": "2026-03-06T19:04:30Z"
+     "due": "2026-03-02T19:14:30Z"
     },
     {
      "rating": 4,
@@ -7144,31 +7145,31 @@
      "stability": 8.190282340896049,
      "difficulty": 8.259025282096594,
      "retrievability_after": 1.0,
-     "due": "2026-01-15T12:11:35Z"
+     "due": "2026-01-15T12:02:35Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 600,
      "reviewed_at": "2026-01-15T12:11:35Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 8.190282340896049,
      "difficulty": 8.245994626111335,
      "retrievability_after": 1.0,
-     "due": "2026-01-23T12:11:35Z"
+     "due": "2026-01-15T12:21:35Z"
     },
     {
      "rating": 2,
      "elapsed_seconds": 172800,
      "reviewed_at": "2026-01-17T12:11:35Z",
      "retrievability_before": 0.9674470123539871,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 9.821456926536099,
      "difficulty": 8.820837865459119,
      "retrievability_after": 1.0,
-     "due": "2026-01-27T12:11:35Z"
+     "due": "2026-01-17T12:21:35Z"
     },
     {
      "rating": 3,
@@ -7368,7 +7369,7 @@
      "stability": 4.697954463130918,
      "difficulty": 9.435542210018959,
      "retrievability_after": 1.0,
-     "due": "2029-10-18T12:21:30Z"
+     "due": "2029-10-18T12:12:30Z"
     },
     {
      "rating": 4,
@@ -7436,7 +7437,7 @@
      "stability": 3.8757194188969772,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2026-05-07T12:10:00Z"
+     "due": "2026-05-07T12:01:00Z"
     }
    ]
   },
@@ -7608,7 +7609,7 @@
      "stability": 28.571002269824536,
      "difficulty": 7.110243055229975,
      "retrievability_after": 1.0,
-     "due": "2027-02-07T12:23:00Z"
+     "due": "2027-02-07T12:14:00Z"
     },
     {
      "rating": 4,
@@ -7712,7 +7713,7 @@
      "stability": 5.2756153662435175,
      "difficulty": 7.668468586934862,
      "retrievability_after": 1.0,
-     "due": "2027-06-10T12:40:00Z"
+     "due": "2027-06-10T12:31:00Z"
     }
    ]
   },
@@ -8204,7 +8205,7 @@
      "stability": 5.368186096976286,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2027-04-10T12:11:30Z"
+     "due": "2027-04-10T12:02:30Z"
     },
     {
      "rating": 4,
@@ -8448,7 +8449,7 @@
      "stability": 25.74784387198955,
      "difficulty": 8.82920842896517,
      "retrievability_after": 1.0,
-     "due": "2026-03-12T12:11:30Z"
+     "due": "2026-03-12T12:02:30Z"
     },
     {
      "rating": 2,
@@ -8460,7 +8461,7 @@
      "stability": 28.46155098387577,
      "difficulty": 9.208002365556707,
      "retrievability_after": 1.0,
-     "due": "2026-03-17T12:16:30Z"
+     "due": "2026-03-17T12:07:00Z"
     },
     {
      "rating": 2,
@@ -8472,19 +8473,19 @@
      "stability": 63.928610260452935,
      "difficulty": 9.459463432463615,
      "retrievability_after": 1.0,
-     "due": "2027-04-21T12:16:30Z"
+     "due": "2027-04-21T12:07:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 600,
      "reviewed_at": "2027-04-21T12:11:30Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 63.928610260452935,
      "difficulty": 9.445232338327989,
      "retrievability_after": 1.0,
-     "due": "2027-06-24T12:11:30Z"
+     "due": "2027-04-21T12:21:30Z"
     },
     {
      "rating": 4,
@@ -8680,19 +8681,19 @@
      "stability": 3.6507259743330995,
      "difficulty": 8.248149923382872,
      "retrievability_after": 1.0,
-     "due": "2026-05-10T13:10:05Z"
+     "due": "2026-05-10T13:01:05Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 21600,
      "reviewed_at": "2026-05-10T19:00:05Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 3.6507259743330995,
      "difficulty": 8.235130142756327,
      "retrievability_after": 1.0,
-     "due": "2026-05-14T19:00:05Z"
+     "due": "2026-05-10T19:10:05Z"
     },
     {
      "rating": 3,
@@ -8864,7 +8865,7 @@
      "stability": 9.868216385154176,
      "difficulty": 8.016556265363716,
      "retrievability_after": 1.0,
-     "due": "2026-01-15T12:11:30Z"
+     "due": "2026-01-15T12:02:30Z"
     },
     {
      "rating": 2,
@@ -8876,19 +8877,19 @@
      "stability": 25.70418759464411,
      "difficulty": 8.66852598976724,
      "retrievability_after": 1.0,
-     "due": "2026-03-01T12:16:30Z"
+     "due": "2026-03-01T12:07:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 86400,
      "reviewed_at": "2026-03-02T12:01:30Z",
      "retrievability_before": 0.9942448830460725,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 26.745968304417236,
      "difficulty": 8.65508583307431,
      "retrievability_after": 1.0,
-     "due": "2026-03-29T12:01:30Z"
+     "due": "2026-03-02T12:11:30Z"
     },
     {
      "rating": 3,
@@ -9076,7 +9077,7 @@
      "stability": 21.792121619809503,
      "difficulty": 8.007904935081115,
      "retrievability_after": 1.0,
-     "due": "2026-02-17T14:10:10Z"
+     "due": "2026-02-17T14:01:10Z"
     },
     {
      "rating": 4,
@@ -9492,19 +9493,19 @@
      "stability": 5.0028173157848395,
      "difficulty": 8.016556265363716,
      "retrievability_after": 1.0,
-     "due": "2027-06-07T12:20:00Z"
+     "due": "2027-06-07T12:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 1209600,
      "reviewed_at": "2027-06-21T12:10:00Z",
      "retrievability_before": 0.8158342063903258,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 16.721349700310657,
      "difficulty": 8.00376807839519,
      "retrievability_after": 1.0,
-     "due": "2027-07-08T12:10:00Z"
+     "due": "2027-06-21T12:20:00Z"
     },
     {
      "rating": 3,
@@ -9772,7 +9773,7 @@
      "stability": 3.4678000606814643,
      "difficulty": 8.566407563277567,
      "retrievability_after": 1.0,
-     "due": "2027-07-25T18:11:30Z"
+     "due": "2027-07-25T18:02:30Z"
     },
     {
      "rating": 4,
@@ -9888,19 +9889,19 @@
      "stability": 6.008280000766399,
      "difficulty": 7.351638485134744,
      "retrievability_after": 1.0,
-     "due": "2026-05-13T13:21:30Z"
+     "due": "2026-05-13T13:12:30Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 86400,
      "reviewed_at": "2026-05-14T13:11:30Z",
      "retrievability_before": 0.976962862257018,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 7.96497891451381,
      "difficulty": 7.339515215946448,
      "retrievability_after": 1.0,
-     "due": "2026-05-22T13:11:30Z"
+     "due": "2026-05-14T13:21:30Z"
     },
     {
      "rating": 4,
@@ -9980,7 +9981,7 @@
      "stability": 3.257423947793168,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2027-02-06T12:10:00Z"
+     "due": "2027-02-06T12:01:00Z"
     },
     {
      "rating": 2,
@@ -9992,7 +9993,7 @@
      "stability": 5.642427925378614,
      "difficulty": 8.011605503110008,
      "retrievability_after": 1.0,
-     "due": "2027-02-08T12:15:00Z"
+     "due": "2027-02-08T12:05:30Z"
     },
     {
      "rating": 4,
@@ -10628,7 +10629,7 @@
      "stability": 10.421576712669193,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2029-03-06T12:20:00Z"
+     "due": "2029-03-06T12:11:00Z"
     },
     {
      "rating": 2,
@@ -10640,19 +10641,19 @@
      "stability": 10.421576712669193,
      "difficulty": 8.011605503110008,
      "retrievability_after": 1.0,
-     "due": "2029-03-06T13:25:00Z"
+     "due": "2029-03-06T13:15:30Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 1209600,
      "reviewed_at": "2029-03-20T13:10:00Z",
      "retrievability_before": 0.8784750260762899,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 24.34106250259011,
      "difficulty": 7.998822266903736,
      "retrievability_after": 1.0,
-     "due": "2029-04-13T13:10:00Z"
+     "due": "2029-03-20T13:20:00Z"
     },
     {
      "rating": 3,
@@ -10744,7 +10745,7 @@
      "stability": 1.958916077138827,
      "difficulty": 7.385457884129076,
      "retrievability_after": 1.0,
-     "due": "2026-01-20T00:10:00Z"
+     "due": "2026-01-20T00:01:00Z"
     },
     {
      "rating": 1,
@@ -10756,7 +10757,7 @@
      "stability": 0.8174813223588205,
      "difficulty": 9.125846154696452,
      "retrievability_after": 1.0,
-     "due": "2026-03-06T00:10:00Z"
+     "due": "2026-03-06T00:01:00Z"
     }
    ]
   },
@@ -11136,7 +11137,7 @@
      "stability": 151.3292952203193,
      "difficulty": 7.435434007831708,
      "retrievability_after": 1.0,
-     "due": "2027-10-22T00:10:05Z"
+     "due": "2027-10-22T00:01:05Z"
     }
    ]
   },
@@ -11564,7 +11565,7 @@
      "stability": 7.189069266807393,
      "difficulty": 7.341733480231124,
      "retrievability_after": 1.0,
-     "due": "2028-05-18T00:13:05Z"
+     "due": "2028-05-18T00:04:05Z"
     }
    ]
   },
@@ -11816,19 +11817,19 @@
      "stability": 21.235456551878837,
      "difficulty": 8.016556265363716,
      "retrievability_after": 1.0,
-     "due": "2026-05-01T12:20:00Z"
+     "due": "2026-05-01T12:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 3888000,
      "reviewed_at": "2026-06-15T12:10:00Z",
      "retrievability_before": 0.8408546962065978,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 54.67670707994061,
      "difficulty": 8.00376807839519,
      "retrievability_after": 1.0,
-     "due": "2026-08-09T12:10:00Z"
+     "due": "2026-06-15T12:20:00Z"
     },
     {
      "rating": 4,
@@ -12248,7 +12249,7 @@
      "stability": 6.008888283372181,
      "difficulty": 7.675182273189983,
      "retrievability_after": 1.0,
-     "due": "2027-07-21T12:10:00Z"
+     "due": "2027-07-21T12:01:00Z"
     },
     {
      "rating": 4,
@@ -12496,31 +12497,31 @@
      "stability": 5.1144706699010625,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2027-04-05T13:10:00Z"
+     "due": "2027-04-05T13:01:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 21600,
      "reviewed_at": "2027-04-05T19:00:00Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 5.1144706699010625,
      "difficulty": 7.375556359621658,
      "retrievability_after": 1.0,
-     "due": "2027-04-10T19:00:00Z"
+     "due": "2027-04-05T19:10:00Z"
     },
     {
      "rating": 2,
      "elapsed_seconds": 3888000,
      "reviewed_at": "2027-05-20T19:00:00Z",
      "retrievability_before": 0.7052695612193435,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 19.718843154838204,
      "difficulty": 8.243000381740053,
      "retrievability_after": 1.0,
-     "due": "2027-06-09T19:00:00Z"
+     "due": "2027-05-20T19:10:00Z"
     },
     {
      "rating": 3,
@@ -12624,19 +12625,19 @@
      "stability": 1.7185768975219944,
      "difficulty": 9.116834354513474,
      "retrievability_after": 1.0,
-     "due": "2026-01-06T15:11:30Z"
+     "due": "2026-01-06T15:02:30Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 90,
      "reviewed_at": "2026-01-06T15:03:00Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 1.7425369861419373,
      "difficulty": 9.102945889455798,
      "retrievability_after": 1.0,
-     "due": "2026-01-08T15:03:00Z"
+     "due": "2026-01-06T15:13:00Z"
     },
     {
      "rating": 4,
@@ -12660,7 +12661,7 @@
      "stability": 1.0021658229145116,
      "difficulty": 9.586990451936863,
      "retrievability_after": 1.0,
-     "due": "2026-01-06T21:13:05Z"
+     "due": "2026-01-06T21:04:05Z"
     },
     {
      "rating": 4,
@@ -12988,19 +12989,19 @@
      "stability": 5.977304035883467,
      "difficulty": 8.016556265363716,
      "retrievability_after": 1.0,
-     "due": "2027-07-26T12:10:00Z"
+     "due": "2027-07-26T12:01:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 432000,
      "reviewed_at": "2027-07-31T12:00:00Z",
      "retrievability_before": 0.9117901149142801,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 12.239261017671806,
      "difficulty": 8.00376807839519,
      "retrievability_after": 1.0,
-     "due": "2027-08-12T12:00:00Z"
+     "due": "2027-07-31T12:10:00Z"
     },
     {
      "rating": 3,
@@ -13176,19 +13177,19 @@
      "stability": 270.0116399067005,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2027-10-17T19:10:05Z"
+     "due": "2027-10-17T19:01:05Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 3888000,
      "reviewed_at": "2027-12-01T19:00:05Z",
      "retrievability_before": 0.9769346147615722,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 320.87285274911835,
      "difficulty": 7.0151909490243805,
      "retrievability_after": 1.0,
-     "due": "2028-10-17T19:00:05Z"
+     "due": "2027-12-01T19:10:05Z"
     },
     {
      "rating": 4,
@@ -13212,7 +13213,7 @@
      "stability": 4.764372605825196,
      "difficulty": 8.671453227307733,
      "retrievability_after": 1.0,
-     "due": "2027-12-07T19:10:05Z"
+     "due": "2027-12-07T19:01:05Z"
     },
     {
      "rating": 1,
@@ -13224,7 +13225,7 @@
      "stability": 0.8276050194906884,
      "difficulty": 9.548544079230945,
      "retrievability_after": 1.0,
-     "due": "2027-12-09T19:10:05Z"
+     "due": "2027-12-09T19:01:05Z"
     },
     {
      "rating": 4,
@@ -14032,19 +14033,19 @@
      "stability": 121.51678080351863,
      "difficulty": 8.007904935081115,
      "retrievability_after": 1.0,
-     "due": "2026-10-19T13:10:00Z"
+     "due": "2026-10-19T13:01:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 86400,
      "reviewed_at": "2026-10-20T13:00:00Z",
      "retrievability_before": 0.9987617375548946,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 122.56472267161395,
      "difficulty": 7.995125399442872,
      "retrievability_after": 1.0,
-     "due": "2027-02-20T13:00:00Z"
+     "due": "2026-10-20T13:10:00Z"
     }
    ]
   },
@@ -14180,7 +14181,7 @@
      "stability": 10.62745244065543,
      "difficulty": 8.255896150618755,
      "retrievability_after": 1.0,
-     "due": "2026-05-01T14:20:00Z"
+     "due": "2026-05-01T14:11:00Z"
     },
     {
      "rating": 4,
@@ -14204,19 +14205,19 @@
      "stability": 1.3683796361062208,
      "difficulty": 9.215536143771057,
      "retrievability_after": 1.0,
-     "due": "2026-05-04T14:20:00Z"
+     "due": "2026-05-04T14:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 5,
      "reviewed_at": "2026-05-04T14:10:05Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 1.4084173351601343,
      "difficulty": 9.201548976924125,
      "retrievability_after": 1.0,
-     "due": "2026-05-05T14:10:05Z"
+     "due": "2026-05-04T14:20:05Z"
     }
    ]
   },
@@ -14432,19 +14433,19 @@
      "stability": 3.167102446857048,
      "difficulty": 7.114209702710985,
      "retrievability_after": 1.0,
-     "due": "2027-02-07T12:20:00Z"
+     "due": "2027-02-07T12:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 21600,
      "reviewed_at": "2027-02-07T18:10:00Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 3.167102446857048,
      "difficulty": 7.102323862305113,
      "retrievability_after": 1.0,
-     "due": "2027-02-10T18:10:00Z"
+     "due": "2027-02-07T18:20:00Z"
     },
     {
      "rating": 3,
@@ -14768,19 +14769,19 @@
      "stability": 60.3796117267176,
      "difficulty": 7.350011203247134,
      "retrievability_after": 1.0,
-     "due": "2026-06-16T13:10:05Z"
+     "due": "2026-06-16T13:01:05Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 90,
      "reviewed_at": "2026-06-16T13:01:35Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 60.3796117267176,
      "difficulty": 7.337889561340726,
      "retrievability_after": 1.0,
-     "due": "2026-08-15T13:01:35Z"
+     "due": "2026-06-16T13:11:35Z"
     },
     {
      "rating": 3,
@@ -15092,7 +15093,7 @@
      "stability": 5.5125086221818185,
      "difficulty": 8.920003665735765,
      "retrievability_after": 1.0,
-     "due": "2028-06-10T13:11:30Z"
+     "due": "2028-06-10T13:02:30Z"
     }
    ]
   },
@@ -15368,7 +15369,7 @@
      "stability": 6.722308977844099,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2028-04-05T12:21:30Z"
+     "due": "2028-04-05T12:12:30Z"
     },
     {
      "rating": 4,
@@ -15796,19 +15797,19 @@
      "stability": 0.5987549027950999,
      "difficulty": 7.832592867659625,
      "retrievability_after": 1.0,
-     "due": "2026-01-03T18:20:00Z"
+     "due": "2026-01-03T18:11:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 1209600,
      "reviewed_at": "2026-01-17T18:10:00Z",
      "retrievability_before": 0.612898466124511,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 5.44621565488429,
      "difficulty": 7.819988644088804,
      "retrievability_after": 1.0,
-     "due": "2026-01-22T18:10:00Z"
+     "due": "2026-01-17T18:20:00Z"
     },
     {
      "rating": 3,
@@ -16144,7 +16145,7 @@
      "stability": 0.6828717165835866,
      "difficulty": 7.389975788014609,
      "retrievability_after": 1.0,
-     "due": "2026-01-06T18:20:00Z"
+     "due": "2026-01-06T18:11:00Z"
     },
     {
      "rating": 4,
@@ -16216,7 +16217,7 @@
      "stability": 2.7764868002763867,
      "difficulty": 9.466263517814987,
      "retrievability_after": 1.0,
-     "due": "2027-04-04T18:20:05Z"
+     "due": "2027-04-04T18:11:05Z"
     }
    ]
   },
@@ -16388,7 +16389,7 @@
      "stability": 8.572955284969106,
      "difficulty": 8.372137889578998,
      "retrievability_after": 1.0,
-     "due": "2027-02-05T18:11:30Z"
+     "due": "2027-02-05T18:02:30Z"
     },
     {
      "rating": 2,
@@ -16400,7 +16401,7 @@
      "stability": 8.572955284969106,
      "difficulty": 8.90457764202503,
      "retrievability_after": 1.0,
-     "due": "2027-02-05T18:18:00Z"
+     "due": "2027-02-05T18:08:30Z"
     },
     {
      "rating": 4,
@@ -16752,7 +16753,7 @@
      "stability": 6.900553874369087,
      "difficulty": 8.816138525927366,
      "retrievability_after": 1.0,
-     "due": "2028-03-20T12:10:05Z"
+     "due": "2028-03-20T12:01:05Z"
     }
    ]
   },
@@ -16820,31 +16821,31 @@
      "stability": 2.8796882650318674,
      "difficulty": 7.387715706030851,
      "retrievability_after": 1.0,
-     "due": "2027-02-07T14:10:00Z"
+     "due": "2027-02-07T14:01:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 34560000,
      "reviewed_at": "2028-03-13T14:00:00Z",
      "retrievability_before": 0.4682013916288732,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 32.76828845266479,
      "difficulty": 7.375556359621658,
      "retrievability_after": 1.0,
-     "due": "2028-04-15T14:00:00Z"
+     "due": "2028-03-13T14:10:00Z"
     },
     {
      "rating": 2,
      "elapsed_seconds": 3888000,
      "reviewed_at": "2028-04-27T14:00:00Z",
      "retrievability_before": 0.8767729988995049,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 59.5330139003753,
      "difficulty": 8.243000381740053,
      "retrievability_after": 1.0,
-     "due": "2028-06-26T14:00:00Z"
+     "due": "2028-04-27T14:10:00Z"
     },
     {
      "rating": 3,
@@ -17304,19 +17305,19 @@
      "stability": 134.00213705555586,
      "difficulty": 7.0269895692968385,
      "retrievability_after": 1.0,
-     "due": "2027-02-08T13:10:10Z"
+     "due": "2027-02-08T13:01:10Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 1209600,
      "reviewed_at": "2027-02-22T13:00:10Z",
      "retrievability_before": 0.9850764125964235,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 152.29615625130336,
      "difficulty": 7.0151909490243805,
      "retrievability_after": 1.0,
-     "due": "2027-07-24T13:00:10Z"
+     "due": "2027-02-22T13:10:10Z"
     },
     {
      "rating": 3,
@@ -17352,7 +17353,7 @@
      "stability": 3.706531006089933,
      "difficulty": 8.996397308937453,
      "retrievability_after": 1.0,
-     "due": "2027-03-08T13:30:10Z"
+     "due": "2027-03-08T13:21:10Z"
     },
     {
      "rating": 4,
@@ -17444,7 +17445,7 @@
      "stability": 5.16244005864366,
      "difficulty": 7.675182273189983,
      "retrievability_after": 1.0,
-     "due": "2026-01-04T13:11:30Z"
+     "due": "2026-01-04T13:02:30Z"
     },
     {
      "rating": 2,
@@ -17456,19 +17457,19 @@
      "stability": 29.411123956204488,
      "difficulty": 8.44190602573428,
      "retrievability_after": 1.0,
-     "due": "2027-02-08T13:16:30Z"
+     "due": "2027-02-08T13:07:00Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 10368000,
      "reviewed_at": "2027-06-08T13:01:30Z",
      "retrievability_before": 0.7802255239032307,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 82.65774255234325,
      "difficulty": 8.428692489005384,
      "retrievability_after": 1.0,
-     "due": "2027-08-30T13:01:30Z"
+     "due": "2027-06-08T13:11:30Z"
     },
     {
      "rating": 3,
@@ -17492,19 +17493,19 @@
      "stability": 3.5471474084493653,
      "difficulty": 9.464411418852915,
      "retrievability_after": 1.0,
-     "due": "2027-10-07T13:11:30Z"
+     "due": "2027-10-07T13:02:30Z"
     },
     {
      "rating": 3,
      "elapsed_seconds": 21600,
      "reviewed_at": "2027-10-07T19:01:30Z",
      "retrievability_before": 1.0,
-     "state": "review",
-     "step": null,
+     "state": "relearning",
+     "step": 1,
      "stability": 3.5471474084493653,
      "difficulty": 9.4501753767309,
      "retrievability_after": 1.0,
-     "due": "2027-10-11T19:01:30Z"
+     "due": "2027-10-07T19:11:30Z"
     },
     {
      "rating": 3,
@@ -18224,7 +18225,7 @@
      "stability": 5.3254438200980205,
      "difficulty": 8.224097452288358,
      "retrievability_after": 1.0,
-     "due": "2026-10-26T18:20:05Z"
+     "due": "2026-10-26T18:11:05Z"
     },
     {
      "rating": 4,

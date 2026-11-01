@@ -76,6 +76,9 @@ func TestVectorsSchemaAndCoverage(t *testing.T) {
 	if len(f.LearningStepsSeconds) != 2 || f.LearningStepsSeconds[0] != 60 || f.LearningStepsSeconds[1] != 600 {
 		t.Errorf("learning steps = %v, want [60 600]", f.LearningStepsSeconds)
 	}
+	if len(f.RelearningStepsSeconds) != 2 || f.RelearningStepsSeconds[0] != 60 || f.RelearningStepsSeconds[1] != 600 {
+		t.Errorf("relearning steps = %v, want [60 600] (spec)", f.RelearningStepsSeconds)
+	}
 	if f.Fuzzing {
 		t.Error("vectors must be generated without fuzzing")
 	}

@@ -24,7 +24,14 @@ def iso(t):
 
 
 def make_scheduler():
-    return Scheduler(desired_retention=DESIRED_RETENTION, enable_fuzzing=False)
+    # Spec: same-day relearning steps default to 1 m and 10 m (py-fsrs
+    # defaults relearning to 10 m only, so set it explicitly).
+    return Scheduler(
+        desired_retention=DESIRED_RETENTION,
+        learning_steps=(timedelta(minutes=1), timedelta(minutes=10)),
+        relearning_steps=(timedelta(minutes=1), timedelta(minutes=10)),
+        enable_fuzzing=False,
+    )
 
 
 def run(name, tags, steps):
