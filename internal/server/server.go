@@ -291,7 +291,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 
 	clock := domain.SystemClock{}
 	meH := me.NewHandler(ho.me, logger)
-	var popts []problems.Option
+	popts := []problems.Option{problems.WithBatch(store.ProblemsBatchTx(st))}
 	if ho.tags != nil {
 		popts = append(popts, problems.WithTagResolver(ho.tags))
 	}
