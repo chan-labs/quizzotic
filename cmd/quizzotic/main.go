@@ -13,9 +13,11 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/chan-labs/quizzotic/internal/admin"
+	"github.com/chan-labs/quizzotic/internal/cli"
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/server"
@@ -48,6 +50,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		usage(stdout)
 		return 0
 	default:
+		if cli.IsResource(args[0]) {
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			return cli.Run(ctx, args, cli.Env{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr})
+		}
 		fmt.Fprintf(stderr, "quizzotic: unknown command %q\n", args[0])
 		usage(stderr)
 		return 2
@@ -85,4 +92,7 @@ func serve(args []string, stderr io.Writer) int {
 func usage(w io.Writer) {
 	fmt.Fprintln(w, "usage: quizzotic <command> [flags]")
 	fmt.Fprintln(w, "commands: serve, mcp, admin, version")
+	if res := cli.Resources(); len(res) > 0 {
+		fmt.Fprintf(w, "api resources: %s (run \"quizzotic <resource>\" for actions)\n", strings.Join(res, ", "))
+	}
 }
