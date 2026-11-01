@@ -22,6 +22,7 @@ const (
 	TypeMethodNotAllowed = "urn:quizzotic:problem:method-not-allowed"
 	TypeConflict         = "urn:quizzotic:problem:conflict"
 	TypePreconditionFail = "urn:quizzotic:problem:precondition-failed"
+	TypePreconditionReq  = "urn:quizzotic:problem:precondition-required"
 	TypeTooLarge         = "urn:quizzotic:problem:payload-too-large"
 	TypeInternal         = "urn:quizzotic:problem:internal"
 )
@@ -86,6 +87,11 @@ func Conflict(detail string) *Problem {
 // PreconditionFailed returns a 412 problem (stale ETag).
 func PreconditionFailed(detail string) *Problem {
 	return NewProblem(TypePreconditionFail, http.StatusPreconditionFailed, detail)
+}
+
+// PreconditionRequired returns a 428 problem (missing If-Match).
+func PreconditionRequired(detail string) *Problem {
+	return NewProblem(TypePreconditionReq, http.StatusPreconditionRequired, detail)
 }
 
 // Validation returns a 422 problem listing the invalid fields.
