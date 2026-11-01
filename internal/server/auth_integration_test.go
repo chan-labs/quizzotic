@@ -272,7 +272,7 @@ func (r reply) wantChallenge(t *testing.T) {
 }
 
 // userFor returns the provisioned user ID for sub, or "" when none exists.
-func (e *itEnv) userFor(t *testing.T, sub string) (string, auth.User) {
+func (e *itEnv) userFor(t testing.TB, sub string) (string, auth.User) {
 	t.Helper()
 	id, err := e.st.Identities().GetByIssuerSubject(context.Background(), e.idp.srv.URL, sub)
 	if err != nil {

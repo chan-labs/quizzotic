@@ -20,6 +20,22 @@ make test    # go test -race ./...
 make lint    # go vet + staticcheck
 ```
 
+## Owner-scoping tests
+
+Every user's data is private to them. The helper in `internal/testsupport/ownerscope` (test code only; production code must never import it) drives the real router, auth and SQLite behind a fake IdP as two users, A and B, and checks that B cannot reach A's data. Register each new endpoint with it in the same PR that adds the endpoint.
+
+Register from an `init` function in a `*_test.go` file in `internal/server` (see `ownerscope_test.go`), on the shared `ownerScope` registry:
+
+- **Resource by ID or collection** (`GET /problems/{id}`, `PATCH /problems/{id}`, `DELETE ...`, `GET /problems`): call `ownerScope.Resource`. Give it a `Create` that makes the resource as user A and returns its path parameters plus `Secrets`, strings from A's data (a prompt, a title) that must never reach B. Each `Op` is a spec pattern (`"PATCH /problems/{id}"`), with an optional request body. For every op the helper asserts:
+  - unauthenticated gets 401;
+  - user B gets 404 (not 403, not a success) as a problem response that contains none of the secrets;
+  - user A gets the expected success status, so the check cannot pass vacuously.
+  Mark a collection with `List: true`: B gets a success that must not contain A's secrets. Set `Intact` to confirm after B's attempt that an update or delete changed nothing.
+- **Self endpoint** (no ID, answers for the caller, like `GET /me`): call `ownerScope.Self` with a `UserID` function that reads the user ID from the body. The helper asserts each caller sees only their own identity and that neither body contains the other user's ID, email or name.
+- **Exempt**: an authenticated endpoint that can reach no user-owned data (for example the logout cookie) goes in `ownerScope.Exempt(pattern, reason)`. A reason is required and is reviewed like code.
+
+`TestOwnerScopeCoverage` fails the build if any non-public operation in `api/openapi.yaml` is neither registered nor exempted, so a new endpoint cannot ship untested. Public operations (no security scheme, no scopes) need nothing.
+
 ## Adding a store backend
 
 The store is the only place that knows about a database. Features depend on `Repo` interfaces; `internal/store` composes them into `Store`.
