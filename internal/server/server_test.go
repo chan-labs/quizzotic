@@ -4,10 +4,12 @@ package server_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,6 +29,21 @@ func TestServeStartsAndShutsDown(t *testing.T) {
 		t.Fatalf("example config must load: %v", err)
 	}
 	cfg.Storage.URL = "sqlite://" + filepath.Join(t.TempDir(), "q.db")
+
+	// A stand-in IdP: /readyz includes the JWKS check, so the issuer must answer.
+	var idp *httptest.Server
+	idp = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			fmt.Fprintf(w, `{"issuer":%q,"jwks_uri":%q}`, idp.URL, idp.URL+"/jwks")
+		case "/jwks":
+			fmt.Fprint(w, `{"keys":[{"kty":"OKP","crv":"Ed25519","kid":"k1","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"}]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer idp.Close()
+	cfg.Auth.Issuers[0].Issuer = idp.URL
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
