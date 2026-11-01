@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/chan-labs/quizzotic/internal/auth"
+	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/settings"
 )
 
@@ -33,6 +34,9 @@ type Store interface {
 
 	// Settings reads and writes a user's scheduling overrides.
 	Settings() settings.Repo
+
+	// Idempotency stores POST responses for Idempotency-Key replay.
+	Idempotency() platform.IdempotencyRepo
 
 	// Migrate applies pending embedded migrations and returns the versions applied.
 	Migrate(ctx context.Context) ([]int, error)
