@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/attempts"
@@ -44,6 +45,36 @@ func (m Mastery) Service(s Store) *metrics.Service {
 // problem's tags, in the attempt's own transaction.
 func (m Mastery) CardUpdater(tx Store) attempts.CardUpdater {
 	return cardAndMastery{cards: m.cards.Projector(tx), mastery: m.Projector(tx)}
+}
+
+// Snapshotter is the daily snapshot writer over s: each user is snapshotted in
+// one transaction, using the user's effective settings (the configured defaults
+// with the user's overrides) for the time zone and rollover hour.
+func (m Mastery) Snapshotter(s Store, log *slog.Logger) *metrics.Snapshotter {
+	return metrics.NewSnapshotter(snapshotTx{s, m}, m.clock, log)
+}
+
+type snapshotTx struct {
+	s Store
+	m Mastery
+}
+
+func (a snapshotTx) InTx(ctx context.Context, fn func(metrics.SnapshotScope) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error {
+		return fn(metrics.SnapshotScope{
+			Scope:     a.m.Scope(tx),
+			Snapshots: tx.MasterySnapshots(),
+			Settings:  effectiveSettings{tx: tx, c: a.m.cards},
+		})
+	})
+}
+
+// Builder is the review session builder over s with real tag recall: new
+// problems are weighted by the mastery of their tags (spec: Review session
+// builder, step 3). Tag recall only changes which new problems are drawn; it
+// never reads or writes a card. Like Cards.Builder it only reads.
+func (m Mastery) Builder(s Store) *review.Builder {
+	return m.cards.builder(s, metrics.NewRecallReader(m.Scope(s), m.clock))
 }
 
 type masteryTx struct {

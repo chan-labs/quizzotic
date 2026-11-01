@@ -162,10 +162,13 @@ func (p paramsSource) Params(ctx context.Context, userID domain.ID) (fsrs.Params
 // Builder is the review session builder over s: it reads cards, attempts and
 // live problems from the store, and the user's effective scheduling settings
 // (the configured defaults with the user's overrides). Tag recall is the stub
-// of 0.5 until tag mastery exists (M7.6). The builder only reads, so it needs
-// no transaction.
-func (c Cards) Builder(s Store) *review.Builder {
+// of 0.5 for every problem; use Mastery.Builder for real tag recall. The
+// builder only reads, so it needs no transaction.
+func (c Cards) Builder(s Store) *review.Builder { return c.builder(s, nil) }
+
+func (c Cards) builder(s Store, tags review.TagRecall) *review.Builder {
 	return review.NewBuilder(review.BuildSource{
+		Tags:     tags,
 		Cards:    s.Cards(),
 		Attempts: s.Attempts(),
 		Problems: problemEpochs{s.Problems()},
