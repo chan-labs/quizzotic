@@ -35,6 +35,7 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("Users", func(t *testing.T) { runUsers(t, newStore) })
 	t.Run("Identities", func(t *testing.T) { runIdentities(t, newStore) })
 	t.Run("Provision", func(t *testing.T) { runProvision(t, newStore) })
+	t.Run("Settings", func(t *testing.T) { runSettings(t, newStore) })
 	t.Run("WebSessions", func(t *testing.T) { runWebSessions(t, newStore) })
 	t.Run("LoginStates", func(t *testing.T) { runLoginStates(t, newStore) })
 	t.Run("Idempotency", func(t *testing.T) { runIdempotency(t, newStore) })
