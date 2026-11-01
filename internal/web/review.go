@@ -36,11 +36,15 @@ type ReviewSessions interface {
 type ReviewAnswers interface {
 	Answer(ctx context.Context, actor domain.Actor, in attempts.AnswerInput) (attempts.Result, error)
 	Rate(ctx context.Context, actor domain.Actor, id domain.ID, rating int) (attempts.Result, error)
+	// Get reads the owner's stored attempt; the result page is built from it.
+	Get(ctx context.Context, ownerID, id domain.ID) (attempts.View, error)
 }
 
 // ReviewPrompts reads a problem in prompt view. *problems.Service implements it.
 type ReviewPrompts interface {
 	GetPrompt(ctx context.Context, ownerID, id domain.ID) (problems.PromptView, error)
+	// Get returns the full problem (answer and explanation) for a result.
+	Get(ctx context.Context, ownerID, id domain.ID) (problems.View, error)
 }
 
 type reviewPages struct {
@@ -60,6 +64,7 @@ func (w *Web) registerReview(mux *http.ServeMux) {
 		return
 	}
 	mux.Handle("GET /review/{id}", w.gate(http.HandlerFunc(w.reviewShow)))
+	mux.Handle("GET /review/{id}/result/{attempt}", w.gate(http.HandlerFunc(w.reviewResult)))
 	mux.Handle("POST /review/{id}/answer", w.gate(http.HandlerFunc(w.reviewAnswer)))
 	mux.Handle("POST /review/{id}/rate", w.gate(http.HandlerFunc(w.reviewRate)))
 }
@@ -275,12 +280,20 @@ func (w *Web) reviewAnswer(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "the session is completed", http.StatusConflict)
 		return
 	}
-	inSession := false
+	inSession, answered := false, false
 	for _, it := range sess.Items {
-		inSession = inSession || it.ProblemID == pid
+		if it.ProblemID == pid {
+			inSession, answered = true, answered || it.Answered
+		}
 	}
 	if !inSession {
 		http.Error(rw, "that problem is not part of this session", http.StatusBadRequest)
+		return
+	}
+	if answered {
+		// A replayed post (refresh, double submit) must not append a second
+		// attempt: attempts are append-only and a duplicate skews the card.
+		http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther)
 		return
 	}
 	pv, err := rp.prompts.GetPrompt(r.Context(), ws.UserID, pid)
@@ -302,13 +315,56 @@ func (w *Web) reviewAnswer(rw http.ResponseWriter, r *http.Request) {
 	var pb *platform.Problem
 	if errors.As(err, &pb) && pb.Status == http.StatusUnprocessableEntity {
 		// The answer itself is unusable (e.g. nothing picked): ask again.
-		w.renderPrompt(rw, r, http.StatusUnprocessableEntity, sess, pv, 0, problemMessage(pb))
+		w.renderPrompt(rw, r, http.StatusUnprocessableEntity, sess, pv, len(sess.Items)-sess.Answered, problemMessage(pb))
 		return
 	}
 	if err != nil {
 		w.failReview(rw, r, err)
 		return
 	}
+	// Post/Redirect/Get: the result lives at its own URL, so a refresh or
+	// back/forward only re-reads it.
+	http.Redirect(rw, r, reviewPath(id)+"/result/"+res.Attempt.ID.String(), http.StatusSeeOther)
+}
+
+// reviewResult shows the stored result of one attempt of the session.
+func (w *Web) reviewResult(rw http.ResponseWriter, r *http.Request) {
+	id, ok := reviewSessionID(rw, r)
+	if !ok {
+		return
+	}
+	aid, err := domain.ParseID(r.PathValue("attempt"))
+	if err != nil {
+		http.NotFound(rw, r)
+		return
+	}
+	ws, _ := auth.SessionFrom(r.Context())
+	rp := w.reviewPg
+	sess, err := rp.sessions.Get(r.Context(), ws.UserID, id)
+	if err != nil {
+		w.failReview(rw, r, err)
+		return
+	}
+	a, err := rp.answers.Get(r.Context(), ws.UserID, aid)
+	if err != nil {
+		w.failReview(rw, r, err)
+		return
+	}
+	if a.SessionID == nil || *a.SessionID != id.String() {
+		http.NotFound(rw, r)
+		return
+	}
+	full, err := rp.prompts.Get(r.Context(), ws.UserID, a.ProblemID)
+	if err != nil {
+		w.failReview(rw, r, err)
+		return
+	}
+	res, err := storedResult(a, full)
+	if err != nil {
+		w.failReview(rw, r, err)
+		return
+	}
+	pv := problems.PromptView{ID: full.ID, Version: a.ProblemVersion, Type: full.Type, Prompt: full.Prompt, Payload: full.Payload}
 	out, err := buildReviewResult(pv, res)
 	if err != nil {
 		w.failReview(rw, r, err)
@@ -316,6 +372,36 @@ func (w *Web) reviewAnswer(rw http.ResponseWriter, r *http.Request) {
 	}
 	w.render(rw, r, "review", page{Title: reviewTitle(sess), Data: reviewPage{
 		Phase: "result", SessionID: id.String(), Quiz: sess.Kind == review.SessionQuiz, Result: out}})
+}
+
+// storedResult rebuilds what answering returned from the stored attempt and
+// the problem, so the result page can be shown again. Cloze blanks are graded
+// again with the pure grader; the next due date is not stored and is omitted.
+func storedResult(a attempts.View, full problems.View) (attempts.Result, error) {
+	g := attempts.GradeView{Correct: a.AutoCorrect, Score: a.Score, Rating: a.Rating, Scheduled: a.AutoCorrect != nil || a.Rating != nil}
+	if g.Rating == nil && a.AutoCorrect != nil {
+		def := grading.DefaultRating
+		if !*a.AutoCorrect {
+			def = grading.RatingAgain
+		}
+		g.Rating = &def
+	}
+	if full.Type == problems.TypeCloze {
+		var p problems.ClozePayload
+		var resp attempts.ClozeResponse
+		if err := json.Unmarshal(full.Payload, &p); err != nil {
+			return attempts.Result{}, fmt.Errorf("review: cloze payload: %w", err)
+		}
+		if err := json.Unmarshal(a.Response, &resp); err != nil {
+			return attempts.Result{}, fmt.Errorf("review: cloze response: %w", err)
+		}
+		blanks := make([]grading.ClozeBlank, 0, len(p.Blanks))
+		for _, b := range p.Blanks {
+			blanks = append(blanks, grading.ClozeBlank{ID: b.ID, Accepted: b.Accepted, CaseSensitive: b.CaseSensitive, MaxEdits: b.MaxEdits})
+		}
+		g.Blanks = grading.GradeCloze(blanks, resp.Answers).Correct
+	}
+	return attempts.Result{Attempt: a, Grade: g, Answer: full.Payload, Explanation: full.Explanation}, nil
 }
 
 // reviewResponse builds the attempt response from the posted form, in the
@@ -416,6 +502,8 @@ func buildReviewResult(pv problems.PromptView, res attempts.Result) (*reviewResu
 	// move Good (the default) to Hard or Easy; a wrong one is Again already.
 	lo, hi := 0, 0
 	switch {
+	case res.Attempt.Rating != nil:
+		// already rated: nothing left to choose
 	case out.NeedsRating:
 		lo, hi = 1, 4
 	case res.Grade.Correct != nil && *res.Grade.Correct:
