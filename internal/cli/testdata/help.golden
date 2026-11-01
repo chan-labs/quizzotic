@@ -28,6 +28,11 @@ is right: it returns 422 with an error on the `rating` field. An
 attempt is never edited afterwards, except that a missing rating may
 be filled in once.
 
+When `session_id` is sent it must name one of the caller's own review
+or quiz sessions. An unknown session and another user's session are
+indistinguishable: both return 422 with an error on the `session_id`
+field. The session's completion state is not checked.
+
 Humans only: agent clients never hold `attempts:write` and get 403.
 
 flags:
