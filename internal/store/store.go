@@ -43,6 +43,9 @@ type Store interface {
 	// Tags stores tags, aliases and problem-to-tag mappings.
 	Tags() tags.Repo
 
+	// TagOperations stores the tag evolution audit trail and its snapshots.
+	TagOperations() tags.OpRepo
+
 	// Idempotency stores POST responses for Idempotency-Key replay.
 	Idempotency() platform.IdempotencyRepo
 
@@ -92,6 +95,6 @@ type tagsTx struct{ s Store }
 
 func (a tagsTx) InTx(ctx context.Context, fn func(tags.Repos) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
-		return fn(tags.Repos{Tags: tx.Tags(), Problems: tx.Problems()})
+		return fn(tags.Repos{Tags: tx.Tags(), Ops: tx.TagOperations(), Problems: tx.Problems()})
 	})
 }
