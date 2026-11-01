@@ -18,7 +18,12 @@ Thanks for helping. Please read the [Code of Conduct](CODE_OF_CONDUCT.md). The d
 make build   # build the quizzotic binary
 make test    # go test -race ./...
 make lint    # go vet + staticcheck
+make golden  # regenerate CLI help and MCP tool-list goldens
 ```
+
+## Golden files
+
+The generated CLI help (`internal/cli/testdata`, `cmd/quizzotic/testdata`) and the MCP tool list (`internal/mcp/testdata`) are checked against golden files. Changing an operation summary, description or schema in `api/openapi.yaml` fails `make test` until you run `make golden` and commit the reviewed diff.
 
 ## Owner-scoping tests
 
