@@ -27,6 +27,10 @@ auth:
         - id: "quizzotic-agent"
           kind: "agent"
           allowed_scopes: ["problems:read", "problems:write", "tags:read", "tags:write", "quizzes:read", "quizzes:write", "metrics:read"]
+        - id: "quizzotic-headless"   # client-credentials grant
+          kind: "agent"
+          acts_for: "00000000-0000-0000-0000-000000000000"   # issuer "sub" of the human it acts for
+          allowed_scopes: ["problems:read", "problems:write", "tags:read", "tags:write", "metrics:read"]
 scheduling:
   desired_retention: 0.90
   learning_steps: ["1m", "10m"]
