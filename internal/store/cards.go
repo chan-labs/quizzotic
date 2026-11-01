@@ -157,3 +157,32 @@ func (p paramsSource) Params(ctx context.Context, userID domain.ID) (fsrs.Params
 	}
 	return out, nil
 }
+
+// Builder is the review session builder over s: it reads cards, attempts and
+// live problems from the store, and the user's effective scheduling settings
+// (the configured defaults with the user's overrides). Tag recall is the stub
+// of 0.5 until tag mastery exists (M7.6). The builder only reads, so it needs
+// no transaction.
+func (c Cards) Builder(s Store) *review.Builder {
+	return review.NewBuilder(review.BuildSource{
+		Cards:    s.Cards(),
+		Attempts: s.Attempts(),
+		Problems: problemEpochs{s.Problems()},
+		Params:   paramsSource{tx: s, c: c},
+		Settings: effectiveSettings{tx: s, c: c},
+	})
+}
+
+// effectiveSettings resolves a user's overrides against the defaults.
+type effectiveSettings struct {
+	tx Store
+	c  Cards
+}
+
+func (e effectiveSettings) Get(ctx context.Context, userID domain.ID) (settings.Settings, error) {
+	o, err := e.tx.Settings().Get(ctx, userID)
+	if err != nil {
+		return settings.Settings{}, err
+	}
+	return settings.Resolve(e.c.defaults, o), nil
+}
