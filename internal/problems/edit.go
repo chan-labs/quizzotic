@@ -73,8 +73,8 @@ type VersionView struct {
 // a new version. ifMatch must satisfy the problem's current ETag; the check
 // and the write share one transaction.
 func (s *Service) Edit(ctx context.Context, actor domain.Actor, id domain.ID, ifMatch string, in EditInput) (View, error) {
-	if err := actor.Validate(); err != nil || actor.Kind == domain.ActorSystem {
-		return View{}, errors.New("problems: edit needs a human or agent actor")
+	if err := actor.Validate(); err != nil || actor.UserID.IsNil() {
+		return View{}, errors.New("problems: edit needs an actor with a user")
 	}
 	if !in.ChangeKind.Valid() {
 		return View{}, platform.Validation("the edit is invalid",
