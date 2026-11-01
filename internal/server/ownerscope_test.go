@@ -44,7 +44,7 @@ func (e *itEnv) ownerScopeEnv() *ownerscope.Env {
 			return func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+tok) }
 		},
 		Identity: func(t testing.TB, u ownerscope.User) ownerscope.Identity {
-			id, usr := e.userFor(t,subs[u])
+			id, usr := e.userFor(t, subs[u])
 			return ownerscope.Identity{ID: id, Email: usr.Email, DisplayName: usr.DisplayName}
 		},
 	}
