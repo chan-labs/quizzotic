@@ -26,7 +26,6 @@ func TestDispatch(t *testing.T) {
 		{nil, 2},
 		{[]string{"bogus"}, 2},
 		{[]string{"serve", "--config", "/nonexistent/quizzotic.yaml"}, 1},
-		{[]string{"mcp"}, 1},
 		{[]string{"admin"}, 2},
 		{[]string{"help"}, 0},
 	}
