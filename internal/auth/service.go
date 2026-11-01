@@ -22,8 +22,8 @@ type Transactor interface {
 	InTx(ctx context.Context, fn func(Repos) error) error
 }
 
-// Claims are the verified token claims provisioning needs.
-type Claims struct {
+// ProvisionClaims are the verified token claims provisioning needs.
+type ProvisionClaims struct {
 	Issuer      string
 	Subject     string
 	DisplayName string
@@ -52,7 +52,7 @@ const maxProvisionAttempts = 5
 // user on the first valid login (just-in-time provisioning). Display name and
 // email are copied from the claims, and last_seen_at is updated. Concurrent
 // first logins for one (issuer, subject) yield exactly one user.
-func (s *Service) Provision(ctx context.Context, c Claims) (User, error) {
+func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (User, error) {
 	if c.Issuer == "" || c.Subject == "" {
 		return User{}, errors.New("auth: claims need an issuer and a subject")
 	}
@@ -71,7 +71,7 @@ func (s *Service) Provision(ctx context.Context, c Claims) (User, error) {
 	return User{}, fmt.Errorf("auth: provisioning %q did not settle after %d attempts", c.Issuer, maxProvisionAttempts)
 }
 
-func (s *Service) provision(ctx context.Context, r Repos, c Claims) (User, error) {
+func (s *Service) provision(ctx context.Context, r Repos, c ProvisionClaims) (User, error) {
 	now := s.clock.Now()
 
 	ident, err := r.Identities.GetByIssuerSubject(ctx, c.Issuer, c.Subject)

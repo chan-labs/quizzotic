@@ -168,7 +168,7 @@ func runProvision(t *testing.T, newStore NewStore) {
 	t.Run("first login creates user and identity from claims", func(t *testing.T) {
 		s, sc := newStore(t)
 		clock := domain.NewFakeClock(t0)
-		u, err := svc(s, clock).Provision(ctx, auth.Claims{Issuer: iss, Subject: "s1", DisplayName: "Ada", Email: "ada@example.com"})
+		u, err := svc(s, clock).Provision(ctx, auth.ProvisionClaims{Issuer: iss, Subject: "s1", DisplayName: "Ada", Email: "ada@example.com"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -188,12 +188,12 @@ func runProvision(t *testing.T, newStore NewStore) {
 		s, _ := newStore(t)
 		clock := domain.NewFakeClock(t0)
 		sv := svc(s, clock)
-		first, err := sv.Provision(ctx, auth.Claims{Issuer: iss, Subject: "s1", DisplayName: "Ada", Email: "ada@example.com"})
+		first, err := sv.Provision(ctx, auth.ProvisionClaims{Issuer: iss, Subject: "s1", DisplayName: "Ada", Email: "ada@example.com"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		clock.Advance(48 * time.Hour)
-		again, err := sv.Provision(ctx, auth.Claims{Issuer: iss, Subject: "s1", DisplayName: "Ada L", Email: ""})
+		again, err := sv.Provision(ctx, auth.ProvisionClaims{Issuer: iss, Subject: "s1", DisplayName: "Ada L", Email: ""})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -210,7 +210,7 @@ func runProvision(t *testing.T, newStore NewStore) {
 		s, sc := newStore(t)
 		sv := svc(s, domain.SystemClock{})
 		seen := map[domain.ID]bool{}
-		for _, c := range []auth.Claims{{Issuer: iss, Subject: "a"}, {Issuer: iss, Subject: "b"}, {Issuer: "https://o.example.com", Subject: "a"}} {
+		for _, c := range []auth.ProvisionClaims{{Issuer: iss, Subject: "a"}, {Issuer: iss, Subject: "b"}, {Issuer: "https://o.example.com", Subject: "a"}} {
 			u, err := sv.Provision(ctx, c)
 			if err != nil {
 				t.Fatal(err)
@@ -225,10 +225,10 @@ func runProvision(t *testing.T, newStore NewStore) {
 	t.Run("rejects empty issuer or subject", func(t *testing.T) {
 		s, _ := newStore(t)
 		sv := svc(s, domain.SystemClock{})
-		if _, err := sv.Provision(ctx, auth.Claims{Issuer: iss}); err == nil {
+		if _, err := sv.Provision(ctx, auth.ProvisionClaims{Issuer: iss}); err == nil {
 			t.Fatal("want error for empty subject")
 		}
-		if _, err := sv.Provision(ctx, auth.Claims{Subject: "x"}); err == nil {
+		if _, err := sv.Provision(ctx, auth.ProvisionClaims{Subject: "x"}); err == nil {
 			t.Fatal("want error for empty issuer")
 		}
 	})
@@ -252,7 +252,7 @@ func runProvision(t *testing.T, newStore NewStore) {
 				go func(sub string) {
 					defer wg.Done()
 					<-start
-					u, err := sv.Provision(ctx, auth.Claims{Issuer: iss, Subject: sub, DisplayName: sub})
+					u, err := sv.Provision(ctx, auth.ProvisionClaims{Issuer: iss, Subject: sub, DisplayName: sub})
 					out <- result{sub, u.ID, err}
 				}(fmt.Sprintf("sub-%d", si))
 			}
