@@ -1,0 +1,10 @@
+.notice { padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--surface); }
+.error { color: #b91c1c; }
+.drafts { list-style: none; padding: 0; }
+.draft { padding: 0.75rem; margin: 0.5rem 0; background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; }
+.draft-head { display: flex; gap: 0.5rem; align-items: center; }
+.badge { padding: 0 0.5rem; border: 1px solid var(--border); border-radius: 1rem; font-size: 0.85rem; }
+.draft-prompt { overflow-wrap: anywhere; white-space: pre-wrap; }
+.edit label { display: block; margin: 0.5rem 0; }
+.edit textarea, .edit input[type="text"] { display: block; width: 100%; font: inherit; }
+.bulk { display: flex; gap: 0.75rem; align-items: center; margin: 0.75rem 0; }
