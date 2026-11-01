@@ -242,12 +242,12 @@ problems:
   # ---- Learning steps and card states --------------------------------------
   - key: fsrs.steps-default
     type: cloze
-    prompt: "The default learning steps are {{s1}} minute and {{s2}} minutes."
+    prompt: "The default steps for same-day learning and relearning are {{s1}} minute and {{s2}} minutes."
     payload:
       blanks:
         - {id: s1, accepted: ["1", "one"], case_sensitive: false, max_edits: 0}
         - {id: s2, accepted: ["10", "ten"], case_sensitive: false, max_edits: 0}
-    explanation: A new card is shown again after 1 minute and then 10 minutes before it graduates to day-long intervals. Quizzotic's steps for same-day relearning are configurable.
+    explanation: Again returns the card after 1 minute. Good moves it to the 10-minute step, and Good after that graduates it to day-long intervals. The steps are configurable.
     tags: [tag.fsrs, tag.spaced-repetition]
 
   - key: fsrs.steps-purpose
@@ -285,7 +285,7 @@ problems:
     prompt: "Forgetting a card that was in the review state is counted as a {{term}}."
     payload:
       blanks:
-        - {id: term, accepted: ["lapse", "lapses"], case_sensitive: false, max_edits: 1}
+        - {id: term, accepted: ["lapse", "lapses", "lapsed"], case_sensitive: false, max_edits: 0}
     explanation: Lapses are tallied per card. Quizzotic's lapse rate for a tag is its total lapses divided by its total reviews.
     tags: [tag.fsrs, tag.quizzotic-usage]
 
@@ -427,7 +427,7 @@ problems:
     payload:
       blanks:
         - {id: n, accepted: ["200", "two hundred"], case_sensitive: false, max_edits: 0}
-    explanation: Cards that are due beyond the cap wait for the next day, starting with the cards that you are least likely to remember.
+    explanation: Cards due beyond the cap are not served that day. Each session serves the cards you are least likely to remember first.
     tags: [tag.quizzotic-usage]
 
   - key: qz.session-order
