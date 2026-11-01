@@ -35,6 +35,8 @@ func NewHandler(svc *Service, logger *slog.Logger) *Handler {
 func (h *Handler) Register(rt *platform.Router) {
 	rt.HandleFunc("POST /attempts", h.Create)
 	rt.HandleFunc("POST /attempts/{id}/rating", h.Rate)
+	rt.HandleFunc("GET /attempts", h.List)
+	rt.HandleFunc("GET /attempts/{id}", h.Get)
 }
 
 type createRequest struct {
@@ -89,6 +91,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
+	w.Header().Set("Location", platform.APIPrefix+"/attempts/"+res.Attempt.ID.String())
 	writeJSON(w, http.StatusCreated, res)
 }
 
@@ -133,6 +136,61 @@ func (h *Handler) Rate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// List answers GET /attempts.
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	page, err := platform.ParsePage(r)
+	if err != nil {
+		platform.WriteError(w, r, err)
+		return
+	}
+	q := r.URL.Query()
+	res, err := h.svc.List(r.Context(), p.UserID, ListQuery{
+		Problem: q.Get("problem"), Tag: q.Get("tag"), Since: q.Get("since"), Until: q.Get("until"),
+		Cursor: page.Cursor, Limit: page.Limit,
+	})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// Get answers GET /attempts/{id}.
+func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	id, err := domain.ParseID(r.PathValue("id"))
+	if err != nil {
+		platform.WriteError(w, r, platform.NotFound("no such attempt"))
+		return
+	}
+	v, err := h.svc.Get(r.Context(), p.UserID, id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+func (h *Handler) principal(w http.ResponseWriter, r *http.Request) (auth.Principal, bool) {
+	if h.svc == nil {
+		platform.WriteError(w, r, platform.NotFound("no such resource"))
+		return auth.Principal{}, false
+	}
+	p, ok := auth.PrincipalFrom(r.Context())
+	if !ok {
+		platform.WriteError(w, r, platform.Unauthorized("authentication required"))
+		return auth.Principal{}, false
+	}
+	return p, true
 }
 
 // fail renders err. Grading errors become client-facing problems; anything
