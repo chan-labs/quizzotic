@@ -14,7 +14,8 @@ const APIPrefix = "/api/v1"
 // Routes registered with Handle are served under APIPrefix. Unknown paths and
 // wrong methods produce problem+json instead of the mux's plain text.
 type Router struct {
-	api *http.ServeMux
+	api      *http.ServeMux
+	patterns []string
 }
 
 // NewRouter returns an empty API router.
@@ -22,10 +23,13 @@ func NewRouter() *Router { return &Router{api: http.NewServeMux()} }
 
 // Handle registers a handler for a ServeMux pattern such as
 // "GET /problems/{id}". The pattern's path is relative to APIPrefix.
-func (rt *Router) Handle(pattern string, h http.Handler) { rt.api.Handle(pattern, h) }
+func (rt *Router) Handle(pattern string, h http.Handler) {
+	rt.api.Handle(pattern, h)
+	rt.patterns = append(rt.patterns, pattern)
+}
 
 // HandleFunc is Handle for a function.
-func (rt *Router) HandleFunc(pattern string, h http.HandlerFunc) { rt.api.HandleFunc(pattern, h) }
+func (rt *Router) HandleFunc(pattern string, h http.HandlerFunc) { rt.Handle(pattern, h) }
 
 // Mount attaches the API under APIPrefix on parent.
 func (rt *Router) Mount(parent *http.ServeMux) {
