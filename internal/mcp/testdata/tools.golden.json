@@ -54,7 +54,7 @@
     "name": "attempts_list"
   },
   {
-    "description": "Create a problem\n\nCreates a problem and its first version. `status` is `draft` (the\ndefault) or `live`. The payload is validated against the type; every\nfailure is listed in `errors` of a 422 response.\n\nCheck for duplicates first (problems.similar), default to status draft so a human can review, and always tag the problem.",
+    "description": "Create a problem\n\nCreates a problem and its first version. `status` is `draft` (the\ndefault) or `live`. The payload is validated against the type; every\nfailure is listed in `errors` of a 422 response.\n\nCheck for duplicates first (call problems.similar before creating), default to status draft so a human can review, and always tag the problem. List tags first (tags.list) and prefer existing tags; an alias resolves to its tag.",
     "inputSchema": {
       "properties": {
         "explanation": {
@@ -219,7 +219,7 @@
     "name": "problems_create"
   },
   {
-    "description": "Create up to 100 problems at once\n\nCreates every item (a problem plus its tags) in one transaction. The\nbatch holds 1 to 100 items. If any item is invalid, nothing is written\nand the 422 response lists the invalid fields of every bad item in\n`errors`, each `field` prefixed with the item's index, for example\n`items[3].payload.choices` or `items[0].tags[1]`. Items are validated\nlike `problems.create`; each tag is an ID, slug or alias of one of the\ncaller's tags (a merged tag resolves to the tag it was merged into).\nThe created problems are returned in request order. The request body\nis limited to 1 MiB.\n\nPrefer this over many problems.create calls when adding a set of problems. Default each item to status draft, tag every item, and send an Idempotency-Key so a retry cannot duplicate the batch.",
+    "description": "Create up to 100 problems at once\n\nCreates every item (a problem plus its tags) in one transaction. The\nbatch holds 1 to 100 items. If any item is invalid, nothing is written\nand the 422 response lists the invalid fields of every bad item in\n`errors`, each `field` prefixed with the item's index, for example\n`items[3].payload.choices` or `items[0].tags[1]`. Items are validated\nlike `problems.create`; each tag is an ID, slug or alias of one of the\ncaller's tags (a merged tag resolves to the tag it was merged into).\nThe created problems are returned in request order. The request body\nis limited to 1 MiB.\n\nPrefer this over many problems.create calls when adding a set of problems. Call problems.similar for each item first to avoid duplicates. Default each item to status draft, tag every item with existing tags (call tags.list first; aliases resolve), and send an Idempotency-Key so a retry cannot duplicate the batch.",
     "inputSchema": {
       "properties": {
         "items": {
@@ -649,7 +649,7 @@
     "name": "problems_list"
   },
   {
-    "description": "Replace a problem's tags\n\nReplaces the set of tags on a problem. Each entry is a tag ID, slug or\nalias; duplicates are ignored. A merged tag resolves to the tag it was\nmerged into. Unknown or retired tags are a 422. Tags attach to the\nproblem, not to a version.\n\nSend the complete desired tag list; omitted tags are removed.",
+    "description": "Replace a problem's tags\n\nReplaces the set of tags on a problem. Each entry is a tag ID, slug or\nalias; duplicates are ignored. A merged tag resolves to the tag it was\nmerged into. Unknown or retired tags are a 422. Tags attach to the\nproblem, not to a version.\n\nSend the complete desired tag list; omitted tags are removed. List tags first (tags.list) and prefer existing tags; aliases resolve.",
     "inputSchema": {
       "properties": {
         "id": {
@@ -1061,7 +1061,7 @@
     "name": "tagOperations_propose"
   },
   {
-    "description": "Create a tag\n\nCreates an active tag. When `slug` is omitted it is derived from\n`name`. The slug must be unique among the caller's active tags and\nmust not be an alias of any of their tags (409 otherwise).\n\nPrefer an existing tag (tags.list) over creating a near-duplicate.\nSlugs are lowercase words joined by hyphens.",
+    "description": "Create a tag\n\nCreates an active tag. When `slug` is omitted it is derived from\n`name`. The slug must be unique among the caller's active tags and\nmust not be an alias of any of their tags (409 otherwise).\n\nList tags first (tags.list) and prefer an existing tag over creating a\nnear-duplicate; aliases resolve to their tag. Slugs are lowercase\nwords joined by hyphens.",
     "inputSchema": {
       "properties": {
         "description": {
