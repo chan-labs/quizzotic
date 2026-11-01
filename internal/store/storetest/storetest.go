@@ -44,6 +44,7 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("Attempts", func(t *testing.T) { runAttempts(t, newStore) })
 	t.Run("Cards", func(t *testing.T) { runCards(t, newStore) })
 	t.Run("Mastery", func(t *testing.T) { runMastery(t, newStore) })
+	t.Run("MasterySnapshots", func(t *testing.T) { runSnapshots(t, newStore) })
 	t.Run("Tags", func(t *testing.T) { runTags(t, newStore) })
 	t.Run("Quizzes", func(t *testing.T) { runQuizzes(t, newStore) })
 	t.Run("TagMerge", func(t *testing.T) { runTagMerge(t, newStore) })

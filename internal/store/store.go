@@ -57,6 +57,9 @@ type Store interface {
 	// and can be dropped and rebuilt at any time.
 	Mastery() metrics.Repo
 
+	// MasterySnapshots stores the daily per-tag mastery rollup.
+	MasterySnapshots() metrics.SnapshotRepo
+
 	// Tags stores tags, aliases and problem-to-tag mappings.
 	Tags() tags.Repo
 
