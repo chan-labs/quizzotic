@@ -173,3 +173,33 @@ func TestInputSchemaMergesPathQueryAndBody(t *testing.T) {
 		t.Errorf("problems_list schema lacks query parameter limit")
 	}
 }
+
+// TestAuthoringHintsInDescriptions pins the authoring guidance so it cannot
+// silently disappear from the tools an agent uses to author content.
+func TestAuthoringHintsInDescriptions(t *testing.T) {
+	want := map[string][]string{
+		"problems.create":       {"problems.similar", "draft", "tag", "tags.list", "alias"},
+		"problems.createBatch":  {"problems.similar", "draft", "tag", "tags.list", "alias"},
+		"problems.similar":      {"before problems.create", "duplicate"},
+		"problems.setTags":      {"tags.list", "existing tags", "alias"},
+		"tags.create":           {"tags.list", "existing tag", "alias"},
+		"tagOperations.propose": {"never apply", "human"},
+	}
+	byName := map[string]*sdk.Tool{}
+	for _, tl := range listTools(t) {
+		byName[tl.Name] = tl
+	}
+	for op, subs := range want {
+		tl := byName[strings.ReplaceAll(op, ".", "_")]
+		if tl == nil {
+			t.Errorf("tool for %s not exposed", op)
+			continue
+		}
+		desc := strings.Join(strings.Fields(tl.Description), " ")
+		for _, s := range subs {
+			if !strings.Contains(desc, s) {
+				t.Errorf("%s description missing %q:\n%s", op, s, desc)
+			}
+		}
+	}
+}
