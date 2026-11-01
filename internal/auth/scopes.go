@@ -5,6 +5,7 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -90,6 +91,32 @@ func NewScopeGuard(a Authenticator, ops []openapi.Operation) *ScopeGuard {
 	return g
 }
 
+// requestSegments splits the request path the way the router and ServeMux do:
+// on the escaped path, after the API prefix, so an escaped slash stays inside
+// its segment. Each segment is then unescaped for comparison with the spec's
+// literals. Encoded slashes and backslashes are refused outright so the guard
+// and the router can never disagree about segment boundaries (fail closed).
+// A path outside the prefix yields no segments; the router answers 404.
+func requestSegments(r *http.Request) ([]string, error) {
+	esc := r.URL.EscapedPath()
+	if !strings.HasPrefix(esc, platform.APIPrefix+"/") {
+		return nil, nil
+	}
+	rest := strings.TrimPrefix(esc, platform.APIPrefix)
+	if l := strings.ToLower(rest); strings.Contains(l, "%2f") || strings.Contains(l, "%5c") {
+		return nil, errors.New("encoded slashes are not allowed in the path")
+	}
+	segs := split(rest)
+	for i, s := range segs {
+		u, err := url.PathUnescape(s)
+		if err != nil {
+			return nil, errors.New("malformed path encoding")
+		}
+		segs[i] = u
+	}
+	return segs, nil
+}
+
 func split(p string) []string { return strings.Split(strings.Trim(p, "/"), "/") }
 
 func literals(segs []string) int {
@@ -121,8 +148,7 @@ func (r route) matches(segs []string) bool {
 // those operations' scopes, so authentication is required before the router
 // answers 405. A request is unguarded only when no operation matches the path
 // or some operation on it needs no scope.
-func (g *ScopeGuard) required(method, path string) ([]string, bool) {
-	segs := split(path)
+func (g *ScopeGuard) required(method string, segs []string) ([]string, bool) {
 	methods := []string{method}
 	if method == http.MethodHead {
 		methods = append(methods, http.MethodGet)
@@ -159,8 +185,12 @@ func (g *ScopeGuard) required(method, path string) ([]string, bool) {
 // request context.
 func (g *ScopeGuard) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, platform.APIPrefix)
-		scopes, guarded := g.required(r.Method, path)
+		segs, err := requestSegments(r)
+		if err != nil {
+			platform.WriteError(w, r, platform.BadRequest(err.Error()))
+			return
+		}
+		scopes, guarded := g.required(r.Method, segs)
 		if !guarded {
 			next.ServeHTTP(w, r)
 			return
