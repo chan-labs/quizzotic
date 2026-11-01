@@ -29,9 +29,12 @@ func TestMigrateCreatesSchemaMigrationsAndIsIdempotent(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("run %d: exit %d stderr=%s", i+1, code, errs)
 		}
-		if !strings.Contains(out, "schema up to date") {
-			// No migrations are embedded yet, so even the first run applies none.
-			t.Fatalf("run %d: unexpected output %q", i+1, out)
+		want := "applied 1 migration(s): [1]"
+		if i == 1 {
+			want = "schema up to date"
+		}
+		if !strings.Contains(out, want) {
+			t.Fatalf("run %d: output %q, want %q", i+1, out, want)
 		}
 	}
 
