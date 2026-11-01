@@ -140,7 +140,7 @@ func (w *Web) problemList(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var pe *platform.Problem
 		if !errors.As(err, &pe) || pe.Status >= 500 {
-			w.fail(rw, "list problems", err)
+			w.failProblemPage(rw, "list problems", err)
 			return
 		}
 		status = pe.Status
@@ -249,13 +249,13 @@ func (w *Web) problemShow(rw http.ResponseWriter, r *http.Request) {
 	}
 	f, err := formFromView(v)
 	if err != nil {
-		w.fail(rw, "decode problem", err)
+		w.failProblemPage(rw, "decode problem", err)
 		return
 	}
 	if w.prob.tags != nil {
 		cur, err := w.prob.tags.ProblemTags(r.Context(), actor.UserID, id)
 		if err != nil {
-			w.fail(rw, "problem tags", err)
+			w.failProblemPage(rw, "problem tags", err)
 			return
 		}
 		for _, t := range cur {
@@ -278,7 +278,7 @@ func (w *Web) problemCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 	payload, err := f.payload()
 	if err != nil {
-		w.fail(rw, "build payload", err)
+		w.failProblemPage(rw, "build payload", err)
 		return
 	}
 	status := problems.StatusDraft
@@ -321,7 +321,7 @@ func (w *Web) problemEdit(rw http.ResponseWriter, r *http.Request) {
 	f.Type, f.Status, f.Version = cur.Type, string(cur.Status), cur.Version
 	payload, err := f.payload()
 	if err != nil {
-		w.fail(rw, "build payload", err)
+		w.failProblemPage(rw, "build payload", err)
 		return
 	}
 	prompt, expl, src := f.Prompt, f.Explanation, f.Source
@@ -370,7 +370,7 @@ func (w *Web) saveTags(ctx context.Context, owner, id domain.ID, f problemForm) 
 func (w *Web) editorError(rw http.ResponseWriter, r *http.Request, owner domain.ID, f problemForm, err error, what string) {
 	var pe *platform.Problem
 	if !errors.As(err, &pe) {
-		w.fail(rw, what, err)
+		w.failProblemPage(rw, what, err)
 		return
 	}
 	switch {
@@ -379,7 +379,7 @@ func (w *Web) editorError(rw http.ResponseWriter, r *http.Request, owner domain.
 	case pe.Status == http.StatusNotFound:
 		http.NotFound(rw, r)
 	case pe.Status >= 500:
-		w.fail(rw, what, err)
+		w.failProblemPage(rw, what, err)
 	default:
 		errs := pe.Errors
 		if len(errs) == 0 {
@@ -406,10 +406,10 @@ func (w *Web) failProblem(rw http.ResponseWriter, r *http.Request, what string, 
 		http.NotFound(rw, r)
 		return
 	}
-	w.fail(rw, what, err)
+	w.failProblemPage(rw, what, err)
 }
 
-func (w *Web) fail(rw http.ResponseWriter, what string, err error) {
+func (w *Web) failProblemPage(rw http.ResponseWriter, what string, err error) {
 	w.cfg.Logger.Error(what, slog.String("error", err.Error()))
 	http.Error(rw, "internal error", http.StatusInternalServerError)
 }
@@ -451,7 +451,7 @@ func (w *Web) problemPreview(rw http.ResponseWriter, r *http.Request) {
 	f := parseProblemForm(r)
 	var buf bytes.Buffer
 	if err := w.prob.preview.ExecuteTemplate(&buf, "preview", buildPreview(f)); err != nil {
-		w.fail(rw, "render preview", err)
+		w.failProblemPage(rw, "render preview", err)
 		return
 	}
 	h := rw.Header()

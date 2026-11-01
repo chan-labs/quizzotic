@@ -334,6 +334,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		} else {
 			ho.site.UseProblems(problemsSvc, nil)
 		}
+		ho.site.UseDrafts(problemsSvc)
 		ho.site.Register(mux)
 	}
 
