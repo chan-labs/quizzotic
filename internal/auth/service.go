@@ -71,6 +71,17 @@ func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (User, error
 	return User{}, fmt.Errorf("auth: provisioning %q did not settle after %d attempts", c.Issuer, maxProvisionAttempts)
 }
 
+// GetUser returns the user with the given ID, or ErrNotFound.
+func (s *Service) GetUser(ctx context.Context, userID domain.ID) (User, error) {
+	var u User
+	err := s.tx.InTx(ctx, func(r Repos) error {
+		var err error
+		u, err = r.Users.Get(ctx, userID)
+		return err
+	})
+	return u, err
+}
+
 func (s *Service) provision(ctx context.Context, r Repos, c ProvisionClaims) (User, error) {
 	now := s.clock.Now()
 
