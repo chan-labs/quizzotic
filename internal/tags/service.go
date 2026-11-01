@@ -28,6 +28,7 @@ var slugRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 // Repos is the set of repositories a Transactor binds to one transaction.
 type Repos struct {
 	Tags     Repo
+	Ops      OpRepo
 	Problems problems.Repo
 }
 
