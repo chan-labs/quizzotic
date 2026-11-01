@@ -3,11 +3,20 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"slices"
 	"testing"
 
+	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/openapi"
+	"github.com/chan-labs/quizzotic/internal/server"
+	"github.com/chan-labs/quizzotic/internal/store/sqlite"
 )
 
 type meBody struct {
@@ -130,6 +139,9 @@ func TestProtectedResourceMetadata(t *testing.T) {
 		if ct := r.header.Get("Content-Type"); ct != "application/json" {
 			t.Errorf("content-type = %q", ct)
 		}
+		if cc := r.header.Get("Cache-Control"); cc != "public, max-age=300" {
+			t.Errorf("Cache-Control = %q", cc)
+		}
 		var doc struct {
 			Resource               string   `json:"resource"`
 			AuthorizationServers   []string `json:"authorization_servers"`
@@ -155,5 +167,50 @@ func TestProtectedResourceMetadata(t *testing.T) {
 	// Root path only: not under /api/v1.
 	if r := e.do(t, "GET", "/api/v1/.well-known/oauth-protected-resource", nil, ""); r.code != 404 {
 		t.Errorf("under /api/v1 = %d, want 404", r.code)
+	}
+}
+
+type stubAuth struct{}
+
+func (stubAuth) Authenticate(_ http.ResponseWriter, r *http.Request) (auth.Principal, error) {
+	if r.Header.Get("X-Test-Auth") == "" {
+		return auth.Principal{}, auth.ErrNoCredentials
+	}
+	return auth.Principal{Kind: auth.KindHuman, ClientID: "stub"}, nil
+}
+
+// Without WithIdentity the identity endpoints are not served: the public
+// metadata is 404, and /me is still guarded (401) before it answers 404.
+func TestIdentityEndpointsDisabledWithoutWithIdentity(t *testing.T) {
+	st, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "q.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	h := server.Handler(slog.New(slog.NewTextHandler(io.Discard, nil)), st,
+		auth.NewProvider("https://idp.example.com"), server.WithAPIAuth(stubAuth{}))
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	get := func(path string, hdr map[string]string) int {
+		req, _ := http.NewRequest("GET", srv.URL+path, nil)
+		for k, v := range hdr {
+			req.Header.Set(k, v)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if c := get("/.well-known/oauth-protected-resource", nil); c != 404 {
+		t.Errorf("metadata = %d, want 404", c)
+	}
+	if c := get("/api/v1/me", nil); c != 401 {
+		t.Errorf("/me without credentials = %d, want 401", c)
+	}
+	if c := get("/api/v1/me", map[string]string{"X-Test-Auth": "1"}); c != 404 {
+		t.Errorf("/me authenticated = %d, want 404", c)
 	}
 }

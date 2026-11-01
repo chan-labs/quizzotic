@@ -28,8 +28,7 @@ type Service struct {
 }
 
 // NewService builds a Service. catalog is the spec's scope catalog; issuer is
-// the configured OIDC issuer; publicURL is the server's public base URL (may
-// be empty, then the handler derives it from the request).
+// the configured OIDC issuer; publicURL is the server's public base URL.
 func NewService(users Users, issuer, publicURL string, catalog []string) *Service {
 	c := append([]string(nil), catalog...)
 	sort.Strings(c)
@@ -84,15 +83,12 @@ type ResourceMetadata struct {
 	BearerMethodsSupported []string `json:"bearer_methods_supported"`
 }
 
-// Metadata returns the protected-resource metadata. fallbackResource is used
-// when no public URL is configured.
-func (s *Service) Metadata(fallbackResource string) ResourceMetadata {
-	res := s.publicURL
-	if res == "" {
-		res = strings.TrimRight(fallbackResource, "/")
-	}
+// Metadata returns the protected-resource metadata. The resource is the
+// configured public URL (required by config validation); request-derived
+// values such as Host are untrusted and never used.
+func (s *Service) Metadata() ResourceMetadata {
 	return ResourceMetadata{
-		Resource:               res,
+		Resource:               s.publicURL,
 		AuthorizationServers:   []string{s.issuer},
 		ScopesSupported:        append([]string{}, s.catalog...),
 		BearerMethodsSupported: []string{"header"},

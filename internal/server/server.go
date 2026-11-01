@@ -21,6 +21,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/store"
 	"github.com/chan-labs/quizzotic/internal/store/driver"
+	"github.com/chan-labs/quizzotic/internal/web"
 )
 
 // ShutdownTimeout bounds how long in-flight requests get to finish.
@@ -150,7 +151,11 @@ func authOptions(cfg *config.Config, logger *slog.Logger, st store.Store, idp *a
 		}, st, idp, auth.NewVerifier(issuer.Issuer, idp), authSvc,
 			clock, ids, httpClient)
 		login := auth.NewLoginHandler(svc, logger)
-		hopts = append(hopts, WithWebLogin(login), WithAPIAuth(auth.SessionAuthenticator{Login: login}))
+		site, err := web.New(web.Config{Gate: login.RequireSessionOr(web.RedirectToLogin), Logger: logger})
+		if err != nil {
+			return nil, fmt.Errorf("web: %w", err)
+		}
+		hopts = append(hopts, WithWebLogin(login), WithWebsite(site), WithAPIAuth(auth.SessionAuthenticator{Login: login}))
 	} else {
 		logger.Warn("web login disabled: no human client with a secret under auth.issuers[0].clients")
 	}
@@ -163,6 +168,7 @@ type HandlerOption func(*handlerOptions)
 type handlerOptions struct {
 	web  *auth.LoginHandler
 	me   *me.Service
+	site *web.Web
 	auth []auth.Authenticator
 	// extra operations and routes registered beside the spec's; set only by
 	// tests, through the same router and guard as production routes.
@@ -211,6 +217,11 @@ func WithWebLogin(h *auth.LoginHandler) HandlerOption {
 	return func(o *handlerOptions) { o.web = h }
 }
 
+// WithWebsite mounts the server-rendered website at the root.
+func WithWebsite(w *web.Web) HandlerOption {
+	return func(o *handlerOptions) { o.site = w }
+}
+
 // webClient picks the confidential human client used for browser login: the
 // first human client that has a secret.
 func webClient(is config.Issuer) (config.Client, bool) {
@@ -246,6 +257,9 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	meH.RegisterRoot(mux)
 	if ho.web != nil {
 		ho.web.Register(mux)
+	}
+	if ho.site != nil {
+		ho.site.Register(mux)
 	}
 
 	return platform.Tracing(nil)(platform.RequestID(logger)(platform.TraceRoute(mux)))

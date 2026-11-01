@@ -56,12 +56,8 @@ func (h *Handler) Metadata(w http.ResponseWriter, r *http.Request) {
 		platform.WriteError(w, r, platform.NotFound("no such resource"))
 		return
 	}
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
 	w.Header().Set("Cache-Control", "public, max-age=300")
-	writeJSON(w, h.svc.Metadata(scheme+"://"+r.Host))
+	writeJSON(w, h.svc.Metadata())
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
