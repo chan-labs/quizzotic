@@ -64,6 +64,11 @@ type Operation struct {
 	Snapshot   *Snapshot
 	CreatedAt  time.Time
 	DecidedAt  time.Time // zero while proposed
+
+	// RevertedAt and RevertedBy are set once an applied operation has been
+	// reverted; its status stays applied and its snapshot is kept.
+	RevertedAt time.Time
+	RevertedBy domain.Actor
 }
 
 // Snapshot is a before-image of tag rows (with aliases) and the
@@ -109,6 +114,12 @@ var (
 	ErrOpNotFound = errors.New("tags: operation not found")
 	// ErrOpNotProposed: Decide was called on an operation that is already decided.
 	ErrOpNotProposed = errors.New("tags: operation is not proposed")
+	// ErrOpNotApplied: the operation is proposed or rejected, so there is nothing to revert.
+	ErrOpNotApplied = errors.New("tags: operation is not applied")
+	// ErrOpReverted: the operation was already reverted.
+	ErrOpReverted = errors.New("tags: operation is already reverted")
+	// ErrRevertConflict: a later applied operation touched the same tags.
+	ErrRevertConflict = errors.New("tags: a later operation touched the same tags")
 )
 
 // OpFilter narrows OpRepo.List.
@@ -151,4 +162,18 @@ type OpRepo interface {
 	// aliases) and every problem_tags row that references them. A tag that
 	// is not the owner's returns ErrNotFound.
 	CaptureSnapshot(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) (Snapshot, error)
+
+	// Restore makes the tags in snap and their mappings exactly as the
+	// snapshot recorded them: every current problem_tags row and alias of
+	// those tags (and of removeTagIDs) is replaced by the snapshot's, tag
+	// rows get the snapshot's slug, name, description, status, merged_into
+	// and timestamps, and the tags in removeTagIDs are deleted. It runs
+	// inside a transaction. A slug that another tag now holds returns
+	// ErrSlugTaken; a tag that is not the owner's returns ErrNotFound.
+	Restore(ctx context.Context, ownerID domain.ID, snap Snapshot, removeTagIDs []domain.ID) error
+
+	// MarkReverted records that an applied operation was reverted. It
+	// returns ErrOpNotFound for a missing one, ErrOpNotApplied when it is
+	// not applied and ErrOpReverted when it was already reverted.
+	MarkReverted(ctx context.Context, ownerID, id domain.ID, by domain.Actor, at time.Time) error
 }

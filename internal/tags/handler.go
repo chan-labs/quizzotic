@@ -99,6 +99,12 @@ func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 		err = platform.NotFound("no such resource")
 	case errors.Is(err, ErrOpNotProposed):
 		err = platform.Conflict("the operation is already decided")
+	case errors.Is(err, ErrOpNotApplied):
+		err = platform.Conflict("only an applied operation can be reverted")
+	case errors.Is(err, ErrOpReverted):
+		err = platform.Conflict("the operation is already reverted")
+	case errors.Is(err, ErrRevertConflict):
+		err = platform.Conflict("a later applied operation touched the same tags; revert that one first")
 	case errors.Is(err, ErrSlugTaken):
 		err = platform.Conflict("slug is already used by an active tag or an alias")
 	case errors.Is(err, ErrPreconditionFailed):

@@ -228,6 +228,76 @@ func runTagOperations(t *testing.T, newStore NewStore) {
 		}
 	})
 
+	t.Run("restore puts snapshotted tags and mappings back and removes created tags", func(t *testing.T) {
+		s, a, b := setup(t)
+		src, dst := mkTag(t, s, a, "src"), mkTag(t, s, a, "dst")
+		src.Slug, src.UpdatedAt = "renamed", t0.Add(time.Hour)
+		if err := s.Tags().Update(ctx, a.ID, src); err != nil {
+			t.Fatal(err)
+		}
+		p1, p2 := mkProblem(t, s, a, src.ID), mkProblem(t, s, a, src.ID, dst.ID)
+		snap, err := s.TagOperations().CaptureSnapshot(ctx, a.ID, []domain.ID{src.ID, dst.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Change everything: a created tag, a merge, a mapping to the new tag.
+		fresh := mkTag(t, s, a, "fresh")
+		if err := s.Tags().SetProblemTags(ctx, a.ID, p1, []domain.ID{fresh.ID, src.ID}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Tags().Merge(ctx, a.ID, []domain.ID{src.ID}, dst.ID, t0.Add(2*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+
+		// Another owner cannot restore (or delete) a's tags.
+		is(t, s.TagOperations().Restore(ctx, b.ID, snap, []domain.ID{fresh.ID}), tags.ErrNotFound)
+		if _, err := s.Tags().Get(ctx, a.ID, fresh.ID); err != nil {
+			t.Fatalf("foreign restore removed a tag: %v", err)
+		}
+
+		if err := s.TagOperations().Restore(ctx, a.ID, snap, []domain.ID{fresh.ID}); err != nil {
+			t.Fatal(err)
+		}
+		again, err := s.TagOperations().CaptureSnapshot(ctx, a.ID, []domain.ID{src.ID, dst.ID})
+		if err != nil || !reflect.DeepEqual(again, snap) {
+			t.Fatalf("after restore = %+v, %v\nwant %+v", again, err, snap)
+		}
+		_, err = s.Tags().Get(ctx, a.ID, fresh.ID)
+		is(t, err, tags.ErrNotFound)
+		if got, err := s.Tags().ProblemTags(ctx, a.ID, p2); err != nil || len(got) != 2 {
+			t.Fatalf("p2 tags = %+v, %v", got, err)
+		}
+		if got, err := s.Tags().GetByAlias(ctx, a.ID, "src"); err != nil || got.ID != src.ID {
+			t.Fatalf("alias src = %+v, %v", got, err)
+		}
+	})
+
+	t.Run("mark reverted once, only when applied", func(t *testing.T) {
+		s, a, b := setup(t)
+		op := proposed(a, tags.OpRename, `{}`)
+		if err := s.TagOperations().Create(ctx, a.ID, op); err != nil {
+			t.Fatal(err)
+		}
+		is(t, s.TagOperations().MarkReverted(ctx, a.ID, op.ID, human(a), t0), tags.ErrOpNotApplied)
+		snap := tags.Snapshot{}
+		applied := proposed(a, tags.OpRename, `{}`)
+		applied.Status, applied.DecidedBy, applied.DecidedAt, applied.AppliedAt, applied.Snapshot =
+			tags.OpApplied, human(a), t0, t0, &snap
+		if err := s.TagOperations().Create(ctx, a.ID, applied); err != nil {
+			t.Fatal(err)
+		}
+		is(t, s.TagOperations().MarkReverted(ctx, b.ID, applied.ID, human(b), t0), tags.ErrOpNotFound)
+		at := t0.Add(time.Minute)
+		if err := s.TagOperations().MarkReverted(ctx, a.ID, applied.ID, agent(a), at); err != nil {
+			t.Fatal(err)
+		}
+		is(t, s.TagOperations().MarkReverted(ctx, a.ID, applied.ID, human(a), at), tags.ErrOpReverted)
+		got, err := s.TagOperations().Get(ctx, a.ID, applied.ID)
+		if err != nil || got.Status != tags.OpApplied || !got.RevertedAt.Equal(at) || got.RevertedBy != agent(a) || got.Snapshot == nil {
+			t.Fatalf("reverted = %+v, %v", got, err)
+		}
+	})
+
 	t.Run("invalid rows are refused", func(t *testing.T) {
 		s, a, b := setup(t)
 		bad := proposed(a, "bogus", `{}`)
