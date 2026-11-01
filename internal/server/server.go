@@ -329,6 +329,11 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		ho.web.Register(mux)
 	}
 	if ho.site != nil {
+		if ho.tags != nil {
+			ho.site.UseProblems(problemsSvc, ho.tags)
+		} else {
+			ho.site.UseProblems(problemsSvc, nil)
+		}
 		ho.site.Register(mux)
 	}
 

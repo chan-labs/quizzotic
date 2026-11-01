@@ -1,0 +1,10 @@
+{{define "preview"}}<div class="prose preview-prompt">{{.Prompt}}</div>
+{{if eq .Type "mcq"}}<ul class="preview-choices">
+{{range .Choices}}<li>{{if .Correct}}<span class="key" title="Correct answer">&#10003;</span> {{end}}{{.Text}}</li>
+{{end}}</ul>
+{{if .Multiple}}<p class="muted">Select all that apply.</p>{{end}}
+{{else if eq .Type "cloze"}}{{if .Blanks}}<p class="muted">Blanks:{{range .Blanks}} <code>{{.ID}}</code>{{end}}</p>{{end}}
+{{else if eq .Type "open"}}<p class="muted">Free-text answer.</p>
+{{if .Reference}}<h3>Reference answer</h3><div class="prose">{{.Reference}}</div>{{end}}
+{{if .Rubric}}<h3>Rubric</h3><ul>{{range .Rubric}}<li>{{.}}</li>{{end}}</ul>{{end}}
+{{end}}{{if .Expl}}<h3>Explanation</h3><div class="prose">{{.Expl}}</div>{{end}}{{end}}

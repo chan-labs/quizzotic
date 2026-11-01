@@ -37,12 +37,13 @@ type Config struct {
 type Web struct {
 	cfg  Config
 	tmpl map[string]*template.Template
+	prob problemPages
 }
 
 type navItem struct{ Href, Label string }
 
 // nav lists the top-level pages. Entries are added as their pages land.
-var nav = []navItem{{"/", "Today"}}
+var nav = []navItem{{"/", "Today"}, {"/problems", "Problems"}}
 
 // page is the data every template receives.
 type page struct {
@@ -51,6 +52,8 @@ type page struct {
 	Nav       []navItem
 	CSRFToken string
 	Rendered  template.HTML
+	// Data is the page-specific view model.
+	Data any
 }
 
 // New parses the embedded templates.
@@ -73,6 +76,9 @@ func New(cfg Config) (*Web, error) {
 		}
 		w.tmpl[name] = t
 	}
+	if err := w.parseProblemTemplates(layout); err != nil {
+		return nil, err
+	}
 	return w, nil
 }
 
@@ -93,6 +99,7 @@ func (w *Web) Register(mux *http.ServeMux) {
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(sub)))
 	mux.Handle("GET /{$}", w.gate(http.HandlerFunc(w.today)))
+	w.registerProblems(mux)
 }
 
 func (w *Web) gate(h http.Handler) http.Handler {
@@ -109,6 +116,11 @@ func (w *Web) today(rw http.ResponseWriter, r *http.Request) {
 // render executes the named page inside the layout. The body is buffered so a
 // template error yields a clean 500 rather than a half-written page.
 func (w *Web) render(rw http.ResponseWriter, r *http.Request, name string, p page) {
+	w.renderStatus(rw, r, http.StatusOK, name, p)
+}
+
+// renderStatus is render with an explicit response status.
+func (w *Web) renderStatus(rw http.ResponseWriter, r *http.Request, status int, name string, p page) {
 	ws, _ := auth.SessionFrom(r.Context())
 	p.CSRFToken = ws.CSRFToken
 	p.Path = r.URL.Path
@@ -124,5 +136,6 @@ func (w *Web) render(rw http.ResponseWriter, r *http.Request, name string, p pag
 	h.Set("Cache-Control", "no-store")
 	h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'")
 	h.Set("X-Content-Type-Options", "nosniff")
+	rw.WriteHeader(status)
 	_, _ = rw.Write(buf.Bytes())
 }

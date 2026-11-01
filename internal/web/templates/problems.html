@@ -1,0 +1,57 @@
+{{define "content"}}<link rel="stylesheet" href="/static/problems.css">
+<div class="page-head">
+  <h1>Problems</h1>
+  <p>New:
+    <a href="/problems/new?type=mcq">multiple choice</a> ·
+    <a href="/problems/new?type=cloze">fill in the blanks</a> ·
+    <a href="/problems/new?type=open">open answer</a></p>
+</div>
+{{with .Data}}
+<form method="get" action="/problems" class="filters" aria-label="Filter problems">
+  <label>Search <input type="search" name="q" value="{{.Q}}"></label>
+  <label>Status
+    <select name="status">
+      <option value="">any</option>
+      <option value="draft"{{if eq .Status "draft"}} selected{{end}}>draft</option>
+      <option value="live"{{if eq .Status "live"}} selected{{end}}>live</option>
+      <option value="archived"{{if eq .Status "archived"}} selected{{end}}>archived</option>
+    </select></label>
+  <label>Type
+    <select name="type">
+      <option value="">any</option>
+      <option value="mcq"{{if eq .Type "mcq"}} selected{{end}}>mcq</option>
+      <option value="cloze"{{if eq .Type "cloze"}} selected{{end}}>cloze</option>
+      <option value="open"{{if eq .Type "open"}} selected{{end}}>open</option>
+    </select></label>
+  <label>Created by
+    <select name="created_by_kind">
+      <option value="">anyone</option>
+      <option value="human"{{if eq .Kind "human"}} selected{{end}}>human</option>
+      <option value="agent"{{if eq .Kind "agent"}} selected{{end}}>agent</option>
+      <option value="system"{{if eq .Kind "system"}} selected{{end}}>system</option>
+    </select></label>
+  {{if .HasTags}}<label>Tag
+    <select name="tag">
+      <option value="">any</option>
+      {{$sel := .Tag}}{{range .Tags}}<option value="{{.Slug}}"{{if eq .Slug $sel}} selected{{end}}>{{.Name}}</option>
+      {{end}}
+    </select></label>{{end}}
+  <button type="submit">Filter</button>
+  <a href="/problems">Clear</a>
+</form>
+{{if .Errors}}<ul class="errors" role="alert">{{range .Errors}}<li><strong>{{.Field}}</strong>: {{.Detail}}</li>{{end}}</ul>{{end}}
+{{if .Rows}}
+<table class="problems">
+  <thead><tr><th>Prompt</th><th>Type</th><th>Status</th><th>Version</th><th>By</th><th>Updated</th></tr></thead>
+  <tbody>
+  {{range .Rows}}<tr>
+    <td><a href="/problems/{{.ID}}">{{.Snippet}}</a></td>
+    <td>{{.Type}}</td><td>{{.Status}}</td><td>v{{.Version}}</td><td>{{.CreatedBy}}</td><td>{{.Updated}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else if not .Errors}}<p class="muted">No problems match.</p>{{end}}
+{{if .NextURL}}<p><a href="{{.NextURL}}">Next page</a></p>{{end}}
+{{end}}
+{{end}}

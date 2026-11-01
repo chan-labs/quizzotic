@@ -1,0 +1,90 @@
+{{define "content"}}<link rel="stylesheet" href="/static/problems.css">
+{{with .Data}}{{$f := .F}}
+<p><a href="/problems">&larr; All problems</a></p>
+<h1>{{if $f.IsNew}}New {{$f.Type}} problem{{else}}Edit problem <small class="muted">v{{$f.Version}} · {{$f.Status}}</small>{{end}}</h1>
+{{if $f.IsNew}}<p class="muted">Type:
+  <a href="/problems/new?type=mcq"{{if eq $f.Type "mcq"}} aria-current="true"{{end}}>multiple choice</a> ·
+  <a href="/problems/new?type=cloze"{{if eq $f.Type "cloze"}} aria-current="true"{{end}}>fill in the blanks</a> ·
+  <a href="/problems/new?type=open"{{if eq $f.Type "open"}} aria-current="true"{{end}}>open answer</a></p>{{end}}
+{{if .Notice}}<p class="notice" role="status">{{.Notice}}</p>{{end}}
+{{if .Conflict}}<div class="errors conflict" role="alert">
+  <p><strong>Edit conflict.</strong> This problem was changed since you opened it, so your edit was not saved. Your text is kept below.</p>
+  <p><a href="/problems/{{$f.ID}}">Reload the latest version</a> (opens without your changes), then re-apply them.</p>
+</div>{{end}}
+{{if .Errors}}<ul class="errors" role="alert">{{range .Errors}}<li><strong>{{.Field}}</strong>: {{.Detail}}</li>{{end}}</ul>{{end}}
+
+<div class="editor">
+<form method="post" action="{{if $f.IsNew}}/problems{{else}}/problems/{{$f.ID}}{{end}}" id="problem-form">
+  <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+  <input type="hidden" name="type" value="{{$f.Type}}">
+  {{if not $f.IsNew}}<input type="hidden" name="etag" value="{{$f.ETag}}">{{end}}
+
+  <label class="block">Prompt <span class="muted">(Markdown{{if eq $f.Type "cloze"}}; mark blanks as <code>{{"{{"}}id{{"}}"}}</code>{{end}})</span>
+    <textarea name="prompt" rows="5" required>{{$f.Prompt}}</textarea></label>
+
+  {{if eq $f.Type "mcq"}}
+  <fieldset>
+    <legend>Choices <span class="muted">(tick the correct ones; empty rows are ignored)</span></legend>
+    {{range $i, $c := $f.Choices}}<div class="row">
+      <input type="hidden" name="choice_id" value="{{$c.ID}}">
+      <input type="checkbox" name="correct" value="{{$i}}"{{if $c.Correct}} checked{{end}} aria-label="Choice {{$i}} is correct">
+      <input type="text" name="choice_text" value="{{$c.Text}}" aria-label="Choice text">
+    </div>
+    {{end}}
+    <label><input type="checkbox" name="multiple" value="1"{{if $f.Multiple}} checked{{end}}> More than one correct answer</label>
+    <label><input type="checkbox" name="shuffle" value="1"{{if $f.Shuffle}} checked{{end}}> Shuffle choices</label>
+  </fieldset>
+  {{else if eq $f.Type "cloze"}}
+  <fieldset>
+    <legend>Blanks <span class="muted">(id matches a marker in the prompt; one accepted answer per line)</span></legend>
+    {{range $i, $b := $f.Blanks}}<div class="row blank-row">
+      <input type="text" name="blank_id" value="{{$b.ID}}" placeholder="id" aria-label="Blank id" size="8">
+      <textarea name="blank_accepted" rows="2" placeholder="accepted answers" aria-label="Accepted answers">{{$b.Accepted}}</textarea>
+      <label><input type="checkbox" name="blank_case" value="{{$i}}"{{if $b.CaseSensitive}} checked{{end}}> case-sensitive</label>
+      <label>max edits <input type="number" name="blank_edits" value="{{$b.MaxEdits}}" min="0" max="3"></label>
+    </div>
+    {{end}}
+  </fieldset>
+  {{else}}
+  <label class="block">Reference answer <span class="muted">(Markdown)</span>
+    <textarea name="reference_answer" rows="4" required>{{$f.Reference}}</textarea></label>
+  <label class="block">Rubric <span class="muted">(optional; one criterion per line)</span>
+    <textarea name="rubric" rows="3">{{$f.Rubric}}</textarea></label>
+  {{end}}
+
+  <label class="block">Explanation <span class="muted">(Markdown, shown after answering)</span>
+    <textarea name="explanation" rows="3">{{$f.Explanation}}</textarea></label>
+  <label class="block">Source <span class="muted">(optional)</span>
+    <input type="text" name="source" value="{{$f.Source}}"></label>
+
+  {{if .Tags}}<fieldset>
+    <legend>Tags</legend>
+    {{range .Tags}}<label class="tag"><input type="checkbox" name="tags" value="{{.Slug}}"{{if index $f.Tags .Slug}} checked{{end}}> {{.Name}}</label>
+    {{end}}
+  </fieldset>{{end}}
+
+  {{if $f.IsNew}}
+  <fieldset>
+    <legend>Start as</legend>
+    <label><input type="radio" name="status" value="draft"{{if ne $f.Status "live"}} checked{{end}}> Draft</label>
+    <label><input type="radio" name="status" value="live"{{if eq $f.Status "live"}} checked{{end}}> Live</label>
+  </fieldset>
+  {{else}}
+  <fieldset>
+    <legend>What kind of change is this?</legend>
+    <label><input type="radio" name="change_kind" value="minor"{{if ne $f.ChangeKind "major"}} checked{{end}}> Minor: typo or wording fix; the card keeps its history</label>
+    <label><input type="radio" name="change_kind" value="major"{{if eq $f.ChangeKind "major"}} checked{{end}}> Major: the question changed meaning; the card starts over</label>
+  </fieldset>
+  {{end}}
+
+  <button type="submit" class="primary">{{if $f.IsNew}}Create problem{{else}}Save new version{{end}}</button>
+</form>
+
+<aside aria-label="Live preview">
+  <h2>Preview</h2>
+  <div id="preview" class="preview">{{template "preview" .Preview}}</div>
+</aside>
+</div>
+<script src="/static/problem-editor.js" defer></script>
+{{end}}
+{{end}}
