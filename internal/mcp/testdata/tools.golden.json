@@ -99,7 +99,7 @@
     "name": "cards_list"
   },
   {
-    "description": "Create a problem\n\nCreates a problem and its first version. `status` is `draft` (the\ndefault) or `live`. The payload is validated against the type; every\nfailure is listed in `errors` of a 422 response.\n\nCheck for duplicates first (call problems.similar before creating), default to status draft so a human can review, and always tag the problem. List tags first (tags.list) and prefer existing tags; an alias resolves to its tag.",
+    "description": "Create a problem\n\nCreates a problem and its first version. `status` is `draft` (the\ndefault) or `live`. The payload is validated against the type; every\nfailure is listed in `errors` of a 422 response.\n\nCheck for duplicates first (call problems_similar before creating), default to status draft so a human can review, and always tag the problem. List tags first (tags_list) and prefer existing tags; an alias resolves to its tag.",
     "inputSchema": {
       "properties": {
         "explanation": {
@@ -264,7 +264,7 @@
     "name": "problems_create"
   },
   {
-    "description": "Create up to 100 problems at once\n\nCreates every item (a problem plus its tags) in one transaction. The\nbatch holds 1 to 100 items. If any item is invalid, nothing is written\nand the 422 response lists the invalid fields of every bad item in\n`errors`, each `field` prefixed with the item's index, for example\n`items[3].payload.choices` or `items[0].tags[1]`. Items are validated\nlike `problems.create`; each tag is an ID, slug or alias of one of the\ncaller's tags (a merged tag resolves to the tag it was merged into).\nThe created problems are returned in request order. The request body\nis limited to 1 MiB.\n\nPrefer this over many problems.create calls when adding a set of problems. Call problems.similar for each item first to avoid duplicates. Default each item to status draft, tag every item with existing tags (call tags.list first; aliases resolve), and send an Idempotency-Key so a retry cannot duplicate the batch.",
+    "description": "Create up to 100 problems at once\n\nCreates every item (a problem plus its tags) in one transaction. The\nbatch holds 1 to 100 items. If any item is invalid, nothing is written\nand the 422 response lists the invalid fields of every bad item in\n`errors`, each `field` prefixed with the item's index, for example\n`items[3].payload.choices` or `items[0].tags[1]`. Items are validated\nlike `problems_create`; each tag is an ID, slug or alias of one of the\ncaller's tags (a merged tag resolves to the tag it was merged into).\nThe created problems are returned in request order. The request body\nis limited to 1 MiB.\n\nPrefer this over many problems_create calls when adding a set of problems. Call problems_similar for each item first to avoid duplicates. Default each item to status draft, tag every item with existing tags (call tags_list first; aliases resolve).",
     "inputSchema": {
       "properties": {
         "items": {
@@ -451,7 +451,7 @@
     "name": "problems_createBatch"
   },
   {
-    "description": "Edit a problem\n\nCreates a new version from the current one with the given fields\nreplaced; omitted fields keep their value. `change_kind` is required:\n`minor` (typo, wording) keeps the card; `major` (different correct\nanswer or question) starts a new card epoch, so earlier attempts stay\nattached to the old epoch. The merged result is validated like a\ncreate. Requires `If-Match` (412 when stale, 428 when missing).\n\nRead the problem first and send its ETag as If-Match. Use major only when the correct answer or the question itself changes.",
+    "description": "Edit a problem\n\nCreates a new version from the current one with the given fields\nreplaced; omitted fields keep their value. `change_kind` is required:\n`minor` (typo, wording) keeps the card; `major` (different correct\nanswer or question) starts a new card epoch, so earlier attempts stay\nattached to the old epoch. The merged result is validated like a\ncreate. Requires `If-Match` (412 when stale, 428 when missing).\n\nRead the problem first (problems_get) and pass the ETag it returns as if_match. Use major only when the correct answer or the question itself changes.",
     "inputSchema": {
       "properties": {
         "change_kind": {
@@ -465,6 +465,10 @@
           "type": "string"
         },
         "id": {
+          "type": "string"
+        },
+        "if_match": {
+          "description": "ETag of the resource version being updated. A stale value returns 412.",
           "type": "string"
         },
         "payload": {
@@ -608,6 +612,7 @@
       },
       "required": [
         "id",
+        "if_match",
         "change_kind"
       ],
       "type": "object"
@@ -694,7 +699,7 @@
     "name": "problems_list"
   },
   {
-    "description": "Replace a problem's tags\n\nReplaces the set of tags on a problem. Each entry is a tag ID, slug or\nalias; duplicates are ignored. A merged tag resolves to the tag it was\nmerged into. Unknown or retired tags are a 422. Tags attach to the\nproblem, not to a version.\n\nSend the complete desired tag list; omitted tags are removed. List tags first (tags.list) and prefer existing tags; aliases resolve.",
+    "description": "Replace a problem's tags\n\nReplaces the set of tags on a problem. Each entry is a tag ID, slug or\nalias; duplicates are ignored. A merged tag resolves to the tag it was\nmerged into. Unknown or retired tags are a 422. Tags attach to the\nproblem, not to a version.\n\nSend the complete desired tag list; omitted tags are removed. List tags first (tags_list) and prefer existing tags; aliases resolve.",
     "inputSchema": {
       "properties": {
         "id": {
@@ -719,7 +724,7 @@
     "name": "problems_setTags"
   },
   {
-    "description": "Find similar problems\n\nDuplicate check. Tokenizes the given prompt and answers (lowercase\nwords and numbers) and ranks the caller's non-deleted problems by\ntoken-set Jaccard similarity against each problem's current prompt and\nanswers (choice texts, accepted cloze answers, or the open reference\nanswer). Scores run from 0 to 1; problems sharing no token are never\nreturned. Results are ordered by score, highest first. This is a\nread-only query.\n\nCall this before problems.create with the draft prompt and its answers. A score near 1 means the problem already exists: update or skip it instead of creating a duplicate.",
+    "description": "Find similar problems\n\nDuplicate check. Tokenizes the given prompt and answers (lowercase\nwords and numbers) and ranks the caller's non-deleted problems by\ntoken-set Jaccard similarity against each problem's current prompt and\nanswers (choice texts, accepted cloze answers, or the open reference\nanswer). Scores run from 0 to 1; problems sharing no token are never\nreturned. Results are ordered by score, highest first. This is a\nread-only query.\n\nCall this before problems_create with the draft prompt and its answers. A score near 1 means the problem already exists: update or skip it instead of creating a duplicate.",
     "inputSchema": {
       "properties": {
         "answers": {
@@ -815,10 +820,15 @@
         "id": {
           "description": "Quiz ID.",
           "type": "string"
+        },
+        "if_match": {
+          "description": "ETag of the resource version being updated. A stale value returns 412.",
+          "type": "string"
         }
       },
       "required": [
-        "id"
+        "id",
+        "if_match"
       ],
       "type": "object"
     },
@@ -870,11 +880,15 @@
     "name": "quizzes_list"
   },
   {
-    "description": "Replace a quiz's items\n\nReplaces the quiz's ordered problem list; position follows the order\nof `problem_ids`. Each ID must be a distinct, non-deleted problem of\nthe caller: an unknown ID, another user's problem or a duplicate is a\n422 naming the entry, and nothing changes. Requires `If-Match`\n(412 when stale, 428 when missing).\n\nSend the complete desired problem list in order; omitted problems are removed.",
+    "description": "Replace a quiz's items\n\nReplaces the quiz's ordered problem list; position follows the order\nof `problem_ids`. Each ID must be a distinct, non-deleted problem of\nthe caller: an unknown ID, another user's problem or a duplicate is a\n422 naming the entry, and nothing changes. Requires `If-Match`\n(412 when stale, 428 when missing).\n\nRead the quiz first (quizzes_get) and pass the ETag it returns as if_match. Send the complete desired problem list in order; omitted problems are removed.",
     "inputSchema": {
       "properties": {
         "id": {
           "description": "Quiz ID.",
+          "type": "string"
+        },
+        "if_match": {
+          "description": "ETag of the resource version being updated. A stale value returns 412.",
           "type": "string"
         },
         "problem_ids": {
@@ -888,6 +902,7 @@
       },
       "required": [
         "id",
+        "if_match",
         "problem_ids"
       ],
       "type": "object"
@@ -906,6 +921,10 @@
           "description": "Quiz ID.",
           "type": "string"
         },
+        "if_match": {
+          "description": "ETag of the resource version being updated. A stale value returns 412.",
+          "type": "string"
+        },
         "status": {
           "enum": [
             "draft",
@@ -921,7 +940,8 @@
         }
       },
       "required": [
-        "id"
+        "id",
+        "if_match"
       ],
       "type": "object"
     },
@@ -973,7 +993,7 @@
     "name": "tagOperations_list"
   },
   {
-    "description": "Propose a tag operation\n\nValidates a rename, merge or split and stores it as `proposed`, with a\npreview of the problems it would move and the resulting tag counts.\nNothing changes until a human applies it. With `apply: true` the\noperation is applied at once in the same request, which needs the\n`tags:apply` scope (403 otherwise). Tags in the payload may be given\nby ID, slug or alias.\n\nPropose, never apply: leave `apply` unset so the human can review the\npreview and approve it. For a split, read tags.listProblems first and\nassign every problem; set `retire_source` only when every problem has\nan assignment.",
+    "description": "Propose a tag operation\n\nValidates a rename, merge or split and stores it as `proposed`, with a\npreview of the problems it would move and the resulting tag counts.\nNothing changes until a human applies it. With `apply: true` the\noperation is applied at once in the same request, which needs the\n`tags:apply` scope (403 otherwise). Tags in the payload may be given\nby ID, slug or alias.\n\nPropose, never apply: leave `apply` unset so the human can review the\npreview and approve it. For a split, read tags_listProblems first and\nassign every problem; set `retire_source` only when every problem has\nan assignment.",
     "inputSchema": {
       "properties": {
         "apply": {
@@ -1106,7 +1126,7 @@
     "name": "tagOperations_propose"
   },
   {
-    "description": "Create a tag\n\nCreates an active tag. When `slug` is omitted it is derived from\n`name`. The slug must be unique among the caller's active tags and\nmust not be an alias of any of their tags (409 otherwise).\n\nList tags first (tags.list) and prefer an existing tag over creating a\nnear-duplicate; aliases resolve to their tag. Slugs are lowercase\nwords joined by hyphens.",
+    "description": "Create a tag\n\nCreates an active tag. When `slug` is omitted it is derived from\n`name`. The slug must be unique among the caller's active tags and\nmust not be an alias of any of their tags (409 otherwise).\n\nList tags first (tags_list) and prefer an existing tag over creating a\nnear-duplicate; aliases resolve to their tag. Slugs are lowercase\nwords joined by hyphens.",
     "inputSchema": {
       "properties": {
         "description": {
@@ -1212,6 +1232,10 @@
           "maxLength": 2000,
           "type": "string"
         },
+        "if_match": {
+          "description": "ETag of the resource version being updated. A stale value returns 412.",
+          "type": "string"
+        },
         "name": {
           "maxLength": 200,
           "minLength": 1,
@@ -1228,7 +1252,8 @@
         }
       },
       "required": [
-        "tag"
+        "tag",
+        "if_match"
       ],
       "type": "object"
     },
