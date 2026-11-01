@@ -19,6 +19,11 @@
     });
   }
 
+  // A cloze starts in its first blank. (An open problem's textarea is left
+  // unfocused: Space must reveal the reference, not type.)
+  var firstBlank = document.querySelector(".blank-input");
+  if (firstBlank) firstBlank.focus();
+
   document.addEventListener("keydown", function (e) {
     if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     var key = e.key === " " ? "Space" : e.key;
