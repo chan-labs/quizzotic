@@ -329,6 +329,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		ho.web.Register(mux)
 	}
 	if ho.site != nil {
+		ho.site.UseDrafts(problemsSvc)
 		ho.site.Register(mux)
 	}
 
