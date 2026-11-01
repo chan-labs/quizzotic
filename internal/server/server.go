@@ -354,7 +354,8 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	}
 	problemsSvc := problems.NewService(st.Problems(), store.ProblemsEditTx(st, cards.MajorEdit), clock, domain.NewIDGenerator(clock), popts...)
 	problemsH := problems.NewHandler(problemsSvc, logger)
-	quizzesH := quizzes.NewHandler(quizzes.NewService(store.QuizzesTx(st), problemsSvc, clock, domain.NewIDGenerator(clock)), logger)
+	quizzesSvc := quizzes.NewService(store.QuizzesTx(st), problemsSvc, clock, domain.NewIDGenerator(clock))
+	quizzesH := quizzes.NewHandler(quizzesSvc, logger)
 	aopts := []attempts.Option{attempts.WithReader(st.Attempts()), attempts.WithAttemptRecorder(ho.metrics)}
 	if ho.tags != nil {
 		aopts = append(aopts, attempts.WithTagResolver(ho.tags))
@@ -390,6 +391,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 			ho.site.UseProblems(problemsSvc, nil)
 		}
 		ho.site.UseDrafts(problemsSvc)
+		ho.site.UseQuizzes(quizzesSvc, problemsSvc, sessionsSvc)
 		ho.site.UseToday(cards.Builder(st), sessionsSvc, clock.Now)
 		ho.site.Register(mux)
 	}

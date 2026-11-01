@@ -1,0 +1,27 @@
+{{define "content"}}<link rel="stylesheet" href="/static/quizzes.css">
+<div class="page-head">
+  <h1>Quizzes</h1>
+  <p><a href="/quizzes/new">New quiz</a></p>
+</div>
+{{with .Data}}
+{{with .Notice}}<p class="notice" role="status">{{.}}</p>{{end}}
+{{if .Rows}}
+<table class="quizzes">
+  <thead><tr><th>Title</th><th>Status</th><th>Items</th><th>Start</th></tr></thead>
+  <tbody>
+  {{range .Rows}}<tr>
+    <td><a href="/quizzes/{{.ID}}">{{.Title}}</a>{{with .Description}}<br><span class="muted">{{.}}</span>{{end}}</td>
+    <td>{{.Status}}</td><td>{{.Items}}</td>
+    <td>{{if .Live}}<form method="post" action="/quizzes/{{.ID}}/start" class="start">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <button type="submit" name="order" value="ordered">Start</button>
+      <button type="submit" name="order" value="shuffled">Start shuffled</button>
+    </form>{{else}}<span class="muted">publish to start</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">No quizzes yet.</p>{{end}}
+{{if .NextURL}}<p><a href="{{.NextURL}}">Next page</a></p>{{end}}
+{{end}}
+{{end}}

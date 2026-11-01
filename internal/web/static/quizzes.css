@@ -1,0 +1,6 @@
+table.quizzes, table.quiz-items { width: 100%; border-collapse: collapse; }
+table.quizzes th, table.quizzes td, table.quiz-items th, table.quiz-items td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+table.quiz-items input[type="number"] { width: 4.5rem; }
+form.start { display: inline-flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+form.quiz { display: block; }
+form.quiz label.block input, form.quiz label.block textarea { width: 100%; }
