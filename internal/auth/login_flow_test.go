@@ -195,6 +195,15 @@ func newApp(t *testing.T, dbPath string, idp *loginIdP, clock *domain.FakeClock)
 		ws, _ := auth.SessionFrom(r.Context())
 		_, _ = io.WriteString(w, ws.UserID.String()+" "+ws.CSRFToken)
 	})))
+	// The API path authenticates through SessionAuthenticator, not RequireSession.
+	mux.HandleFunc("GET /whoami", func(w http.ResponseWriter, r *http.Request) {
+		p, err := auth.SessionAuthenticator{Login: h}.Authenticate(w, r)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_, _ = io.WriteString(w, p.UserID.String())
+	})
 	a := &app{t: t, st: st, svc: svc, srv: httptest.NewServer(mux), idp: idp, clock: clock}
 	t.Cleanup(a.stop)
 	return a
@@ -397,6 +406,31 @@ func TestSlidingExpiry(t *testing.T) {
 	_ = a.st.DB().QueryRow(`SELECT count(*) FROM web_sessions`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("expired session row not deleted (n=%d)", n)
+	}
+}
+
+// TestSessionAuthenticatorReissuesSlidingCookie: the API path re-issues the
+// cookie when the expiry slides, exactly as RequireSession does.
+func TestSessionAuthenticatorReissuesSlidingCookie(t *testing.T) {
+	idp, clock, db := setup(t)
+	a := newApp(t, db, idp, clock)
+	c := sessionCookie(a.login(""))
+
+	clock.Advance(20 * 24 * time.Hour)
+	r := a.do("GET", "/whoami", c.Value, nil)
+	if r.StatusCode != 200 {
+		t.Fatalf("status = %d", r.StatusCode)
+	}
+	rc := sessionCookie(r)
+	if rc == nil || rc.Value != c.Value || rc.MaxAge != 30*24*3600 || !rc.HttpOnly || !rc.Secure {
+		t.Fatalf("cookie not re-issued: %+v", rc)
+	}
+	if !rc.Expires.After(c.Expires.Add(19 * 24 * time.Hour)) {
+		t.Errorf("expiry did not slide: %v -> %v", c.Expires, rc.Expires)
+	}
+	// Within the throttle window nothing is re-issued.
+	if r := a.do("GET", "/whoami", c.Value, nil); r.StatusCode != 200 || sessionCookie(r) != nil {
+		t.Fatalf("second request: status %d, cookie %+v", r.StatusCode, sessionCookie(r))
 	}
 }
 
