@@ -608,6 +608,10 @@ paths:
         "201":
           description: The graded attempt.
           headers:
+            Location:
+              description: URL of the new attempt.
+              schema:
+                type: string
             Idempotency-Replayed:
               $ref: "#/components/headers/IdempotencyReplayed"
           content:
@@ -632,6 +636,93 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "422":
           $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+    get:
+      operationId: attempts.list
+      tags: [attempts]
+      summary: List attempts
+      description: |
+        Lists the caller's attempts, oldest first (answer order), with cursor
+        pagination. Filters combine with AND. `problem` is a problem ID. `tag`
+        accepts a tag ID, slug or alias and keeps attempts at problems that
+        carry it. `since` (inclusive) and `until` (exclusive) are RFC 3339
+        timestamps bounding `answered_at`. Agents with `attempts:read` may
+        read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, problem_id, score, rating, answered_at]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: problem
+          in: query
+          description: Only attempts at this problem ID.
+          schema:
+            type: string
+        - name: tag
+          in: query
+          description: |
+            Only attempts at problems carrying this tag, named by ID, slug or
+            alias. An unknown tag is answered 422.
+          schema:
+            type: string
+        - name: since
+          in: query
+          description: Only attempts answered at or after this RFC 3339 time.
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          description: Only attempts answered before this RFC 3339 time.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: One page of attempts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptPage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /attempts/{id}:
+    get:
+      operationId: attempts.get
+      tags: [attempts]
+      summary: Get an attempt
+      description: Returns one of the caller's attempts. Agents with `attempts:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:read]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/AttemptId"
+      responses:
+        "200":
+          description: The attempt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attempt"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
   /attempts/{id}/rating:
@@ -2286,6 +2377,15 @@ components:
           format: date-time
         client:
           $ref: "#/components/schemas/Actor"
+    AttemptPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Attempt"
     AttemptGrade:
       type: object
       required: [correct, score, rating, scheduled]

@@ -88,7 +88,9 @@ func (r attemptRepo) SetRating(ctx context.Context, ownerID, id domain.ID, ratin
 	return attempts.ErrAlreadyRated
 }
 
-func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.Attempt, error) {
+type rowScanner interface{ Scan(dest ...any) error }
+
+func scanAttempt(row rowScanner) (attempts.Attempt, error) {
 	var (
 		a                          attempts.Attempt
 		aid, uid, pid, kind, actor string
@@ -98,12 +100,8 @@ func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.A
 		score                      sql.NullFloat64
 		answered                   int64
 	)
-	err := r.q.QueryRowContext(ctx, `SELECT `+attemptCols+` FROM attempts WHERE user_id = ? AND id = ?`,
-		ownerID.String(), id.String()).Scan(&aid, &uid, &pid, &a.ProblemVersion, &a.CardEpoch, &session, &response,
+	err := row.Scan(&aid, &uid, &pid, &a.ProblemVersion, &a.CardEpoch, &session, &response,
 		&autoCorrect, &score, &rating, &a.LatencyMS, &answered, &kind, &actor, &a.Client.ClientID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return attempts.Attempt{}, attempts.ErrNotFound
-	}
 	if err != nil {
 		return attempts.Attempt{}, err
 	}
@@ -139,6 +137,60 @@ func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.A
 	a.AnsweredAt = FromMillis(answered)
 	a.Client.Kind = domain.ActorKind(kind)
 	return a, nil
+}
+
+func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.Attempt, error) {
+	a, err := scanAttempt(r.q.QueryRowContext(ctx, `SELECT `+attemptCols+` FROM attempts WHERE user_id = ? AND id = ?`,
+		ownerID.String(), id.String()))
+	if errors.Is(err, sql.ErrNoRows) {
+		return attempts.Attempt{}, attempts.ErrNotFound
+	}
+	return a, err
+}
+
+// List returns the owner's attempts ordered by ID (oldest first).
+func (r attemptRepo) List(ctx context.Context, ownerID domain.ID, f attempts.ListFilter) ([]attempts.Attempt, error) {
+	q := `SELECT ` + attemptCols + ` FROM attempts WHERE user_id = ?`
+	args := []any{ownerID.String()}
+	if !f.ProblemID.IsNil() {
+		q += ` AND problem_id = ?`
+		args = append(args, f.ProblemID.String())
+	}
+	if !f.TagID.IsNil() {
+		q += ` AND problem_id IN (SELECT pt.problem_id FROM problem_tags pt WHERE pt.tag_id = ?)`
+		args = append(args, f.TagID.String())
+	}
+	if !f.Since.IsZero() {
+		q += ` AND answered_at >= ?`
+		args = append(args, Millis(f.Since))
+	}
+	if !f.Until.IsZero() {
+		q += ` AND answered_at < ?`
+		args = append(args, Millis(f.Until))
+	}
+	if !f.After.IsNil() {
+		q += ` AND id > ?`
+		args = append(args, f.After.String())
+	}
+	q += ` ORDER BY id`
+	if f.Limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, f.Limit)
+	}
+	rows, err := r.q.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []attempts.Attempt
+	for rows.Next() {
+		a, err := scanAttempt(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }
 
 func boolInt(b bool) int {

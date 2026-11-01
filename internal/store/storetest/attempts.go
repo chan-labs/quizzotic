@@ -7,13 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/store"
+	"github.com/chan-labs/quizzotic/internal/tags"
 )
 
 func runAttempts(t *testing.T, newStore NewStore) {
@@ -191,6 +194,88 @@ func runAttempts(t *testing.T, newStore NewStore) {
 		got, _ := s.Attempts().Get(ctx, a.ID, at.ID)
 		if got.Rating != nil || got.Score != nil {
 			t.Fatalf("A's attempt changed: %+v", got)
+		}
+	})
+
+	t.Run("list filters, orders and paginates", func(t *testing.T) {
+		s, a, b := setup(t)
+		p1, p2 := mkProblem(t, s, a), mkProblem(t, s, a)
+		tag := tags.Tag{ID: ids.New(), OwnerID: a.ID, Slug: "t", Name: "t", Status: tags.StatusActive, CreatedAt: t0, UpdatedAt: t0}
+		if err := s.Tags().Create(ctx, a.ID, tag); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Tags().SetProblemTags(ctx, a.ID, p2, []domain.ID{tag.ID}); err != nil {
+			t.Fatal(err)
+		}
+		// Four attempts an hour apart; IDs ascend with answer order.
+		var all []attempts.Attempt
+		for i, p := range []domain.ID{p1, p2, p1, p2} {
+			at := mk(a, p)
+			at.AnsweredAt = t0.Add(time.Duration(i) * time.Hour)
+			if err := s.Attempts().Create(ctx, a.ID, at); err != nil {
+				t.Fatal(err)
+			}
+			all = append(all, at)
+		}
+		// B has an attempt too; A must never see it.
+		if err := s.Attempts().Create(ctx, b.ID, mk(b, mkProblem(t, s, b))); err != nil {
+			t.Fatal(err)
+		}
+		idsOf := func(as []attempts.Attempt) []domain.ID {
+			out := make([]domain.ID, len(as))
+			for i, x := range as {
+				out[i] = x.ID
+			}
+			return out
+		}
+		want := func(idx ...int) []domain.ID {
+			out := make([]domain.ID, len(idx))
+			for i, n := range idx {
+				out[i] = all[n].ID
+			}
+			return out
+		}
+		list := func(owner auth.User, f attempts.ListFilter) []domain.ID {
+			t.Helper()
+			got, err := s.Attempts().List(ctx, owner.ID, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return idsOf(got)
+		}
+		for name, c := range map[string]struct {
+			f    attempts.ListFilter
+			want []domain.ID
+		}{
+			"all, oldest first": {attempts.ListFilter{}, want(0, 1, 2, 3)},
+			"problem":           {attempts.ListFilter{ProblemID: p1}, want(0, 2)},
+			"tag":               {attempts.ListFilter{TagID: tag.ID}, want(1, 3)},
+			"problem and tag":   {attempts.ListFilter{ProblemID: p1, TagID: tag.ID}, nil},
+			"since inclusive":   {attempts.ListFilter{Since: t0.Add(time.Hour)}, want(1, 2, 3)},
+			"until exclusive":   {attempts.ListFilter{Until: t0.Add(2 * time.Hour)}, want(0, 1)},
+			"window":            {attempts.ListFilter{Since: t0.Add(time.Hour), Until: t0.Add(3 * time.Hour)}, want(1, 2)},
+			"after":             {attempts.ListFilter{After: all[1].ID}, want(2, 3)},
+			"limit":             {attempts.ListFilter{Limit: 2}, want(0, 1)},
+			"after and limit":   {attempts.ListFilter{After: all[1].ID, Limit: 1}, want(2)},
+		} {
+			if got := list(a, c.f); !slices.Equal(got, c.want) {
+				t.Errorf("%s: got %v, want %v", name, got, c.want)
+			}
+		}
+		// B sees only its own attempt, even when asking for A's problem or tag.
+		if got := list(b, attempts.ListFilter{}); len(got) != 1 {
+			t.Errorf("B list = %v", got)
+		}
+		if got := list(b, attempts.ListFilter{ProblemID: p1}); len(got) != 0 {
+			t.Errorf("B list of A's problem = %v", got)
+		}
+		if got := list(b, attempts.ListFilter{TagID: tag.ID}); len(got) != 0 {
+			t.Errorf("B list of A's tag = %v", got)
+		}
+		// Listed attempts are complete.
+		got, err := s.Attempts().List(ctx, a.ID, attempts.ListFilter{Limit: 1})
+		if err != nil || len(got) != 1 || !reflect.DeepEqual(got[0], all[0]) {
+			t.Errorf("listed attempt = %+v %v, want %+v", got, err, all[0])
 		}
 	})
 
