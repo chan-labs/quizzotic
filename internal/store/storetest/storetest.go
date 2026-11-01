@@ -39,6 +39,7 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("WebSessions", func(t *testing.T) { runWebSessions(t, newStore) })
 	t.Run("LoginStates", func(t *testing.T) { runLoginStates(t, newStore) })
 	t.Run("Problems", func(t *testing.T) { runProblems(t, newStore) })
+	t.Run("Tags", func(t *testing.T) { runTags(t, newStore) })
 	t.Run("Idempotency", func(t *testing.T) { runIdempotency(t, newStore) })
 }
 

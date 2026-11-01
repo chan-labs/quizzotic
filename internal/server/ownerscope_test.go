@@ -51,7 +51,9 @@ func (e *itEnv) ownerScopeEnv() *ownerscope.Env {
 }
 
 func TestOwnerScope(t *testing.T) {
-	ownerScope.Run(t, newITEnv(t).ownerScopeEnv())
+	e := newITEnv(t)
+	ownerScopeIT = e
+	ownerScope.Run(t, e.ownerScopeEnv())
 }
 
 func TestOwnerScopeCoverage(t *testing.T) {

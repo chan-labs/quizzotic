@@ -63,6 +63,8 @@ tags:
     description: Service metadata and probes.
   - name: auth
     description: Browser login and web sessions (host root, not under /api/v1).
+  - name: tags
+    description: Tags and aliases.
 paths:
   /me:
     get:
@@ -300,6 +302,246 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /tags:
+    get:
+      operationId: tags.list
+      tags: [tags]
+      summary: List tags
+      description: |
+        Lists the caller's tags ordered by ID. Without `status`, only active
+        tags are listed.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [slug, name, status]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          description: Only tags with this status. Defaults to `active`.
+          schema:
+            $ref: "#/components/schemas/TagStatus"
+      responses:
+        "200":
+          description: A page of tags.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: tags.create
+      tags: [tags]
+      summary: Create a tag
+      description: |
+        Creates an active tag. When `slug` is omitted it is derived from
+        `name`. The slug must be unique among the caller's active tags and
+        must not be an alias of any of their tags (409 otherwise).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: |
+        Prefer an existing tag (tags.list) over creating a near-duplicate.
+        Slugs are lowercase words joined by hyphens.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagCreate"
+      responses:
+        "201":
+          description: The new tag.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tags/{tag}:
+    parameters:
+      - $ref: "#/components/parameters/TagRef"
+    get:
+      operationId: tags.get
+      tags: [tags]
+      summary: Get a tag
+      description: The tag is addressed by ID, slug or alias.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      responses:
+        "200":
+          description: The tag.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: tags.update
+      tags: [tags]
+      summary: Update a tag
+      description: |
+        Changes the name, description and/or slug. Changing the slug is a
+        rename: the old slug becomes an alias of the tag, so it keeps
+        resolving. Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:write]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagUpdate"
+      responses:
+        "200":
+          description: The updated tag.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tags/{tag}/problems:
+    parameters:
+      - $ref: "#/components/parameters/TagRef"
+    get:
+      operationId: tags.listProblems
+      tags: [tags]
+      summary: List the problems with a tag
+      description: |
+        Lists the caller's non-deleted problems carrying the tag, ordered by
+        problem ID, with the prompt of their current version.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, status, type, prompt]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaggedProblemPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}/tags:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Problem ID.
+        schema:
+          type: string
+    put:
+      operationId: problems.setTags
+      tags: [tags]
+      summary: Replace a problem's tags
+      description: |
+        Replaces the set of tags on a problem. Each entry is a tag ID, slug or
+        alias; duplicates are ignored. A merged tag resolves to the tag it was
+        merged into. Unknown or retired tags are a 422. Tags attach to the
+        problem, not to a version.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write, tags:apply]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: Send the complete desired tag list; omitted tags are removed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetProblemTags"
+      responses:
+        "200":
+          description: The problem's tags after the change, ordered by slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagList"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     sessionCookie:
@@ -327,6 +569,13 @@ components:
         minimum: 1
         maximum: 200
         default: 50
+    TagRef:
+      name: tag
+      in: path
+      required: true
+      description: A tag ID, slug or alias.
+      schema:
+        type: string
     IfMatch:
       name: If-Match
       in: header
@@ -548,6 +797,131 @@ components:
         next_cursor:
           type: [string, "null"]
           description: Null on the last page.
+    TagStatus:
+      type: string
+      enum: [active, merged, retired]
+    Tag:
+      type: object
+      required: [id, slug, name, description, status, merged_into, aliases, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+          description: Lowercase words joined by hyphens; unique among the owner's active tags.
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/TagStatus"
+        merged_into:
+          type: [string, "null"]
+          description: ID of the tag this one was merged into; null unless `status` is `merged`.
+        aliases:
+          type: array
+          description: Old slugs that still resolve to this tag, sorted.
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TagCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        slug:
+          type: string
+          maxLength: 64
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+          description: Derived from `name` when omitted.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+    TagUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        slug:
+          type: string
+          maxLength: 64
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+    TagPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Tag"
+    TagList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+    SetProblemTags:
+      type: object
+      additionalProperties: false
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          maxItems: 50
+          description: Tag IDs, slugs or aliases.
+          items:
+            type: string
+    TaggedProblem:
+      type: object
+      description: A problem with the content of its current version.
+      required: [id, status, current_version, type, prompt, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [draft, live, archived]
+        current_version:
+          type: integer
+        type:
+          type: string
+          enum: [mcq, cloze, open]
+        prompt:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TaggedProblemPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/TaggedProblem"
     Health:
       type: object
       required: [status]
