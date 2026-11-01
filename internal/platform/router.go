@@ -3,6 +3,7 @@
 package platform
 
 import (
+	"context"
 	"net/http"
 	"strings"
 )
@@ -57,8 +58,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, NotFound("no such resource"))
 		return
 	}
-	r2 := new(http.Request)
-	*r2 = *r
+	r2 := r.WithContext(context.WithValue(r.Context(), fullPathKey{}, r.URL.Path))
 	u := *r.URL
 	u.Path = strings.TrimPrefix(r.URL.Path, APIPrefix)
 	if u.RawPath != "" {
@@ -94,6 +94,10 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	setMatchedRoute(r.Context(), strings.Replace(pattern, " /", " "+APIPrefix+"/", 1))
 	rt.api.ServeHTTP(w, r2)
 }
+
+// fullPathKey carries the request path as received, before APIPrefix is
+// stripped, so problem instances name what the client asked for.
+type fullPathKey struct{}
 
 // probe captures the status and headers of the mux's built-in not-found
 // handlers without writing to the real response.

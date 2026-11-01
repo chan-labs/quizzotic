@@ -458,7 +458,7 @@ func TestObservability_MetricsOffByDefault(t *testing.T) {
 }
 
 func TestObservability_MetricsEnabledFromYAMLAndEnv(t *testing.T) {
-	cfg, err := Parse([]byte(minimalYAML+"observability:\n  metrics_enabled: true\n"),[]string{})
+	cfg, err := Parse([]byte(minimalYAML+"observability:\n  metrics_enabled: true\n"), []string{})
 	if err != nil || !cfg.Observability.MetricsEnabled {
 		t.Fatalf("yaml: %v", err)
 	}
