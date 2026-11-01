@@ -157,7 +157,7 @@ func (s *Service) Update(ctx context.Context, ownerID domain.ID, ref, ifMatch st
 		if err != nil {
 			return err
 		}
-		if ETag(t) != ifMatch {
+		if !platform.IfMatchSatisfied(ifMatch, ETag(t)) {
 			return ErrPreconditionFailed
 		}
 		if patch.Slug != nil {

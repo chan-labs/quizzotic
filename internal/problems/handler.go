@@ -66,7 +66,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Location", platform.APIPrefix+"/problems/"+v.ID.String())
-	w.Header().Set("ETag", v.ETag())
+	platform.SetETag(w, v.ETag())
 	writeJSON(w, http.StatusCreated, v)
 }
 
@@ -103,7 +103,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, "get", err)
 		return
 	}
-	w.Header().Set("ETag", v.ETag())
+	platform.SetETag(w, v.ETag())
 	writeJSON(w, http.StatusOK, v)
 }
 
