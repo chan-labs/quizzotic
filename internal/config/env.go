@@ -6,7 +6,6 @@ import (
 	"encoding"
 	"fmt"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -18,7 +17,8 @@ const maxEnvIndex = 64
 // the key path in upper snake case, list indexes as numbers
 // (auth.issuers[0].client_secret -> QUIZZOTIC_AUTH_ISSUERS_0_CLIENT_SECRET).
 // Lists of scalars take a comma-separated value. Variables that match no key
-// are errors.
+// are ignored: other commands (QUIZZOTIC_TOKEN for `quizzotic mcp`) share the
+// environment.
 func applyEnv(cfg *Config, environ []string) []string {
 	env := map[string]string{}
 	for _, kv := range environ {
@@ -30,16 +30,6 @@ func applyEnv(cfg *Config, environ []string) []string {
 	a := &envApplier{env: env, used: map[string]bool{}}
 	a.walk(reflect.ValueOf(cfg).Elem(), strings.TrimSuffix(EnvPrefix, "_"))
 
-	var unknown []string
-	for k := range env {
-		if !a.used[k] {
-			unknown = append(unknown, k)
-		}
-	}
-	sort.Strings(unknown)
-	for _, k := range unknown {
-		a.problems = append(a.problems, fmt.Sprintf("environment variable %s does not match any config key", k))
-	}
 	return a.problems
 }
 

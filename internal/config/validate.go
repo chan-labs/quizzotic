@@ -23,7 +23,8 @@ const (
 func ParseStorageURL(raw string) (Driver, string, error) {
 	scheme, rest, ok := strings.Cut(raw, "://")
 	if !ok || scheme == "" {
-		return "", "", fmt.Errorf("storage.url %q: missing scheme (use sqlite:// or postgres://)", raw)
+		// Never echo raw: it may carry a database password.
+		return "", "", fmt.Errorf("storage.url: missing scheme (use sqlite:// or postgres://)")
 	}
 	switch strings.ToLower(scheme) {
 	case "sqlite":
@@ -61,9 +62,7 @@ func (c *Config) Validate() []string {
 	if strings.TrimSpace(c.Server.Listen) == "" {
 		add("server.listen: must not be empty")
 	}
-	if c.Server.PublicURL == "" {
-		add("server.public_url: required")
-	} else if !isHTTPURL(c.Server.PublicURL) {
+	if c.Server.PublicURL != "" && !isHTTPURL(c.Server.PublicURL) {
 		add("server.public_url: %q must be an absolute http(s) URL", c.Server.PublicURL)
 	}
 	if c.Server.SessionTTL <= 0 {
@@ -81,32 +80,19 @@ func (c *Config) Validate() []string {
 	}
 	for i, is := range c.Auth.Issuers {
 		pre := fmt.Sprintf("auth.issuers[%d]", i)
-		if is.Name == "" {
-			add("%s.name: required", pre)
-		}
-		if is.Issuer == "" {
-			add("%s.issuer: required", pre)
-		} else if !isHTTPURL(is.Issuer) {
+		if is.Issuer != "" && !isHTTPURL(is.Issuer) {
 			add("%s.issuer: %q must be an absolute http(s) URL", pre, is.Issuer)
-		}
-		if is.Audience == "" {
-			add("%s.audience: required", pre)
-		}
-		if len(is.Scopes) == 0 {
-			add("%s.scopes: at least one scope is required", pre)
 		}
 		seen := map[string]bool{}
 		for j, cl := range is.Clients {
 			cp := fmt.Sprintf("%s.clients[%d]", pre, j)
-			switch {
-			case cl.ID == "":
-				add("%s.id: required", cp)
-			case seen[cl.ID]:
-				add("%s.id: duplicate client id %q", cp, cl.ID)
-			default:
+			if cl.ID != "" {
+				if seen[cl.ID] {
+					add("%s.id: duplicate client id %q", cp, cl.ID)
+				}
 				seen[cl.ID] = true
 			}
-			if cl.Kind != "human" && cl.Kind != "agent" {
+			if cl.Kind != "" && cl.Kind != "human" && cl.Kind != "agent" {
 				add("%s.kind: %q must be \"human\" or \"agent\"", cp, cl.Kind)
 			}
 			if cl.ActsFor != "" && cl.Kind != "agent" {
@@ -156,6 +142,47 @@ func (c *Config) Validate() []string {
 		add("logging.format: %q must be json or text", c.Logging.Format)
 	}
 	return p
+}
+
+// ValidateForServe checks what only `quizzotic serve` needs: the keys that
+// have no default and the identity provider details. Commands such as
+// `admin migrate`, `admin seed` and `admin export` use Load alone, so they run
+// without auth configured. Call it on a Config that already passed Load.
+func (c *Config) ValidateForServe() error {
+	var p []string
+	add := func(format string, a ...any) { p = append(p, fmt.Sprintf(format, a...)) }
+
+	if c.Server.PublicURL == "" {
+		add("server.public_url: required")
+	}
+	for i, is := range c.Auth.Issuers {
+		pre := fmt.Sprintf("auth.issuers[%d]", i)
+		if is.Name == "" {
+			add("%s.name: required", pre)
+		}
+		if is.Issuer == "" {
+			add("%s.issuer: required", pre)
+		}
+		if is.Audience == "" {
+			add("%s.audience: required", pre)
+		}
+		if len(is.Scopes) == 0 {
+			add("%s.scopes: at least one scope is required", pre)
+		}
+		for j, cl := range is.Clients {
+			cp := fmt.Sprintf("%s.clients[%d]", pre, j)
+			if cl.ID == "" {
+				add("%s.id: required", cp)
+			}
+			if cl.Kind == "" {
+				add("%s.kind: required (\"human\" or \"agent\")", cp)
+			}
+		}
+	}
+	if len(p) > 0 {
+		return &Error{Problems: p}
+	}
+	return nil
 }
 
 func isHTTPURL(s string) bool {

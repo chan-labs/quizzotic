@@ -22,7 +22,7 @@ const DefaultPath = "./quizzotic.yaml"
 const EnvPrefix = "QUIZZOTIC_"
 
 // envIgnored lists QUIZZOTIC_* variables that are not config keys.
-var envIgnored = map[string]bool{"QUIZZOTIC_CONFIG": true}
+var envIgnored = map[string]bool{"QUIZZOTIC_CONFIG": true, "QUIZZOTIC_TOKEN": true}
 
 // Duration is a time.Duration that reads Go duration strings ("720h", "10m").
 type Duration time.Duration

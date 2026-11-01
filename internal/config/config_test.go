@@ -104,7 +104,44 @@ func TestParse_Defaults(t *testing.T) {
 
 func TestParse_EmptyFileReportsRequiredKeys(t *testing.T) {
 	_, err := Parse(nil, []string{})
-	assertProblems(t, err, "server.public_url: required", "auth.issuers: exactly one")
+	assertProblems(t, err, "auth.issuers: exactly one")
+}
+
+func TestValidateForServe(t *testing.T) {
+	// Load alone accepts a config that lacks serve-only keys.
+	cfg, err := Parse([]byte("auth:\n  issuers:\n    - {}\n"), []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertProblems(t, cfg.ValidateForServe(),
+		"server.public_url: required", "auth.issuers[0].name: required", "auth.issuers[0].issuer: required",
+		"auth.issuers[0].audience: required", "auth.issuers[0].scopes")
+
+	y := minimalYAML + "      clients:\n        - {secret: x}\n"
+	cfg, err = Parse([]byte(y), []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertProblems(t, cfg.ValidateForServe(), "clients[0].id: required", "clients[0].kind: required")
+
+	cfg, err = Parse([]byte(minimalYAML), []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.ValidateForServe(); err != nil {
+		t.Errorf("minimal config should be serve-ready: %v", err)
+	}
+}
+
+func TestParse_UnmatchedEnvIgnored(t *testing.T) {
+	env := []string{"QUIZZOTIC_TOKEN=abc", "QUIZZOTIC_CONFIG=/x.yaml", "QUIZZOTIC_SERVER_LISTN=:1", "QUIZZOTIC_NOPE=1"}
+	cfg, err := Parse([]byte(minimalYAML), env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.Listen != ":8080" {
+		t.Errorf("listen = %q", cfg.Server.Listen)
+	}
 }
 
 func TestParse_EnvOverrides(t *testing.T) {
@@ -213,7 +250,6 @@ func TestParse_EnvErrors(t *testing.T) {
 		{"bad bool", []string{"QUIZZOTIC_STORAGE_AUTO_MIGRATE=maybe"}, []string{"QUIZZOTIC_STORAGE_AUTO_MIGRATE: invalid boolean"}},
 		{"bad duration", []string{"QUIZZOTIC_SERVER_SESSION_TTL=soon"}, []string{"QUIZZOTIC_SERVER_SESSION_TTL: invalid duration"}},
 		{"bad float", []string{"QUIZZOTIC_SCHEDULING_DESIRED_RETENTION=high"}, []string{"invalid number"}},
-		{"unknown variable", []string{"QUIZZOTIC_SERVER_LISTN=:1"}, []string{"QUIZZOTIC_SERVER_LISTN does not match any config key"}},
 		{"index too large", []string{"QUIZZOTIC_AUTH_ISSUERS_999_NAME=x"}, []string{"list index 999 is too large"}},
 		{"override fails validation", []string{"QUIZZOTIC_LOGGING_LEVEL=loud"}, []string{"logging.level"}},
 	}
@@ -288,12 +324,10 @@ func TestParse_IssuerAndClientValidation(t *testing.T) {
 		{"no issuers", "auth:\n  issuers: []\n", []string{"auth.issuers: exactly one"}},
 		{"two issuers", "auth:\n  issuers:\n    - {name: a, issuer: \"https://a.example.com\", audience: q, scopes: [openid]}\n    - {name: b, issuer: \"https://b.example.com\", audience: q, scopes: [openid]}\n",
 			[]string{"auth.issuers: exactly one"}},
-		{"missing fields", "auth:\n  issuers:\n    - {}\n",
-			[]string{"auth.issuers[0].name: required", "auth.issuers[0].issuer: required", "auth.issuers[0].audience: required", "auth.issuers[0].scopes"}},
 		{"bad issuer url", "auth:\n  issuers:\n    - {name: a, issuer: \"auth.example.com\", audience: q, scopes: [openid]}\n",
 			[]string{"auth.issuers[0].issuer"}},
 		{"client problems", "auth:\n  issuers:\n    - name: a\n      issuer: \"https://a.example.com\"\n      audience: q\n      scopes: [openid]\n      clients:\n        - {id: x, kind: human, acts_for: someone}\n        - {id: x, kind: robot}\n        - {kind: agent}\n",
-			[]string{"clients[0].acts_for", "clients[1].id: duplicate", "clients[1].kind", "clients[2].id: required"}},
+			[]string{"clients[0].acts_for", "clients[1].id: duplicate", "clients[1].kind"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -316,17 +350,17 @@ scheduling:
 logging:
   level: loud
 `
-	_, err := Parse([]byte(y), []string{"QUIZZOTIC_SCHEDULING_NEW_PER_DAY=x", "QUIZZOTIC_NOPE=1"})
+	_, err := Parse([]byte(y), []string{"QUIZZOTIC_SCHEDULING_NEW_PER_DAY=x"})
 	var ce *Error
 	if !errors.As(err, &ce) {
 		t.Fatalf("want *Error, got %v", err)
 	}
 	assertProblems(t, err,
 		"field bogus not found", "field listn not found", "invalid duration",
-		"unknown scheme", "invalid integer", "QUIZZOTIC_NOPE",
-		"scheduling.rollover_hour", "logging.level", "server.public_url: required", "auth.issuers")
-	if len(ce.Problems) < 10 {
-		t.Errorf("expected at least 10 problems, got %d: %v", len(ce.Problems), ce.Problems)
+		"unknown scheme", "invalid integer",
+		"scheduling.rollover_hour", "logging.level", "auth.issuers")
+	if len(ce.Problems) < 8 {
+		t.Errorf("expected at least 8 problems, got %d: %v", len(ce.Problems), ce.Problems)
 	}
 }
 
@@ -368,6 +402,18 @@ func TestParseStorageURL(t *testing.T) {
 				t.Errorf("got (%q, %q), want (%q, %q)", d, target, tt.driver, tt.target)
 			}
 		})
+	}
+}
+
+func TestParseStorageURL_ErrorsDoNotLeakSecrets(t *testing.T) {
+	for _, raw := range []string{"user:hunter2@db.example.com/q", "hunter2", "mysql://user:hunter2@db.example.com/q", "postgres://user:hunter2@/q"} {
+		_, _, err := ParseStorageURL(raw)
+		if err == nil {
+			t.Fatalf("%q: expected error", raw)
+		}
+		if strings.Contains(err.Error(), "hunter2") {
+			t.Errorf("%q: error leaks secret: %v", raw, err)
+		}
 	}
 }
 
