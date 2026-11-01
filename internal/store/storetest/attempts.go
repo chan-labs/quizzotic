@@ -126,6 +126,74 @@ func runAttempts(t *testing.T, newStore NewStore) {
 		}
 	})
 
+	t.Run("set rating fills once", func(t *testing.T) {
+		s, a, _ := setup(t)
+		pid := mkProblem(t, s, a)
+		open := mk(a, pid)
+		open.AutoCorrect, open.Score, open.Rating = nil, nil, nil
+		auto := mk(a, pid)
+		auto.Rating = nil // auto-graded and scored, but no rating sent
+		for _, at := range []attempts.Attempt{open, auto} {
+			if err := s.Attempts().Create(ctx, a.ID, at); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		score := 0.67
+		if err := s.Attempts().SetRating(ctx, a.ID, open.ID, 3, &score); err != nil {
+			t.Fatal(err)
+		}
+		got, _ := s.Attempts().Get(ctx, a.ID, open.ID)
+		if got.Rating == nil || *got.Rating != 3 || got.Score == nil || *got.Score != 0.67 {
+			t.Fatalf("open after fill = %+v", got)
+		}
+		// An already-scored attempt keeps its score.
+		other := 0.1
+		if err := s.Attempts().SetRating(ctx, a.ID, auto.ID, 4, &other); err != nil {
+			t.Fatal(err)
+		}
+		got, _ = s.Attempts().Get(ctx, a.ID, auto.ID)
+		if *got.Rating != 4 || *got.Score != 0.5 {
+			t.Fatalf("auto after fill = %+v", got)
+		}
+		// A second fill is refused and changes nothing.
+		if err := s.Attempts().SetRating(ctx, a.ID, open.ID, 1, nil); !errors.Is(err, attempts.ErrAlreadyRated) {
+			t.Fatalf("second fill = %v, want ErrAlreadyRated", err)
+		}
+		got, _ = s.Attempts().Get(ctx, a.ID, open.ID)
+		if *got.Rating != 3 {
+			t.Fatalf("second fill changed the rating: %+v", got)
+		}
+		// An attempt that was rated on creation cannot be filled.
+		rated := mk(a, pid)
+		if err := s.Attempts().Create(ctx, a.ID, rated); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Attempts().SetRating(ctx, a.ID, rated.ID, 2, nil); !errors.Is(err, attempts.ErrAlreadyRated) {
+			t.Fatalf("fill of a rated attempt = %v, want ErrAlreadyRated", err)
+		}
+	})
+
+	t.Run("set rating is owner scoped", func(t *testing.T) {
+		s, a, b := setup(t)
+		at := mk(a, mkProblem(t, s, a))
+		at.Rating, at.Score, at.AutoCorrect = nil, nil, nil
+		if err := s.Attempts().Create(ctx, a.ID, at); err != nil {
+			t.Fatal(err)
+		}
+		score := 0.33
+		if err := s.Attempts().SetRating(ctx, b.ID, at.ID, 2, &score); !errors.Is(err, attempts.ErrNotFound) {
+			t.Fatalf("B sets A's rating = %v, want ErrNotFound", err)
+		}
+		if err := s.Attempts().SetRating(ctx, a.ID, ids.New(), 2, nil); !errors.Is(err, attempts.ErrNotFound) {
+			t.Fatalf("unknown attempt = %v, want ErrNotFound", err)
+		}
+		got, _ := s.Attempts().Get(ctx, a.ID, at.ID)
+		if got.Rating != nil || got.Score != nil {
+			t.Fatalf("A's attempt changed: %+v", got)
+		}
+	})
+
 	t.Run("rolls back with the transaction", func(t *testing.T) {
 		s, a, _ := setup(t)
 		at := mk(a, mkProblem(t, s, a))

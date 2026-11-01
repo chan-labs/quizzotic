@@ -34,6 +34,7 @@ func NewHandler(svc *Service, logger *slog.Logger) *Handler {
 // already authenticated and authorized the request.
 func (h *Handler) Register(rt *platform.Router) {
 	rt.HandleFunc("POST /attempts", h.Create)
+	rt.HandleFunc("POST /attempts/{id}/rating", h.Rate)
 }
 
 type createRequest struct {
@@ -89,6 +90,49 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, res)
+}
+
+type rateRequest struct {
+	Rating *int `json:"rating"`
+}
+
+// Rate answers POST /attempts/{id}/rating.
+func (h *Handler) Rate(w http.ResponseWriter, r *http.Request) {
+	if h.svc == nil {
+		platform.WriteError(w, r, platform.NotFound("no such resource"))
+		return
+	}
+	p, ok := auth.PrincipalFrom(r.Context())
+	if !ok {
+		platform.WriteError(w, r, platform.Unauthorized("authentication required"))
+		return
+	}
+	if p.Kind != auth.KindHuman {
+		platform.WriteError(w, r, platform.Forbidden("only a human can rate attempts"))
+		return
+	}
+	id, err := domain.ParseID(r.PathValue("id"))
+	if err != nil {
+		platform.WriteError(w, r, platform.NotFound("no such attempt"))
+		return
+	}
+	var req rateRequest
+	if err := platform.DecodeJSON(w, r, &req); err != nil {
+		platform.WriteError(w, r, err)
+		return
+	}
+	if req.Rating == nil {
+		platform.WriteError(w, r, platform.Validation("the rating is invalid",
+			platform.FieldError{Field: "rating", Detail: "required"}))
+		return
+	}
+	actor := domain.Actor{Kind: domain.ActorKind(p.Kind), UserID: p.UserID, ClientID: p.ClientID}
+	res, err := h.svc.Rate(r.Context(), actor, id, *req.Rating)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 // fail renders err. Grading errors become client-facing problems; anything
