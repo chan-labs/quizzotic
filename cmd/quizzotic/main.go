@@ -7,11 +7,18 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/chan-labs/quizzotic/internal/admin"
+	"github.com/chan-labs/quizzotic/internal/config"
+	"github.com/chan-labs/quizzotic/internal/platform"
+	"github.com/chan-labs/quizzotic/internal/server"
 )
 
 // version is overridden at build time via -ldflags "-X main.version=...".
@@ -32,7 +39,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "admin":
 		return admin.Run(context.Background(), args[1:], stdout, stderr)
-	case "serve", "mcp":
+	case "serve":
+		return serve(args[1:], stderr)
+	case "mcp":
 		fmt.Fprintf(stderr, "quizzotic: %s is not implemented yet\n", args[0])
 		return 1
 	case "help", "-h", "--help":
@@ -43,6 +52,34 @@ func run(args []string, stdout, stderr io.Writer) int {
 		usage(stderr)
 		return 2
 	}
+}
+
+func serve(args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	cfgPath := fs.String("config", "", "config file (default "+config.DefaultPath+")")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	cfg, err := config.Load(*cfgPath, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "quizzotic: %v\n", err)
+		return 1
+	}
+	logger := platform.NewLogger(stderr, cfg.Logging)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if err := server.Run(ctx, cfg, logger, server.Options{}); err != nil {
+		var ce *config.Error
+		if errors.As(err, &ce) {
+			fmt.Fprintf(stderr, "quizzotic: %v\n", err)
+		} else {
+			logger.Error("serve failed", "error", err.Error())
+		}
+		return 1
+	}
+	return 0
 }
 
 func usage(w io.Writer) {
