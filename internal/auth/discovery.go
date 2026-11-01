@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -62,8 +63,12 @@ func (p *Provider) fetchDiscovery(ctx context.Context) (*Discovery, error) {
 		platform.RecordError(span, err)
 		return nil, err
 	}
-	if !isHTTPURL(d.JWKSURI) {
-		err := errors.New("oidc discovery: jwks_uri missing or not an absolute http(s) URL")
+	if d.JWKSURI == "" {
+		err := errors.New("oidc discovery: jwks_uri missing")
+		platform.RecordError(span, err)
+		return nil, err
+	}
+	if err := d.validateEndpoints(p.issuer); err != nil {
 		platform.RecordError(span, err)
 		return nil, err
 	}
@@ -92,7 +97,47 @@ func (p *Provider) getJSON(ctx context.Context, u string, v any) error {
 	return nil
 }
 
-func isHTTPURL(s string) bool {
+// validateEndpoints requires the issuer and every advertised endpoint to be an
+// absolute https URL; http is accepted only for loopback hosts.
+func (d *Discovery) validateEndpoints(issuer string) error {
+	for _, e := range []struct{ name, val string }{
+		{"issuer", issuer},
+		{"authorization_endpoint", d.AuthorizationEndpoint},
+		{"token_endpoint", d.TokenEndpoint},
+		{"jwks_uri", d.JWKSURI},
+		{"device_authorization_endpoint", d.DeviceAuthorizationEndpoint},
+		{"end_session_endpoint", d.EndSessionEndpoint},
+	} {
+		if e.val == "" {
+			continue
+		}
+		if !isSecureURL(e.val) {
+			return fmt.Errorf("oidc discovery: %s %q must be an absolute https URL (http is allowed only for loopback hosts)", e.name, e.val)
+		}
+	}
+	return nil
+}
+
+// isSecureURL reports whether s is an absolute https URL, or an http URL whose
+// host is loopback (localhost, 127.0.0.0/8, ::1).
+func isSecureURL(s string) bool {
 	u, err := url.Parse(s)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+	if err != nil || u.Host == "" {
+		return false
+	}
+	switch u.Scheme {
+	case "https":
+		return true
+	case "http":
+		return isLoopbackHost(u.Hostname())
+	}
+	return false
+}
+
+func isLoopbackHost(h string) bool {
+	if strings.EqualFold(h, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }
