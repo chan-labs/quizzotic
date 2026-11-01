@@ -304,6 +304,98 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+    patch:
+      operationId: problems.edit
+      tags: [problems]
+      summary: Edit a problem
+      description: |
+        Creates a new version from the current one with the given fields
+        replaced; omitted fields keep their value. `change_kind` is required:
+        `minor` (typo, wording) keeps the card; `major` (different correct
+        answer or question) starts a new card epoch, so earlier attempts stay
+        attached to the old epoch. The merged result is validated like a
+        create. Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: >-
+        Read the problem first and send its ETag as If-Match. Use major only
+        when the correct answer or the question itself changes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditProblemRequest"
+      responses:
+        "200":
+          description: The problem at its new version.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemView"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}/versions:
+    get:
+      operationId: problems.versions
+      tags: [problems]
+      summary: List a problem's versions
+      description: |
+        Returns every version of the problem, oldest first, with answers.
+        Old versions stay readable after an edit.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:read]
+      x-quizzotic-mcp: true
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: All versions, oldest first. `next_cursor` is always null.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemVersionList"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   /openapi.yaml:
     get:
       operationId: meta.openapi
@@ -1046,6 +1138,60 @@ components:
           type: string
           enum: [draft, live]
           default: draft
+    EditProblemRequest:
+      type: object
+      additionalProperties: false
+      required: [change_kind]
+      description: Fields to replace; at least one besides `change_kind`.
+      properties:
+        change_kind:
+          type: string
+          enum: [minor, major]
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+          minLength: 1
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        source:
+          type: string
+    ProblemVersion:
+      type: object
+      description: One immutable revision of a problem.
+      required: [version, type, prompt, payload, explanation, source, change_kind, created_by, created_at]
+      properties:
+        version:
+          type: integer
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        source:
+          type: string
+        change_kind:
+          type: string
+          enum: [minor, major]
+        created_by:
+          $ref: "#/components/schemas/Actor"
+        created_at:
+          type: string
+          format: date-time
+    ProblemVersionList:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProblemVersion"
     SimilarProblemsRequest:
       type: object
       additionalProperties: false

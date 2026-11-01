@@ -129,6 +129,7 @@ type Service struct {
 	ids     *domain.IDGenerator
 	shuffle func(n int, swap func(i, j int))
 	tags    TagResolver
+	onMajor MajorEditHandler
 }
 
 // Option tunes a Service.
@@ -145,7 +146,7 @@ func WithTagResolver(r TagResolver) Option { return func(s *Service) { s.tags = 
 
 // NewService builds a Service. repo serves reads; tx runs writes atomically.
 func NewService(repo Repo, tx Transactor, clock domain.Clock, ids *domain.IDGenerator, opts ...Option) *Service {
-	s := &Service{repo: repo, tx: tx, clock: clock, ids: ids, shuffle: rand.Shuffle}
+	s := &Service{repo: repo, tx: tx, clock: clock, ids: ids, shuffle: rand.Shuffle, onMajor: noopMajorEdit{}}
 	for _, o := range opts {
 		o(s)
 	}
