@@ -15,6 +15,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/me"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
+	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/tags"
 )
 
@@ -80,6 +81,7 @@ func appRouter() *platform.Router {
 	openapi.Register(rt)
 	me.NewHandler(nil, nil).Register(rt)
 	tags.NewHandler(nil, nil).Register(rt)
+	problems.NewHandler(nil, nil).Register(rt)
 	return rt
 }
 
