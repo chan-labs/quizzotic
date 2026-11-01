@@ -390,12 +390,137 @@ func TestReviewWithoutScriptSubmitsPlainForm(t *testing.T) {
 	path := sessionPath(t, e)
 	rec := e.do("POST", path+"/answer", url.Values{"csrf_token": {testCSRF}, "problem_id": {p.ID.String()},
 		"problem_version": {"1"}, "selected": {"b"}})
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `class="verdict right"`) {
-		t.Fatalf("status %d:\n%s", rec.Code, rec.Body.String())
+	loc := rec.Header().Get("Location")
+	if rec.Code != http.StatusSeeOther || !strings.HasPrefix(loc, path+"/result/") {
+		t.Fatalf("status %d, Location %q", rec.Code, loc)
+	}
+	if body := e.do("GET", loc, nil).Body.String(); !strings.Contains(body, `class="verdict right"`) {
+		t.Fatalf("result page:\n%s", body)
 	}
 	res, _ := e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 5})
 	if len(res.Items) != 1 || res.Items[0].LatencyMS != 0 {
 		t.Errorf("attempts = %+v", res.Items)
+	}
+}
+
+func (e todayEnv) attemptCount(t *testing.T) int {
+	t.Helper()
+	res, err := e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(res.Items)
+}
+
+// Refreshing or replaying the answer must never record a second attempt.
+func TestReviewReplayedAnswerAndRefreshedResultRecordOneAttempt(t *testing.T) {
+	for _, typ := range []string{problems.TypeMCQ, problems.TypeCloze, problems.TypeOpen} {
+		e := newTodayEnv(t)
+		var p problems.View
+		form := url.Values{"csrf_token": {testCSRF}, "problem_version": {"1"}}
+		switch typ {
+		case problems.TypeMCQ:
+			p = e.create(t, typ, "Which?", mcqPayload)
+			form.Set("selected", "b")
+		case problems.TypeCloze:
+			p = e.create(t, typ, "{{city}} on the {{river}}.", clozePayload)
+			form.Set("blank_city", "Paris")
+			form.Set("blank_river", "Lyon")
+		default:
+			p = e.create(t, typ, "Explain", openPayload)
+			form.Set("text", "mine")
+		}
+		form.Set("problem_id", p.ID.String())
+		path := sessionPath(t, e)
+
+		first := e.do("POST", path+"/answer", form)
+		loc := first.Header().Get("Location")
+		if first.Code != http.StatusSeeOther || !strings.HasPrefix(loc, path+"/result/") {
+			t.Fatalf("%s: answer = %d %q", typ, first.Code, loc)
+		}
+		// Replays (refresh of the POST, double submit) record nothing and move on.
+		for i := 0; i < 2; i++ {
+			again := e.do("POST", path+"/answer", form)
+			if again.Code != http.StatusSeeOther || again.Header().Get("Location") != path {
+				t.Errorf("%s: replay = %d %q, want 303 to %s", typ, again.Code, again.Header().Get("Location"), path)
+			}
+		}
+		// Refreshing the result URL re-reads it and writes nothing.
+		var bodies []string
+		for i := 0; i < 3; i++ {
+			rec := e.do("GET", loc, nil)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s: result = %d", typ, rec.Code)
+			}
+			bodies = append(bodies, rec.Body.String())
+		}
+		if bodies[0] != bodies[2] {
+			t.Errorf("%s: result page changed between refreshes", typ)
+		}
+		if n := e.attemptCount(t); n != 1 {
+			t.Errorf("%s: attempts = %d, want exactly 1", typ, n)
+		}
+		switch typ {
+		case problems.TypeCloze:
+			if !strings.Contains(bodies[0], `blank-result right">Paris`) || !strings.Contains(bodies[0], `blank-result wrong">Lyon`) {
+				t.Errorf("cloze result lost its grading:\n%s", bodies[0])
+			}
+		case problems.TypeOpen:
+			if !strings.Contains(bodies[0], "<strong>reference</strong>") {
+				t.Error("open result lost the reference")
+			}
+		}
+	}
+}
+
+func TestReviewResultIsScopedToSessionAndOwner(t *testing.T) {
+	e := newTodayEnv(t)
+	p := e.create(t, problems.TypeMCQ, "Which?", mcqPayload)
+	path := sessionPath(t, e)
+	loc := e.do("POST", path+"/answer", url.Values{"csrf_token": {testCSRF}, "problem_id": {p.ID.String()},
+		"problem_version": {"1"}, "selected": {"b"}}).Header().Get("Location")
+	// The same attempt under another session is not found.
+	otherSess := sessionPath(t, e)
+	if rec := e.do("GET", otherSess+"/result/"+strings.TrimPrefix(loc, path+"/result/"), nil); rec.Code != http.StatusNotFound {
+		t.Errorf("attempt under another session = %d, want 404", rec.Code)
+	}
+	if rec := e.do("GET", path+"/result/nope", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("malformed attempt id = %d", rec.Code)
+	}
+	if rec := get(e.mux, loc, false); rec.Code != http.StatusSeeOther {
+		t.Errorf("anonymous result = %d, want login redirect", rec.Code)
+	}
+	// Rating from the result page still returns to /review/{id}.
+	att := strings.TrimPrefix(loc, path+"/result/")
+	rate := e.do("POST", path+"/rate", url.Values{"csrf_token": {testCSRF}, "attempt_id": {att}, "rating": {"4"}})
+	if rate.Code != http.StatusSeeOther || rate.Header().Get("Location") != path {
+		t.Errorf("rate = %d %q", rate.Code, rate.Header().Get("Location"))
+	}
+	if body := e.do("GET", loc, nil).Body.String(); strings.Contains(body, `id="rate-form"`) {
+		t.Error("a rated attempt still offers rating buttons")
+	}
+}
+
+// A session belonging to another user is a 404, for the page, the result and the posts.
+func TestReviewIsNotVisibleToAnotherUser(t *testing.T) {
+	e := newQuizEnv(t)
+	theirs, err := e.sessions.Create(context.Background(), e.other, review.CreateSessionInput{Kind: review.SessionReview})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := e.problem("Mine")
+	base := "/review/" + theirs.ID.String()
+	form := url.Values{"problem_id": {p.String()}, "problem_version": {"1"}, "selected": {"x"}, "attempt_id": {p.String()}, "rating": {"3"}}
+	for _, c := range []struct {
+		method, path string
+		form         url.Values
+	}{
+		{"GET", base, nil}, {"GET", base + "/result/" + p.String(), nil},
+		{"POST", base + "/answer", form}, {"POST", base + "/rate", form},
+	} {
+		if rec := e.do(c.method, c.path, c.form, true); rec.Code != http.StatusNotFound {
+			t.Errorf("%s %s = %d, want 404", c.method, c.path, rec.Code)
+		}
 	}
 }
 
@@ -405,7 +530,8 @@ func TestReviewNothingPickedAsksAgain(t *testing.T) {
 	path := sessionPath(t, e)
 	rec := e.do("POST", path+"/answer", url.Values{"csrf_token": {testCSRF}, "problem_id": {p.ID.String()}, "problem_version": {"1"}})
 	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "select at least one") ||
-		!strings.Contains(rec.Body.String(), `data-review-phase="prompt"`) {
+		!strings.Contains(rec.Body.String(), `data-review-phase="prompt"`) ||
+		!strings.Contains(rec.Body.String(), `id="remaining">1<`) {
 		t.Errorf("status %d:\n%s", rec.Code, rec.Body.String())
 	}
 }
