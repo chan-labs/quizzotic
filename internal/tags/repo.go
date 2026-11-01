@@ -5,6 +5,7 @@ package tags
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
 )
@@ -63,4 +64,12 @@ type Repo interface {
 	// that the problem exists; a tag that is not the owner's returns ErrNotFound
 	// and changes nothing.
 	SetProblemTags(ctx context.Context, ownerID, problemID domain.ID, tagIDs []domain.ID) error
+
+	// Merge repoints every problem mapping of the source tags to the target
+	// (deduplicated), marks the sources merged with merged_into set to the
+	// target, moves their slugs and aliases to the target's aliases and sets
+	// the target's updated_at to now. Callers have checked that the tags are
+	// distinct and active; a tag that is not the owner's returns ErrNotFound
+	// and changes nothing. It runs inside store.WithTx.
+	Merge(ctx context.Context, ownerID domain.ID, sourceIDs []domain.ID, targetID domain.ID, now time.Time) error
 }
