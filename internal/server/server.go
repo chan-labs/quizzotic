@@ -74,19 +74,33 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 	issuer := cfg.Auth.Issuers[0]
 	idp := auth.NewProvider(issuer.Issuer, provOpts...)
 
+	clock := domain.SystemClock{}
+	ids := domain.NewIDGenerator(clock)
+	authSvc := auth.NewService(store.AuthTx(st), clock, ids)
+
+	// Bearer tokens: verified against the issuer, classified by client.
+	clients, err := auth.NewClients(issuer.Clients)
+	if err != nil {
+		return fmt.Errorf("auth clients: %w", err)
+	}
 	var hopts []HandlerOption
+	hopts = append(hopts, WithAPIAuth(&auth.BearerAuthenticator{
+		Verifier: auth.NewVerifier(issuer.Issuer, idp),
+		Audience: issuer.Audience,
+		Resolver: auth.NewResolver(clients, authSvc),
+	}))
+
 	if wc, ok := webClient(issuer); ok {
-		clock := domain.SystemClock{}
-		ids := domain.NewIDGenerator(clock)
 		svc := auth.NewLoginService(auth.LoginConfig{
 			ClientID:     wc.ID,
 			ClientSecret: wc.Secret,
 			Scopes:       issuer.Scopes,
 			PublicURL:    cfg.Server.PublicURL,
 			SessionTTL:   cfg.Server.SessionTTL.Std(),
-		}, st, idp, auth.NewVerifier(issuer.Issuer, idp), auth.NewService(store.AuthTx(st), clock, ids),
+		}, st, idp, auth.NewVerifier(issuer.Issuer, idp), authSvc,
 			clock, ids, opts.HTTPClient)
-		hopts = append(hopts, WithWebLogin(auth.NewLoginHandler(svc, logger)))
+		login := auth.NewLoginHandler(svc, logger)
+		hopts = append(hopts, WithWebLogin(login), WithAPIAuth(auth.SessionAuthenticator{Login: login}))
 	} else {
 		logger.Warn("web login disabled: no human client with a secret under auth.issuers[0].clients")
 	}
@@ -132,7 +146,32 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 // HandlerOption adds optional features to Handler.
 type HandlerOption func(*handlerOptions)
 
-type handlerOptions struct{ web *auth.LoginHandler }
+type handlerOptions struct {
+	web  *auth.LoginHandler
+	auth []auth.Authenticator
+}
+
+// WithAPIAuth adds an authenticator for the API, tried after those already
+// added (see auth.Chain). With none, every scoped operation answers 401.
+func WithAPIAuth(a auth.Authenticator) HandlerOption {
+	return func(o *handlerOptions) { o.auth = append(o.auth, a) }
+}
+
+// NewAPIRouter returns the API router with every feature registered and the
+// scope guard installed, so each request is authorized against the spec
+// operation of the pattern the router matched. It panics if the embedded spec
+// cannot be parsed (a build-time invariant covered by tests).
+func NewAPIRouter(a auth.Authenticator) (*platform.Router, *auth.ScopeGuard) {
+	ops, err := openapi.SpecOperations()
+	if err != nil {
+		panic("server: embedded OpenAPI spec: " + err.Error())
+	}
+	guard := auth.NewScopeGuard(a, ops)
+	rt := platform.NewRouter()
+	rt.SetAuthorizer(guard.Authorize)
+	openapi.Register(rt)
+	return rt, guard
+}
 
 // WithWebLogin mounts /auth/login, /auth/callback and /auth/logout.
 func WithWebLogin(h *auth.LoginHandler) HandlerOption {
@@ -165,8 +204,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		return st.WithTx(ctx, func(store.Store) error { return nil })
 	})
 
-	rt := platform.NewRouter()
-	openapi.Register(rt)
+	rt, _ := NewAPIRouter(auth.Chain(ho.auth))
 
 	mux := http.NewServeMux()
 	health.Register(mux)

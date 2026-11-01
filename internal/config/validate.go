@@ -53,6 +53,13 @@ func (c *Config) StorageDriver() (Driver, string) {
 	return d, t
 }
 
+// ForbiddenAgentScopes are the scopes no agent client may hold (spec: Scopes).
+var ForbiddenAgentScopes = map[string]bool{
+	"attempts:write": true,
+	"sessions:write": true,
+	"admin":          true,
+}
+
 // Validate checks every value and returns all problems found.
 func (c *Config) Validate() []string {
 	var p []string
@@ -97,6 +104,13 @@ func (c *Config) Validate() []string {
 			}
 			if cl.ActsFor != "" && cl.Kind != "agent" {
 				add("%s.acts_for: only valid for agent clients", cp)
+			}
+			if cl.Kind == "agent" {
+				for _, sc := range cl.AllowedScopes {
+					if ForbiddenAgentScopes[sc] {
+						add("%s.allowed_scopes: %q is never allowed on an agent client", cp, sc)
+					}
+				}
 			}
 		}
 	}

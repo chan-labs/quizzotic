@@ -16,16 +16,31 @@ const APIPrefix = "/api/v1"
 type Router struct {
 	api      *http.ServeMux
 	patterns []string
+	registry map[string]bool
+	authz    Authorizer
 }
 
+// Authorizer decides whether a request may reach the handler registered under
+// pattern. It runs after the router's own match, so it sees the very pattern
+// that will serve the request and no second matcher exists. It returns the
+// request to pass on (for example with a principal in its context) and true,
+// or writes the response itself and returns false.
+type Authorizer func(pattern string, w http.ResponseWriter, r *http.Request) (*http.Request, bool)
+
+// SetAuthorizer installs a. With one installed the router is deny-by-default:
+// a match whose pattern was not registered with Handle (such as the mux's
+// path-cleaning redirects) is answered 404 and never served.
+func (rt *Router) SetAuthorizer(a Authorizer) { rt.authz = a }
+
 // NewRouter returns an empty API router.
-func NewRouter() *Router { return &Router{api: http.NewServeMux()} }
+func NewRouter() *Router { return &Router{api: http.NewServeMux(), registry: map[string]bool{}} }
 
 // Handle registers a handler for a ServeMux pattern such as
 // "GET /problems/{id}". The pattern's path is relative to APIPrefix.
 func (rt *Router) Handle(pattern string, h http.Handler) {
 	rt.api.Handle(pattern, h)
 	rt.patterns = append(rt.patterns, pattern)
+	rt.registry[pattern] = true
 }
 
 // HandleFunc is Handle for a function.
@@ -65,6 +80,16 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		WriteError(w, r, NotFound("no such resource"))
 		return
+	}
+	if rt.authz != nil {
+		if !rt.registry[pattern] {
+			WriteError(w, r, NotFound("no such resource"))
+			return
+		}
+		var ok bool
+		if r2, ok = rt.authz(pattern, w, r2); !ok {
+			return
+		}
 	}
 	rt.api.ServeHTTP(w, r2)
 }
