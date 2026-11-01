@@ -8,7 +8,7 @@ Adding any other dependency needs the maintainer's approval and a new entry here
 | --- | --- |
 | `modernc.org/sqlite` | Pure-Go SQLite driver; keeps the binary cgo-free. |
 | `github.com/jackc/pgx/v5` | Postgres driver. |
-| `gopkg.in/yaml.v3` | Config file and OpenAPI spec parsing. |
+| `gopkg.in/yaml.v3` | Config file, OpenAPI spec and seed file parsing. |
 | `github.com/modelcontextprotocol/go-sdk` | Official MCP protocol implementation; avoids protocol drift. |
 | `github.com/yuin/goldmark` | Markdown rendering for prompts and explanations, with raw HTML disabled. |
 | `go.opentelemetry.io/otel` (+ SDK and `contrib/exporters/autoexport`) | Tracing that honors the standard `OTEL_*` environment variables. |

@@ -7,9 +7,11 @@ import (
 	"errors"
 
 	"github.com/chan-labs/quizzotic/internal/auth"
+	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/quizzes"
+	"github.com/chan-labs/quizzotic/internal/seed"
 	"github.com/chan-labs/quizzotic/internal/settings"
 	"github.com/chan-labs/quizzotic/internal/tags"
 )
@@ -49,6 +51,9 @@ type Store interface {
 
 	// TagOperations stores the tag evolution audit trail and its snapshots.
 	TagOperations() tags.OpRepo
+
+	// SeedKeys maps seed-file keys to the rows they created.
+	SeedKeys() seed.KeyRepo
 
 	// Idempotency stores POST responses for Idempotency-Key replay.
 	Idempotency() platform.IdempotencyRepo
@@ -122,4 +127,31 @@ type quizzesTx struct{ s Store }
 
 func (a quizzesTx) InTx(ctx context.Context, fn func(quizzes.Repo) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Quizzes()) })
+}
+
+// SeedTx adapts a Store to seed.Transactor. Each InTx call builds fresh
+// problems, tags and quizzes services over one store transaction, so a seed
+// file applies completely or not at all and every write passes the services'
+// rules.
+func SeedTx(s Store, clock domain.Clock, ids *domain.IDGenerator) seed.Transactor {
+	return seedTx{s, clock, ids}
+}
+
+type seedTx struct {
+	s     Store
+	clock domain.Clock
+	ids   *domain.IDGenerator
+}
+
+func (a seedTx) InTx(ctx context.Context, fn func(seed.Services) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error {
+		ps := problems.NewService(tx.Problems(), ProblemsTx(tx), a.clock, a.ids)
+		return fn(seed.Services{
+			Problems: ps,
+			Tags:     tags.NewService(TagsTx(tx), a.clock, a.ids),
+			Quizzes:  quizzes.NewService(QuizzesTx(tx), ps, a.clock, a.ids),
+			Keys:     tx.SeedKeys(),
+			Clock:    a.clock,
+		})
+	})
 }

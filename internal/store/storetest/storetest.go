@@ -44,6 +44,8 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("TagMerge", func(t *testing.T) { runTagMerge(t, newStore) })
 	t.Run("TagOperations", func(t *testing.T) { runTagOperations(t, newStore) })
 	t.Run("Idempotency", func(t *testing.T) { runIdempotency(t, newStore) })
+	t.Run("SeedKeys", func(t *testing.T) { runSeedKeys(t, newStore) })
+	t.Run("SoleUser", func(t *testing.T) { runSoleUser(t, newStore) })
 }
 
 func runTx(t *testing.T, newStore NewStore) {

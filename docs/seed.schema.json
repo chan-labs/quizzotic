@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/quizzotic/seed.schema.json",
+  "title": "Quizzotic seed file",
+  "description": "Tags, problems and quizzes loaded by `quizzotic admin seed` and `storage.seed`. See docs/seed-format.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "tags": { "type": "array", "items": { "$ref": "#/$defs/tag" } },
+    "problems": { "type": "array", "items": { "$ref": "#/$defs/problem" } },
+    "quizzes": { "type": "array", "items": { "$ref": "#/$defs/quiz" } }
+  },
+  "$defs": {
+    "key": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "description": "Stable identity of the item within its kind. Never reuse a key for different content, and do not rename one: a new key makes a new row."
+    },
+    "status": { "enum": ["live", "draft"], "default": "live" },
+    "tag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "slug": { "type": "string", "maxLength": 64, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Derived from name when omitted." },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 2000 }
+      }
+    },
+    "problem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "type", "prompt"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "type": { "enum": ["mcq", "cloze", "open"] },
+        "prompt": { "type": "string", "minLength": 1 },
+        "payload": { "type": "object", "description": "The API's payload for the type; validated by the problems service when the file is applied." },
+        "explanation": { "type": "string" },
+        "source": { "type": "string" },
+        "status": { "$ref": "#/$defs/status" },
+        "change": { "enum": ["minor", "major"], "default": "minor", "description": "Kind of version made when an already-seeded problem's content changes." },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Tag keys, else tag IDs, slugs or aliases."
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "mcq" } }, "required": ["type"] }, "then": { "required": ["payload"] } },
+        { "if": { "properties": { "type": { "const": "cloze" } }, "required": ["type"] }, "then": { "required": ["payload"] } },
+        { "if": { "properties": { "type": { "const": "open" } }, "required": ["type"] }, "then": { "required": ["payload"] } }
+      ]
+    },
+    "quiz": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "title"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "status": { "$ref": "#/$defs/status" },
+        "problems": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/key" },
+          "description": "Problem keys, in quiz order."
+        }
+      }
+    }
+  }
+}

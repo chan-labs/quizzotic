@@ -13,6 +13,9 @@ import (
 // ErrNotFound is returned when a user or identity does not exist.
 var ErrNotFound = errors.New("auth: not found")
 
+// ErrAmbiguous is returned by UserRepo.Sole when there is more than one user.
+var ErrAmbiguous = errors.New("auth: more than one user")
+
 // Scheduling holds a user's overrides of the config scheduling defaults. A nil
 // field means "use the configured default".
 type Scheduling struct {
@@ -54,6 +57,11 @@ type UserRepo interface {
 	Get(ctx context.Context, userID domain.ID) (User, error)
 	// UpdateProfile replaces the claim-derived display name and email.
 	UpdateProfile(ctx context.Context, userID domain.ID, displayName, email string) error
+	// Sole returns the only user, ErrNotFound when there is none and
+	// ErrAmbiguous when there are several. It exists for `admin seed`, which
+	// defaults its owner to the sole user; it reads no user's data beyond the
+	// row it returns.
+	Sole(ctx context.Context) (User, error)
 }
 
 // IdentityRepo persists identities.

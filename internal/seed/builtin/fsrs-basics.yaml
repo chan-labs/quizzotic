@@ -1,0 +1,51 @@
+# Placeholder for the starter pack. The full pack (about 40 problems) replaces
+# this file in M5.8; the keys below stay stable so a later pack updates in place.
+version: 1
+
+tags:
+  - key: tag.fsrs
+    slug: fsrs
+    name: FSRS
+    description: The Free Spaced Repetition Scheduler.
+  - key: tag.memory
+    slug: memory
+    name: Memory
+
+problems:
+  - key: fsrs.forgetting-curve
+    type: open
+    prompt: What does the forgetting curve describe?
+    payload:
+      reference_answer: How the probability of recalling something falls over time unless it is reviewed.
+      rubric:
+        - Recall probability falls as time passes
+        - Review resets or flattens the decline
+    explanation: Each successful review makes the next decline slower.
+    tags: [tag.memory]
+
+  - key: fsrs.retrievability
+    type: mcq
+    prompt: In FSRS, retrievability is
+    payload:
+      choices:
+        - {id: a, text: the probability of recalling the item right now}
+        - {id: b, text: how many days the memory lasts}
+        - {id: c, text: how hard the item is}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    tags: [tag.fsrs, tag.memory]
+
+  - key: fsrs.stability
+    type: cloze
+    prompt: "Stability is the number of days for retrievability to fall to {{pct}} percent."
+    payload:
+      blanks:
+        - {id: pct, accepted: ["90"], case_sensitive: false, max_edits: 0}
+    tags: [tag.fsrs]
+
+quizzes:
+  - key: quiz.fsrs-intro
+    title: FSRS in a few questions
+    description: A short warm-up.
+    problems: [fsrs.forgetting-curve, fsrs.retrievability, fsrs.stability]
