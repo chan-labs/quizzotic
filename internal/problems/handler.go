@@ -35,6 +35,35 @@ func (h *Handler) Register(rt *platform.Router) {
 	rt.HandleFunc("POST /problems", h.Create)
 	rt.HandleFunc("GET /problems", h.List)
 	rt.HandleFunc("GET /problems/{id}", h.Get)
+	rt.HandleFunc("PATCH /problems/{id}", h.Edit)
+	rt.HandleFunc("GET /problems/{id}/versions", h.Versions)
+	rt.HandleFunc("POST /problems/similar", h.Similar)
+}
+
+type similarRequest struct {
+	Prompt   string   `json:"prompt"`
+	Answers  []string `json:"answers"`
+	Limit    int      `json:"limit"`
+	MinScore float64  `json:"min_score"`
+}
+
+// Similar answers POST /problems/similar.
+func (h *Handler) Similar(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	var req similarRequest
+	if err := platform.DecodeJSON(w, r, &req); err != nil {
+		platform.WriteError(w, r, err)
+		return
+	}
+	res, err := h.svc.Similar(r.Context(), p.UserID, SimilarInput(req))
+	if err != nil {
+		h.fail(w, r, "similar", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 type createRequest struct {
@@ -105,6 +134,67 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	platform.SetETag(w, v.ETag())
 	writeJSON(w, http.StatusOK, v)
+}
+
+type editRequest struct {
+	ChangeKind  string          `json:"change_kind"`
+	Type        *string         `json:"type"`
+	Prompt      *string         `json:"prompt"`
+	Payload     json.RawMessage `json:"payload"`
+	Explanation *string         `json:"explanation"`
+	Source      *string         `json:"source"`
+}
+
+// Edit answers PATCH /problems/{id}.
+func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	ifMatch, err := platform.RequireIfMatch(r)
+	if err != nil {
+		platform.WriteError(w, r, err)
+		return
+	}
+	id, err := domain.ParseID(r.PathValue("id"))
+	if err != nil {
+		platform.WriteError(w, r, platform.NotFound("no such problem"))
+		return
+	}
+	var req editRequest
+	if err := platform.DecodeJSON(w, r, &req); err != nil {
+		platform.WriteError(w, r, err)
+		return
+	}
+	v, err := h.svc.Edit(r.Context(), actorOf(p), id, ifMatch, EditInput{
+		ChangeKind: ChangeKind(req.ChangeKind), Type: req.Type, Prompt: req.Prompt,
+		Payload: req.Payload, Explanation: req.Explanation, Source: req.Source,
+	})
+	if err != nil {
+		h.fail(w, r, "edit", err)
+		return
+	}
+	platform.SetETag(w, v.ETag())
+	writeJSON(w, http.StatusOK, v)
+}
+
+// Versions answers GET /problems/{id}/versions.
+func (h *Handler) Versions(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	id, err := domain.ParseID(r.PathValue("id"))
+	if err != nil {
+		platform.WriteError(w, r, platform.NotFound("no such problem"))
+		return
+	}
+	vs, err := h.svc.Versions(r.Context(), p.UserID, id)
+	if err != nil {
+		h.fail(w, r, "versions", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, platform.NewPageResult(vs, ""))
 }
 
 // List answers GET /problems.

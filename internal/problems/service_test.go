@@ -149,3 +149,78 @@ func TestListCursor(t *testing.T) {
 		t.Errorf("bad cursor err = %v", err)
 	}
 }
+
+type recordedMajor struct{ events []problems.MajorEdit }
+
+func (r *recordedMajor) ProblemMajorEdit(_ context.Context, e problems.MajorEdit) error {
+	r.events = append(r.events, e)
+	return nil
+}
+
+func TestEditMinorKeepsCardMajorSignalsNewEpoch(t *testing.T) {
+	rec := &recordedMajor{}
+	f := newFixture(t, problems.WithMajorEditHandler(rec))
+	ctx := context.Background()
+	v, err := f.svc.Create(ctx, f.actor, mcqInput(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	str := func(s string) *string { return &s }
+
+	f.clock.Advance(time.Second)
+	v2, err := f.svc.Edit(ctx, f.actor, v.ID, v.ETag(), problems.EditInput{ChangeKind: problems.ChangeMinor, Prompt: str("Pick one")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v2.Version != 2 || v2.Prompt != "Pick one" || len(rec.events) != 0 {
+		t.Errorf("minor: view %+v, events %v", v2, rec.events)
+	}
+
+	f.clock.Advance(time.Second)
+	v3, err := f.svc.Edit(ctx, f.actor, v.ID, v2.ETag(), problems.EditInput{ChangeKind: problems.ChangeMajor,
+		Payload: json.RawMessage(`{"choices":[{"id":"a","text":"A"},{"id":"b","text":"B"}],"correct":["b"]}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v3.Version != 3 || len(rec.events) != 1 {
+		t.Fatalf("major: view %+v, events %v", v3, rec.events)
+	}
+	if e := rec.events[0]; e.ProblemID != v.ID || e.OwnerID != f.actor.UserID || e.FromVersion != 2 || e.ToVersion != 3 {
+		t.Errorf("event = %+v", e)
+	}
+
+	vs, err := f.svc.Versions(ctx, f.actor.UserID, v.ID)
+	if err != nil || len(vs) != 3 {
+		t.Fatalf("versions = %v, %v", vs, err)
+	}
+	if vs[0].Prompt != "Pick" || vs[0].ChangeKind != problems.ChangeMajor || vs[1].ChangeKind != problems.ChangeMinor || vs[2].ChangeKind != problems.ChangeMajor {
+		t.Errorf("versions = %+v", vs)
+	}
+}
+
+func TestEditRejectsStaleETagAndFailingHandlerRollsBack(t *testing.T) {
+	f := newFixture(t, problems.WithMajorEditHandler(failingMajor{}))
+	ctx := context.Background()
+	v, err := f.svc.Create(ctx, f.actor, mcqInput(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := "New"
+	_, err = f.svc.Edit(ctx, f.actor, v.ID, `"nope"`, problems.EditInput{ChangeKind: problems.ChangeMinor, Prompt: &p})
+	var pb *platform.Problem
+	if !errors.As(err, &pb) || pb.Status != 412 {
+		t.Errorf("stale ETag err = %v", err)
+	}
+	if _, err = f.svc.Edit(ctx, f.actor, v.ID, v.ETag(), problems.EditInput{ChangeKind: problems.ChangeMajor, Prompt: &p}); err == nil {
+		t.Error("handler failure must fail the edit")
+	}
+	if got, _ := f.svc.Get(ctx, f.actor.UserID, v.ID); got.Version != 1 {
+		t.Errorf("version = %d after a rolled-back edit", got.Version)
+	}
+}
+
+type failingMajor struct{}
+
+func (failingMajor) ProblemMajorEdit(context.Context, problems.MajorEdit) error {
+	return errors.New("boom")
+}

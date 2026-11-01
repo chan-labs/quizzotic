@@ -38,6 +38,7 @@ func init() {
 			}
 			return ownerscope.Created{
 				Params: ownerscope.Params{"id": v.ID.String()},
+				Header: http.Header{"If-Match": {r.Header.Get("ETag")}},
 				// The ID is not a secret here: problem details echo the
 				// requested path as `instance`.
 				Secrets: []string{prompt, "secret reference answer"},
@@ -45,7 +46,26 @@ func init() {
 		},
 		Ops: []ownerscope.Op{
 			{Pattern: "GET /problems/{id}"},
+			{Pattern: "GET /problems/{id}/versions"},
+			{Pattern: "PATCH /problems/{id}", Body: func(ownerscope.Created) any {
+				return map[string]any{"change_kind": "minor", "prompt": "Hijacked"}
+			}},
 			{Pattern: "GET /problems", List: true},
+			// The query text is A's own prompt; B must still get nothing back.
+			{Pattern: "POST /problems/similar", List: true, Body: func(c ownerscope.Created) any {
+				return map[string]any{"prompt": c.Secrets[0], "answers": []string{c.Secrets[1]}}
+			}},
+		},
+		Intact: func(t testing.TB, c *ownerscope.Client, created ownerscope.Created) {
+			r := c.Do("GET", "/problems/"+created.Params["id"]+"/versions", nil)
+			var page struct {
+				Items []struct {
+					Prompt string `json:"prompt"`
+				} `json:"items"`
+			}
+			if err := json.Unmarshal(r.Body, &page); err != nil || len(page.Items) != 1 || strings.Contains(page.Items[0].Prompt, "Hijacked") {
+				t.Errorf("problem changed by another user: %d %s", r.Code, r.Body)
+			}
 		},
 	})
 }
@@ -715,5 +735,84 @@ func TestCreateProblemIdempotencyReplay(t *testing.T) {
 		if first.code != 422 || again.code != 422 || again.header.Get("Idempotency-Replayed") != "true" {
 			t.Errorf("first %d, again %d replayed %q", first.code, again.code, again.header.Get("Idempotency-Replayed"))
 		}
+	})
+}
+
+func TestEditProblem(t *testing.T) {
+	e := newProbEnv(t)
+	v := e.create(t, e.human, openBody("Original prompt?"))
+	id := v.ID.String()
+	etag := e.req(t, "GET", "/problems/"+id, e.human, nil, nil).header.Get("ETag")
+
+	t.Run("requires If-Match", func(t *testing.T) {
+		e.req(t, "PATCH", "/problems/"+id, e.human, map[string]any{"change_kind": "minor", "prompt": "x"}, nil).
+			wantProblem(t, 428, "precondition-required")
+	})
+	t.Run("stale If-Match", func(t *testing.T) {
+		e.req(t, "PATCH", "/problems/"+id, e.human, map[string]any{"change_kind": "minor", "prompt": "x"},
+			map[string]string{"If-Match": `"stale"`}).wantProblem(t, 412, "precondition-failed")
+	})
+	t.Run("change_kind is required and checked", func(t *testing.T) {
+		h := map[string]string{"If-Match": etag}
+		e.req(t, "PATCH", "/problems/"+id, e.human, map[string]any{"prompt": "x"}, h).wantProblem(t, 422, "validation")
+		e.req(t, "PATCH", "/problems/"+id, e.human, map[string]any{"change_kind": "huge", "prompt": "x"}, h).wantProblem(t, 422, "validation")
+	})
+	t.Run("merged payload is validated", func(t *testing.T) {
+		h := map[string]string{"If-Match": etag}
+		e.req(t, "PATCH", "/problems/"+id, e.human, map[string]any{"change_kind": "minor", "type": "cloze"}, h).
+			wantProblem(t, 422, "validation")
+		if got := e.req(t, "GET", "/problems/"+id, e.human, nil, nil); decodeReply[problems.View](t, got).Version != 1 {
+			t.Error("invalid edit must not create a version")
+		}
+	})
+	t.Run("minor edit makes version 2 and a fresh ETag", func(t *testing.T) {
+		r := e.req(t, "PATCH", "/problems/"+id, e.agent, map[string]any{"change_kind": "minor", "prompt": "Fixed prompt?"},
+			map[string]string{"If-Match": etag})
+		if r.code != 200 {
+			t.Fatalf("status = %d (%s)", r.code, r.body)
+		}
+		nv := decodeReply[problems.View](t, r)
+		if nv.Version != 2 || nv.Prompt != "Fixed prompt?" || string(nv.Payload) != string(v.Payload) {
+			t.Errorf("view = %+v", nv)
+		}
+		if r.header.Get("ETag") == "" || r.header.Get("ETag") == etag {
+			t.Errorf("ETag %q must change from %q", r.header.Get("ETag"), etag)
+		}
+		// The old ETag is now stale.
+		e.req(t, "PATCH", "/problems/"+id, e.human, map[string]any{"change_kind": "minor", "prompt": "again"},
+			map[string]string{"If-Match": etag}).wantProblem(t, 412, "precondition-failed")
+	})
+	t.Run("old versions stay readable", func(t *testing.T) {
+		cur := e.req(t, "GET", "/problems/"+id, e.human, nil, nil).header.Get("ETag")
+		e.req(t, "PATCH", "/problems/"+id, e.human, map[string]any{"change_kind": "major",
+			"payload": map[string]any{"reference_answer": "new answer"}}, map[string]string{"If-Match": cur})
+		r := e.req(t, "GET", "/problems/"+id+"/versions", e.human, nil, nil)
+		if r.code != 200 {
+			t.Fatalf("status = %d (%s)", r.code, r.body)
+		}
+		var page struct {
+			Items []struct {
+				Version    int    `json:"version"`
+				Prompt     string `json:"prompt"`
+				ChangeKind string `json:"change_kind"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal(r.body, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) != 3 {
+			t.Fatalf("items = %+v", page.Items)
+		}
+		want := []struct{ prompt, kind string }{{"Original prompt?", "major"}, {"Fixed prompt?", "minor"}, {"Fixed prompt?", "major"}}
+		for i, w := range want {
+			if it := page.Items[i]; it.Version != i+1 || it.Prompt != w.prompt || it.ChangeKind != w.kind {
+				t.Errorf("item %d = %+v, want %+v", i, it, w)
+			}
+		}
+	})
+	t.Run("another user's problem is 404", func(t *testing.T) {
+		h := map[string]string{"If-Match": "*"}
+		e.req(t, "PATCH", "/problems/"+id, e.other, map[string]any{"change_kind": "minor", "prompt": "x"}, h).wantProblem(t, 404, "not-found")
+		e.req(t, "GET", "/problems/"+id+"/versions", e.other, nil, nil).wantProblem(t, 404, "not-found")
 	})
 }
