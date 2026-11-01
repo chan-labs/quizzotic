@@ -1,51 +1,547 @@
-# Placeholder for the starter pack. The full pack (about 40 problems) replaces
-# this file in M5.8; the keys below stay stable so a later pack updates in place.
+# Starter pack: spaced repetition, the FSRS scheduler, and how to use Quizzotic.
+#
+# Keys are stable identities: do not rename one, or a later release would add a
+# second copy instead of updating in place. Facts about FSRS follow the
+# open-spaced-repetition reference implementations (py-fsrs, ts-fsrs, fsrs-rs)
+# and FSRS-6 defaults; statements about Quizzotic follow docs/spec.md.
 version: 1
 
 tags:
+  - key: tag.spaced-repetition
+    slug: spaced-repetition
+    name: Spaced repetition
+    description: Reviewing material at growing intervals to remember it for the long term.
   - key: tag.fsrs
     slug: fsrs
     name: FSRS
     description: The Free Spaced Repetition Scheduler.
-  - key: tag.memory
-    slug: memory
-    name: Memory
+  - key: tag.memory-models
+    slug: memory-models
+    name: Memory models
+    description: How forgetting and memory strength are modelled.
+  - key: tag.quizzotic-usage
+    slug: quizzotic-usage
+    name: Using Quizzotic
+    description: How reviews, ratings and problems work in Quizzotic.
 
 problems:
+  # ---- Memory models -------------------------------------------------------
   - key: fsrs.forgetting-curve
     type: open
     prompt: What does the forgetting curve describe?
     payload:
-      reference_answer: How the probability of recalling something falls over time unless it is reviewed.
+      reference_answer: How the probability of recalling something falls as time passes since you last reviewed it, unless it is reviewed again.
       rubric:
         - Recall probability falls as time passes
-        - Review resets or flattens the decline
-    explanation: Each successful review makes the next decline slower.
-    tags: [tag.memory]
+        - Reviewing the item slows the decline
+    explanation: Each successful review makes the next decline slower, which is why review intervals can grow.
+    tags: [tag.memory-models, tag.spaced-repetition]
 
   - key: fsrs.retrievability
     type: mcq
     prompt: In FSRS, retrievability is
     payload:
       choices:
-        - {id: a, text: the probability of recalling the item right now}
-        - {id: b, text: how many days the memory lasts}
-        - {id: c, text: how hard the item is}
+        - {id: a, text: "the probability of recalling the item right now"}
+        - {id: b, text: "how many days the memory lasts"}
+        - {id: c, text: "how hard the item is"}
+        - {id: d, text: "how many times the item has been reviewed"}
       correct: [a]
       multiple: false
       shuffle: true
-    tags: [tag.fsrs, tag.memory]
+    explanation: Retrievability (R) is a probability between 0 and 1 that falls over time since the last review. How long the memory lasts is stability, and how hard the item is is difficulty.
+    tags: [tag.fsrs, tag.memory-models]
 
   - key: fsrs.stability
     type: cloze
-    prompt: "Stability is the number of days for retrievability to fall to {{pct}} percent."
+    prompt: "In FSRS, stability is the number of days it takes retrievability to fall from 100 percent to {{pct}} percent."
     payload:
       blanks:
-        - {id: pct, accepted: ["90"], case_sensitive: false, max_edits: 0}
+        - {id: pct, accepted: ["90", "90%"], case_sensitive: false, max_edits: 0}
+    explanation: A card with a stability of 10 days has a 90 percent chance of being recalled 10 days after its last review. Higher stability means slower forgetting.
+    tags: [tag.fsrs, tag.memory-models]
+
+  - key: fsrs.difficulty-range
+    type: cloze
+    prompt: "FSRS difficulty runs from {{low}} to {{high}}, and a higher value means the item is harder."
+    payload:
+      blanks:
+        - {id: low, accepted: ["1", "one"], case_sensitive: false, max_edits: 0}
+        - {id: high, accepted: ["10", "ten"], case_sensitive: false, max_edits: 0}
+    explanation: Difficulty is clamped to the range 1 to 10. Rating a card Again raises its difficulty and rating it Easy lowers it, so hard items grow their intervals more slowly.
+    tags: [tag.fsrs, tag.memory-models]
+
+  - key: fsrs.dsr
+    type: mcq
+    prompt: Which three quantities make up the memory model that FSRS reasons about for each card?
+    payload:
+      choices:
+        - {id: a, text: "Difficulty, Stability and Retrievability"}
+        - {id: b, text: "Duration, Streak and Recall"}
+        - {id: c, text: "Delay, Score and Repetitions"}
+        - {id: d, text: "Decay, Steps and Retention"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: This is the DSR model. Stability and difficulty are stored with the card, and retrievability is computed from stability and the time since the last review.
+    tags: [tag.fsrs, tag.memory-models]
+
+  - key: fsrs.curve-shape
+    type: mcq
+    prompt: What shape is the forgetting curve used by FSRS-6?
+    payload:
+      choices:
+        - {id: a, text: "A straight line"}
+        - {id: b, text: "A pure exponential decay"}
+        - {id: c, text: "A power function of elapsed time divided by stability"}
+        - {id: d, text: "A step function that drops once per day"}
+      correct: [c]
+      multiple: false
+      shuffle: true
+    explanation: "FSRS-6 uses R(t, S) = (1 + F * t / S)^(-decay), where F is chosen so that R equals 0.9 when t equals S. A power function forgets quickly at first and then more slowly than an exponential."
+    tags: [tag.fsrs, tag.memory-models]
+
+  - key: fsrs.params-count
+    type: cloze
+    prompt: "FSRS-6 has {{n}} model parameters."
+    payload:
+      blanks:
+        - {id: n, accepted: ["21", "twenty-one", "twenty one"], case_sensitive: false, max_edits: 0}
+    explanation: The default FSRS-6 weights are a list of 21 numbers. Fitting them to your own review history is what personalizes the scheduler.
     tags: [tag.fsrs]
+
+  - key: fsrs.decay-param
+    type: mcq
+    prompt: Which FSRS-6 parameter controls the shape of the forgetting curve?
+    payload:
+      choices:
+        - {id: a, text: "The first learning step"}
+        - {id: b, text: "The decay exponent"}
+        - {id: c, text: "The desired retention"}
+        - {id: d, text: "The maximum interval"}
+      correct: [b]
+      multiple: false
+      shuffle: true
+    explanation: The decay exponent is the 21st parameter, with a default of 0.1542. FSRS-5 used a fixed decay of 0.5, and FSRS-6 made it trainable. Desired retention and maximum interval are settings, not fitted parameters.
+    tags: [tag.fsrs, tag.memory-models]
+
+  # ---- Ratings -------------------------------------------------------------
+  - key: fsrs.rating-values
+    type: cloze
+    prompt: "The four FSRS ratings are numbered Again = {{a}}, Hard = {{h}}, Good = {{g}} and Easy = {{e}}."
+    payload:
+      blanks:
+        - {id: a, accepted: ["1"], case_sensitive: false, max_edits: 0}
+        - {id: h, accepted: ["2"], case_sensitive: false, max_edits: 0}
+        - {id: g, accepted: ["3"], case_sensitive: false, max_edits: 0}
+        - {id: e, accepted: ["4"], case_sensitive: false, max_edits: 0}
+    explanation: Every problem type in Quizzotic ends in one of these four ratings, so the scheduler never needs to know how a problem was answered.
+    tags: [tag.fsrs, tag.quizzotic-usage]
+
+  - key: fsrs.again-meaning
+    type: mcq
+    prompt: When should you rate a review Again?
+    payload:
+      choices:
+        - {id: a, text: "When you forgot the answer"}
+        - {id: b, text: "When you want to see a card twice"}
+        - {id: c, text: "When you remembered but it felt slow"}
+        - {id: d, text: "When the card was too easy"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: Again means you failed to recall. On a card in the review state it counts as a lapse and moves the card to relearning. Remembering it slowly or with effort is Hard or Good.
+    tags: [tag.fsrs]
+
+  - key: fsrs.hard-meaning
+    type: mcq
+    prompt: In FSRS, what does the rating Hard mean?
+    payload:
+      choices:
+        - {id: a, text: "You forgot the answer"}
+        - {id: b, text: "You remembered the answer, but with serious difficulty"}
+        - {id: c, text: "You remembered it easily"}
+        - {id: d, text: "You skipped the card"}
+      correct: [b]
+      multiple: false
+      shuffle: true
+    explanation: Hard is still a successful recall. Compared with Good it grows the interval less and makes the card harder.
+    tags: [tag.fsrs]
+
+  - key: fsrs.good-vs-easy
+    type: open
+    prompt: How do you choose between Good and Easy when you recalled an answer correctly?
+    payload:
+      reference_answer: Good means you remembered after some hesitation, and it is the right default. Easy means you remembered it without effort. Easy grows the next interval more.
+      rubric:
+        - Good means remembered after some hesitation or effort
+        - Easy means remembered easily
+        - Easy gives a longer next interval than Good
+    explanation: Reserve Easy for answers that came to you effortlessly. If you are unsure, pick Good.
+    tags: [tag.fsrs]
+
+  - key: fsrs.rating-honesty
+    type: open
+    prompt: Why does it hurt your retention to rate every correct answer Easy?
+    payload:
+      reference_answer: FSRS infers stability and difficulty from your ratings. Inflated ratings make it think the memory is stronger than it is, so the next intervals are too long and you forget more than the target retention.
+      rubric:
+        - The scheduler learns memory strength from the ratings
+        - Inflated ratings give intervals that are too long
+        - You forget more often than the target retention allows
+    explanation: Rate how the recall actually felt. Honest ratings keep your real retention close to your desired retention.
+    tags: [tag.fsrs, tag.quizzotic-usage]
+
+  # ---- Desired retention ---------------------------------------------------
+  - key: fsrs.dr-default
+    type: cloze
+    prompt: "The default FSRS desired retention is {{r}}, which Quizzotic also uses per user."
+    payload:
+      blanks:
+        - {id: r, accepted: ["0.9", "0.90", ".9", "90%", "90"], case_sensitive: false, max_edits: 0}
+    explanation: Desired retention is the recall probability FSRS aims for at the time you review. 0.9 means about nine reviews in ten should succeed.
+    tags: [tag.fsrs, tag.quizzotic-usage]
+
+  - key: fsrs.dr-meaning
+    type: open
+    prompt: With a desired retention of 0.9, when does FSRS schedule a card's next review?
+    payload:
+      reference_answer: For the time when the predicted probability of recalling the card has fallen to 90 percent.
+      rubric:
+        - The review is scheduled at a future time
+        - That is when predicted recall (retrievability) falls to the desired retention, 90 percent
+    explanation: The next interval is derived from the card's stability and the target retention. When the target equals 0.9 the interval is equal to the stability.
+    tags: [tag.fsrs]
+
+  - key: fsrs.dr-effect
+    type: mcq
+    prompt: What happens if you raise desired retention from 0.90 to 0.95?
+    payload:
+      choices:
+        - {id: a, text: "Intervals get shorter, so you do more reviews"}
+        - {id: b, text: "Intervals get longer, so you do fewer reviews"}
+        - {id: c, text: "Nothing, because retention is only a reporting number"}
+        - {id: d, text: "New cards stop being introduced"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: A higher desired retention schedules each review sooner, while recall is still higher, so the workload goes up. A lower value does the opposite.
+    tags: [tag.fsrs]
+
+  - key: fsrs.dr-tradeoff
+    type: open
+    prompt: What is the trade-off when you choose a desired retention?
+    payload:
+      reference_answer: Higher retention means you remember more but review more often, so the workload rises. Lower retention means fewer reviews but more forgetting.
+      rubric:
+        - Higher retention means more reviews and a heavier workload
+        - Lower retention means fewer reviews but more forgetting
+    explanation: There is no free setting. Pick the lowest retention that still gives you the recall you need, then check your true retention against it.
+    tags: [tag.fsrs, tag.spaced-repetition]
+
+  # ---- Learning steps and card states --------------------------------------
+  - key: fsrs.steps-default
+    type: cloze
+    prompt: "The default steps for same-day learning and relearning are {{s1}} minute and {{s2}} minutes."
+    payload:
+      blanks:
+        - {id: s1, accepted: ["1", "one"], case_sensitive: false, max_edits: 0}
+        - {id: s2, accepted: ["10", "ten"], case_sensitive: false, max_edits: 0}
+    explanation: Again returns the card after 1 minute. Good moves it to the 10-minute step, and Good after that graduates it to day-long intervals. The steps are configurable.
+    tags: [tag.fsrs, tag.spaced-repetition]
+
+  - key: fsrs.steps-purpose
+    type: mcq
+    prompt: What are learning steps for?
+    payload:
+      choices:
+        - {id: a, text: "They repeat a new or lapsed card a few times within minutes before it moves to day-scale intervals"}
+        - {id: b, text: "They set the maximum number of cards per day"}
+        - {id: c, text: "They fit the model parameters to your history"}
+        - {id: d, text: "They choose which tags are studied first"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: Steps give a brand new or just-forgotten card a short burst of same-day practice. After the last step, FSRS takes over and schedules in days.
+    tags: [tag.fsrs, tag.spaced-repetition]
+
+  - key: fsrs.lapse-state
+    type: mcq
+    prompt: A card in the review state is rated Again. Which state does it move to?
+    payload:
+      choices:
+        - {id: a, text: "New"}
+        - {id: b, text: "Relearning"}
+        - {id: c, text: "Learning"}
+        - {id: d, text: "It stays in review with no change"}
+      correct: [b]
+      multiple: false
+      shuffle: true
+    explanation: The states are new, learning, review and relearning. Learning is for first-time study, and relearning is for a card that lapsed from review.
+    tags: [tag.fsrs]
+
+  - key: fsrs.lapse-term
+    type: cloze
+    prompt: "Forgetting a card that was in the review state is counted as a {{term}}."
+    payload:
+      blanks:
+        - {id: term, accepted: ["lapse", "lapses", "lapsed"], case_sensitive: false, max_edits: 0}
+    explanation: Lapses are tallied per card. Quizzotic's lapse rate for a tag is its total lapses divided by its total reviews.
+    tags: [tag.fsrs, tag.quizzotic-usage]
+
+  - key: fsrs.early-review
+    type: open
+    prompt: Does reviewing a card before it is due break the schedule?
+    payload:
+      reference_answer: No. FSRS uses the time actually elapsed since the last review, so an early review is accounted for.
+      rubric:
+        - The scheduler uses the actual elapsed time
+        - An early review is handled correctly and does not break the schedule
+    explanation: Quizzotic relies on this for quiz sessions, whose attempts update cards just like review attempts.
+    tags: [tag.fsrs, tag.quizzotic-usage]
+
+  # ---- Spaced repetition in general ----------------------------------------
+  - key: sr.spacing-effect
+    type: open
+    prompt: What is the spacing effect?
+    payload:
+      reference_answer: Material reviewed over spread-out sessions is remembered longer than the same amount of study packed into one session.
+      rubric:
+        - Reviews spread over time
+        - Better long-term retention than massed practice
+    explanation: Spaced repetition software uses this effect by scheduling each review at a growing gap.
+    tags: [tag.spaced-repetition, tag.memory-models]
+
+  - key: sr.testing-effect
+    type: mcq
+    prompt: The testing effect says that
+    payload:
+      choices:
+        - {id: a, text: "trying to recall something strengthens memory more than rereading it"}
+        - {id: b, text: "tests should be taken as late as possible"}
+        - {id: c, text: "only multiple-choice questions work for learning"}
+        - {id: d, text: "a score above 90 percent means you will never forget"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: Active retrieval is the reason flashcards and quizzes beat passive review.
+    tags: [tag.spaced-repetition]
+
+  - key: sr.ebbinghaus
+    type: cloze
+    prompt: "The forgetting curve was first described in the 1880s by the psychologist Hermann {{name}}."
+    payload:
+      blanks:
+        - {id: name, accepted: ["Ebbinghaus"], case_sensitive: false, max_edits: 2}
+    explanation: Ebbinghaus measured how quickly he forgot lists of nonsense syllables. FSRS uses a power-law forgetting curve fitted to modern review data.
+    tags: [tag.spaced-repetition, tag.memory-models]
+
+  - key: sr.interval-growth
+    type: mcq
+    prompt: Why do review intervals grow after successful reviews?
+    payload:
+      choices:
+        - {id: a, text: "Each successful review increases the card's stability, so forgetting slows"}
+        - {id: b, text: "The scheduler gives up on cards that you know"}
+        - {id: c, text: "Retrievability resets to zero after every review"}
+        - {id: d, text: "Because desired retention rises every day"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: With higher stability the same desired retention is reached after more days, so the next interval is longer. Retrievability goes back up to nearly 100 percent right after a review.
+    tags: [tag.fsrs, tag.spaced-repetition]
+
+  # ---- Using Quizzotic -----------------------------------------------------
+  - key: qz.rating-mcq
+    type: mcq
+    prompt: You answer a multiple-choice problem wrongly. What rating does Quizzotic record?
+    payload:
+      choices:
+        - {id: a, text: "Again"}
+        - {id: b, text: "Hard"}
+        - {id: c, text: "Good"}
+        - {id: d, text: "None, until you rate it"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: A wrong answer to an mcq or cloze problem is rated Again. When the answer is right you choose Hard, Good or Easy, and the default is Good.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.open-rating
+    type: mcq
+    prompt: Open problems are not auto-graded. What must you do after reading the reference answer?
+    payload:
+      choices:
+        - {id: a, text: "Pick a rating from 1 to 4"}
+        - {id: b, text: "Nothing, the default rating of Good is used"}
+        - {id: c, text: "Type the answer again"}
+        - {id: d, text: "Wait for an administrator to grade it"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: For an open problem a rating is required. Until you give one, the attempt stays unscheduled.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.rating-window
+    type: cloze
+    prompt: "If you did not rate an attempt when you answered, you can set the rating once within {{m}} minutes."
+    payload:
+      blanks:
+        - {id: m, accepted: ["15", "fifteen"], case_sensitive: false, max_edits: 0}
+    explanation: After the window the default rating stands. The rating can be filled in only once, because attempts are never edited.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.cloze-normalize
+    type: open
+    prompt: How does Quizzotic compare your answer to a cloze blank when the blank is not case sensitive?
+    payload:
+      reference_answer: "It trims the text, lowercases it, collapses repeated whitespace to one space and strips trailing punctuation such as . , ; : ! ?. The result must match an accepted answer exactly, or be within the blank's max_edits edit distance."
+      rubric:
+        - Trims, lowercases and collapses whitespace
+        - Strips trailing punctuation
+        - Accepts an exact match or a small edit distance (max_edits)
+    explanation: Case-sensitive blanks skip the lowercasing. This normalization is also what lets a typo of a letter or two pass when max_edits allows it.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.cloze-max-edits
+    type: cloze
+    prompt: "A cloze blank can accept typos with max_edits, which can be at most {{n}}."
+    payload:
+      blanks:
+        - {id: n, accepted: ["3", "three"], case_sensitive: false, max_edits: 0}
+    explanation: max_edits is a Levenshtein distance between 0 and 3, and it defaults to 0, which means an exact match after normalization.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.new-per-day
+    type: cloze
+    prompt: "By default a review session introduces at most {{n}} new problems per day."
+    payload:
+      blanks:
+        - {id: n, accepted: ["20", "twenty"], case_sensitive: false, max_edits: 0}
+    explanation: The limit is the new_per_day setting. Due cards come first and new problems are interleaved after every few reviews.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.max-reviews
+    type: cloze
+    prompt: "By default a day's reviews are capped at {{n}} (max_reviews_per_day)."
+    payload:
+      blanks:
+        - {id: n, accepted: ["200", "two hundred"], case_sensitive: false, max_edits: 0}
+    explanation: Cards due beyond the cap are not served that day. Each session serves the cards you are least likely to remember first.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.session-order
+    type: mcq
+    prompt: In which order does a review session serve cards that are due?
+    payload:
+      choices:
+        - {id: a, text: "Lowest current recall first"}
+        - {id: b, text: "Newest problem first"}
+        - {id: c, text: "Alphabetically by prompt"}
+        - {id: d, text: "Highest stability first"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: The most-forgotten cards come first. Learning-step cards that fall due mid-session are appended to the session.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.drafts
+    type: mcq
+    prompt: Which problems can appear in a review session?
+    payload:
+      choices:
+        - {id: a, text: "Only live problems"}
+        - {id: b, text: "Live and draft problems"}
+        - {id: c, text: "Any problem except those with tags"}
+        - {id: d, text: "Archived problems only"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: A card exists only for a live problem. Draft and archived problems never enter review. Publish a draft to start studying it.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.edit-kind
+    type: mcq
+    prompt: You fix a typo in a problem. How should you mark the edit so you keep its review history?
+    payload:
+      choices:
+        - {id: a, text: "As a minor edit, which keeps the card"}
+        - {id: b, text: "As a major edit, which keeps the card"}
+        - {id: c, text: "As a major edit, which starts a new card epoch"}
+        - {id: d, text: "Editing is not allowed after the first review"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: A minor edit (typo, wording) creates a new version and keeps the card. A major edit (a different correct answer or a different question) starts a new card epoch, and old attempts stay attached to the old epoch.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.quiz-session
+    type: mcq
+    prompt: You answer problems in a quiz session. Does that affect the schedule of their cards?
+    payload:
+      choices:
+        - {id: a, text: "Yes, the attempts update the cards like any other attempt"}
+        - {id: b, text: "No, quizzes are practice only"}
+        - {id: c, text: "Only if you answer them all correctly"}
+        - {id: d, text: "Only for open problems"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: FSRS accounts for early reviews through elapsed time, so quiz attempts are safe to count.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.tag-mastery
+    type: mcq
+    prompt: A tag's mastery score is low. What does Quizzotic do with that?
+    payload:
+      choices:
+        - {id: a, text: "It introduces new cards from that tag more often"}
+        - {id: b, text: "It shortens the intervals of every card in the tag"}
+        - {id: c, text: "It archives the tag's problems"}
+        - {id: d, text: "It lowers your desired retention"}
+      correct: [a]
+      multiple: false
+      shuffle: true
+    explanation: Mastery only affects which new cards are introduced and in what proportion. It never changes a card's interval, because that would count the same evidence twice.
+    tags: [tag.quizzotic-usage]
+
+  - key: qz.true-retention
+    type: open
+    prompt: What is true retention, and what do you compare it with?
+    payload:
+      reference_answer: True retention is the share of reviews of cards in the review state that were rated Hard or better over a window (30 days by default). Compare it with your desired retention. If it is much lower, you are forgetting more than planned.
+      rubric:
+        - Share of review-state reviews rated Hard or better
+        - Measured over a window, 30 days by default
+        - Compared with the desired retention
+    explanation: True retention is the measured result and desired retention is the target. A large gap between them is a sign to review your ratings or your settings.
+    tags: [tag.quizzotic-usage, tag.fsrs]
+
+  - key: qz.seed-pack
+    type: open
+    prompt: How do you load this starter pack, and what happens if you load it again?
+    payload:
+      reference_answer: Run quizzotic admin seed builtin:fsrs-basics, or list builtin:fsrs-basics in the storage.seed setting. Loading it again creates nothing new, because each item has a stable key and unchanged items are left alone.
+      rubric:
+        - quizzotic admin seed builtin:fsrs-basics, or storage.seed
+        - Re-running creates no duplicates because items are keyed
+    explanation: A pack applies completely or not at all. Edits you make through the API are left alone as long as the pack's item itself has not changed.
+    tags: [tag.quizzotic-usage]
 
 quizzes:
   - key: quiz.fsrs-intro
     title: FSRS in a few questions
-    description: A short warm-up.
-    problems: [fsrs.forgetting-curve, fsrs.retrievability, fsrs.stability]
+    description: A short warm-up on forgetting, stability, ratings and desired retention.
+    problems:
+      - fsrs.forgetting-curve
+      - fsrs.retrievability
+      - fsrs.stability
+      - fsrs.dsr
+      - fsrs.difficulty-range
+      - fsrs.rating-values
+      - fsrs.good-vs-easy
+      - fsrs.dr-default
+      - fsrs.dr-effect
+      - fsrs.steps-default
+      - qz.rating-mcq
+      - qz.open-rating
