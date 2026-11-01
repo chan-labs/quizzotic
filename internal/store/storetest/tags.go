@@ -243,6 +243,34 @@ func runTags(t *testing.T, newStore NewStore) {
 		}
 	})
 
+	t.Run("retire keeps mappings and aliases, is owner scoped", func(t *testing.T) {
+		s, a, b := setup(t)
+		tg := mk(t, s, a, "go")
+		pa := mkProblem(t, s, a)
+		if err := s.Tags().SetProblemTags(ctx, a.ID, pa.ID, []domain.ID{tg.ID}); err != nil {
+			t.Fatal(err)
+		}
+		at := t0.Add(time.Hour)
+		is(t, s.Tags().Retire(ctx, b.ID, tg.ID, at), tags.ErrNotFound)
+		is(t, s.Tags().Retire(ctx, a.ID, ids.New(), at), tags.ErrNotFound)
+		if got, _ := s.Tags().Get(ctx, a.ID, tg.ID); got.Status != tags.StatusActive {
+			t.Fatalf("status = %q after refused retire", got.Status)
+		}
+		if err := s.Tags().Retire(ctx, a.ID, tg.ID, at); err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.Tags().Get(ctx, a.ID, tg.ID)
+		if err != nil || got.Status != tags.StatusRetired || !got.UpdatedAt.Equal(at) || got.Slug != "go" {
+			t.Fatalf("get = %+v, %v", got, err)
+		}
+		if pt, _ := s.Tags().ProblemTags(ctx, a.ID, pa.ID); len(pt) != 1 {
+			t.Fatalf("mappings dropped: %+v", pt)
+		}
+		// A retired tag no longer holds its slug as an active one.
+		_, err = s.Tags().GetBySlug(ctx, a.ID, "go")
+		is(t, err, tags.ErrNotFound)
+	})
+
 	t.Run("problem tags refuse another owner's tag or problem", func(t *testing.T) {
 		s, a, b := setup(t)
 		ta, tb := mk(t, s, a, "go"), mk(t, s, b, "go")
