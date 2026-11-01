@@ -25,6 +25,9 @@ func NewProjector(sc Scope, clock domain.Clock) *Projector { return &Projector{s
 // the incremental update after an attempt (or a card change) on the problem;
 // the card projection must already reflect the change.
 func (p *Projector) UpdateProblem(ctx context.Context, ownerID, problemID domain.ID) error {
+	if err := p.sc.Repo.LockOwner(ctx, ownerID); err != nil {
+		return err
+	}
 	ids, err := p.sc.Repo.ProblemTagIDs(ctx, ownerID, problemID)
 	if err != nil || len(ids) == 0 {
 		return err
@@ -35,6 +38,9 @@ func (p *Projector) UpdateProblem(ctx context.Context, ownerID, problemID domain
 // UpdateTags recomputes the rows of the given tags. A tag that is no longer
 // active (merged, retired, or gone) has its row removed.
 func (p *Projector) UpdateTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
+	if err := p.sc.Repo.LockOwner(ctx, ownerID); err != nil {
+		return err
+	}
 	active, err := p.sc.Repo.ActiveTagIDs(ctx, ownerID)
 	if err != nil {
 		return err
@@ -66,6 +72,9 @@ func (p *Projector) UpdateTags(ctx context.Context, ownerID domain.ID, tagIDs []
 // active tag. It is the whole projection; incremental updates must always
 // agree with it.
 func (p *Projector) Rebuild(ctx context.Context, ownerID domain.ID) error {
+	if err := p.sc.Repo.LockOwner(ctx, ownerID); err != nil {
+		return err
+	}
 	if err := p.sc.Repo.DeleteAll(ctx, ownerID); err != nil {
 		return err
 	}

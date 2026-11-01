@@ -23,6 +23,11 @@ func NewBinder(r Repo) *Binder { return &Binder{repo: r} }
 // ResolveTags turns refs into distinct active tag IDs of the owner. Unknown
 // and retired tags are returned as field errors named tags[i].
 func (b *Binder) ResolveTags(ctx context.Context, ownerID domain.ID, refs []string) ([]domain.ID, []platform.FieldError, error) {
+	// The batch that follows tags problems with what was resolved here, so
+	// take the owner's tag lock now (see Repo.LockOwner).
+	if err := b.repo.LockOwner(ctx, ownerID); err != nil {
+		return nil, nil, err
+	}
 	return resolveRefs(ctx, b.repo, ownerID, refs)
 }
 
