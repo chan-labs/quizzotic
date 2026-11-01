@@ -22,6 +22,7 @@ func (h *Handler) registerOps(rt *platform.Router) {
 	rt.HandleFunc("GET /tag-operations/{id}", h.getOp)
 	rt.HandleFunc("POST /tag-operations/{id}/apply", h.applyOp)
 	rt.HandleFunc("POST /tag-operations/{id}/reject", h.rejectOp)
+	rt.HandleFunc("POST /tag-operations/{id}/revert", h.revertOp)
 }
 
 type actorView struct {
@@ -74,6 +75,8 @@ type operationView struct {
 	CreatedAt    time.Time       `json:"created_at"`
 	DecidedAt    *time.Time      `json:"decided_at"`
 	AppliedAt    *time.Time      `json:"applied_at"`
+	RevertedBy   *actorView      `json:"reverted_by"`
+	RevertedAt   *time.Time      `json:"reverted_at"`
 	Preview      *effectView     `json:"preview"`
 	PreviewError *string         `json:"preview_error"`
 	Result       *effectView     `json:"result"`
@@ -95,6 +98,11 @@ func operationViewOf(d OpDetail) operationView {
 	if !op.AppliedAt.IsZero() {
 		t := op.AppliedAt
 		v.AppliedAt = &t
+	}
+	if !op.RevertedAt.IsZero() {
+		t := op.RevertedAt
+		v.RevertedAt = &t
+		v.RevertedBy = actorViewOf(op.RevertedBy)
 	}
 	if d.PreviewError != "" {
 		v.PreviewError = &d.PreviewError
@@ -218,6 +226,23 @@ func (h *Handler) rejectOp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d, err := h.svc.RejectOperation(r.Context(), p.UserID, actorOf(p), id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, operationViewOf(d))
+}
+
+func (h *Handler) revertOp(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	id, ok := h.opID(w, r)
+	if !ok {
+		return
+	}
+	d, err := h.svc.RevertOperation(r.Context(), p.UserID, actorOf(p), id)
 	if err != nil {
 		h.fail(w, r, err)
 		return

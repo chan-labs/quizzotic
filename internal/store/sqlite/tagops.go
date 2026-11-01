@@ -23,6 +23,12 @@ type tagOpRepo struct{ q execer }
 const tagOpCols = `id, owner_id, kind, payload, status,
 	proposed_by_kind, proposed_by_user_id, proposed_by_client_id,
 	decided_by_kind, decided_by_user_id, decided_by_client_id,
+	before_snapshot, created_at, decided_at, applied_at,
+	reverted_at, reverted_by_kind, reverted_by_user_id, reverted_by_client_id`
+
+const tagOpInsertCols = `id, owner_id, kind, payload, status,
+	proposed_by_kind, proposed_by_user_id, proposed_by_client_id,
+	decided_by_kind, decided_by_user_id, decided_by_client_id,
 	before_snapshot, created_at, decided_at, applied_at`
 
 func nullMillis(t time.Time) any {
@@ -62,7 +68,7 @@ func (r tagOpRepo) Create(ctx context.Context, ownerID domain.ID, op tags.Operat
 	if op.Status != tags.OpProposed {
 		decKind = string(op.DecidedBy.Kind)
 	}
-	_, err = r.q.ExecContext(ctx, `INSERT INTO tag_operations (`+tagOpCols+`)
+	_, err = r.q.ExecContext(ctx, `INSERT INTO tag_operations (`+tagOpInsertCols+`)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		op.ID.String(), ownerID.String(), string(op.Kind), string(op.Payload), string(op.Status),
 		string(op.ProposedBy.Kind), actorUser(op.ProposedBy), op.ProposedBy.ClientID,
@@ -80,10 +86,13 @@ func scanTagOp(r scanner) (tags.Operation, error) {
 		dUser, dClient                   string
 		snap                             sql.NullString
 		created                          int64
-		decided, applied                 sql.NullInt64
+		decided, applied, reverted       sql.NullInt64
+		rKind                            sql.NullString
+		rUser, rClient                   string
 	)
 	if err := r.Scan(&id, &owner, &kind, &payload, &status, &pKind, &pUser, &pClient,
-		&dKind, &dUser, &dClient, &snap, &created, &decided, &applied); err != nil {
+		&dKind, &dUser, &dClient, &snap, &created, &decided, &applied,
+		&reverted, &rKind, &rUser, &rClient); err != nil {
 		return op, err
 	}
 	var err error
@@ -117,6 +126,13 @@ func scanTagOp(r scanner) (tags.Operation, error) {
 	}
 	if applied.Valid {
 		op.AppliedAt = FromMillis(applied.Int64)
+	}
+	if reverted.Valid {
+		op.RevertedAt = FromMillis(reverted.Int64)
+		op.RevertedBy = domain.Actor{Kind: domain.ActorKind(rKind.String), ClientID: rClient}
+		if op.RevertedBy.UserID, err = parseActorUser(rUser); err != nil {
+			return op, err
+		}
 	}
 	return op, nil
 }

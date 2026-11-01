@@ -44,6 +44,8 @@ type opJSON struct {
 	DecidedBy    *actorJSON      `json:"decided_by"`
 	DecidedAt    *string         `json:"decided_at"`
 	AppliedAt    *string         `json:"applied_at"`
+	RevertedAt   *string         `json:"reverted_at"`
+	RevertedBy   *actorJSON      `json:"reverted_by"`
 	Preview      *effectJSON     `json:"preview"`
 	PreviewError *string         `json:"preview_error"`
 	Result       *effectJSON     `json:"result"`
@@ -85,6 +87,8 @@ func init() {
 			{Pattern: "GET /tag-operations/{id}"},
 			{Pattern: "POST /tag-operations/{id}/apply"},
 			{Pattern: "POST /tag-operations/{id}/reject"},
+			// The fixture operation is only proposed, so the owner's own revert is a 409.
+			{Pattern: "POST /tag-operations/{id}/revert", WantOwner: http.StatusConflict},
 			{Pattern: "GET /tag-operations", List: true},
 			// Another user's tag in the payload is a clean validation error that
 			// does not echo it.

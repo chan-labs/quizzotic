@@ -1442,6 +1442,43 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /tag-operations/{id}/revert:
+    parameters:
+      - $ref: "#/components/parameters/TagOperationId"
+    post:
+      operationId: tagOperations.revert
+      tags: [tag-operations]
+      summary: Revert an applied tag operation
+      description: |
+        Restores the operation's before-snapshot in one transaction: the tag
+        rows, aliases and problem mappings it recorded come back, and tags the
+        operation created are removed. The operation keeps status `applied`
+        and gains `reverted_at` and `reverted_by`. A 409 means the operation is
+        not applied, was already reverted, or a later applied operation
+        touched the same tags (revert that one first).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:apply]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The reverted operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     sessionCookie:
@@ -2346,7 +2383,7 @@ components:
             $ref: "#/components/schemas/TagEffect"
     TagOperation:
       type: object
-      required: [id, kind, status, payload, proposed_by, decided_by, created_at, decided_at, applied_at, preview, preview_error, result]
+      required: [id, kind, status, payload, proposed_by, decided_by, created_at, decided_at, applied_at, reverted_by, reverted_at, preview, preview_error, result]
       properties:
         id:
           type: string
@@ -2369,6 +2406,14 @@ components:
           type: [string, "null"]
           format: date-time
         applied_at:
+          type: [string, "null"]
+          format: date-time
+        reverted_by:
+          description: Who reverted the operation; null unless it was reverted. A reverted operation keeps status `applied`.
+          oneOf:
+            - $ref: "#/components/schemas/TagOperationActor"
+            - type: "null"
+        reverted_at:
           type: [string, "null"]
           format: date-time
         preview:
