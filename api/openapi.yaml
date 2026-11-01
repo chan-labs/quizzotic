@@ -255,6 +255,60 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /problems/batch:
+    post:
+      operationId: problems.createBatch
+      tags: [problems]
+      summary: Create up to 100 problems at once
+      description: |
+        Creates every item (a problem plus its tags) in one transaction. The
+        batch holds 1 to 100 items. If any item is invalid, nothing is written
+        and the 422 response lists the invalid fields of every bad item in
+        `errors`, each `field` prefixed with the item's index, for example
+        `items[3].payload.choices` or `items[0].tags[1]`. Items are validated
+        like `problems.create`; each tag is an ID, slug or alias of one of the
+        caller's tags (a merged tag resolves to the tag it was merged into).
+        The created problems are returned in request order. The request body
+        is limited to 1 MiB.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: >-
+        Prefer this over many problems.create calls when adding a set of
+        problems. Default each item to status draft, tag every item, and send
+        an Idempotency-Key so a retry cannot duplicate the batch.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProblemBatchRequest"
+      responses:
+        "201":
+          description: The created problems, in request order.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemBatch"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
   /problems/{id}:
     get:
       operationId: problems.get
@@ -1380,6 +1434,53 @@ components:
           type: string
           enum: [draft, live]
           default: draft
+    CreateProblemBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/CreateProblemBatchItem"
+    CreateProblemBatchItem:
+      type: object
+      additionalProperties: false
+      required: [type, prompt, payload]
+      description: A `CreateProblemRequest` plus the tags to attach.
+      properties:
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+          minLength: 1
+          description: Markdown. For `cloze`, carries the `{{blank_id}}` markers.
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+          enum: [draft, live]
+          default: draft
+        tags:
+          type: array
+          maxItems: 50
+          description: Tag IDs, slugs or aliases to attach.
+          items:
+            type: string
+    ProblemBatch:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProblemView"
     EditProblemRequest:
       type: object
       additionalProperties: false

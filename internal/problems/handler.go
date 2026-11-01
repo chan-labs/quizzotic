@@ -38,6 +38,47 @@ func (h *Handler) Register(rt *platform.Router) {
 	rt.HandleFunc("PATCH /problems/{id}", h.Edit)
 	rt.HandleFunc("GET /problems/{id}/versions", h.Versions)
 	rt.HandleFunc("POST /problems/similar", h.Similar)
+	rt.HandleFunc("POST /problems/batch", h.CreateBatch)
+}
+
+type batchItemRequest struct {
+	createRequest
+	Tags []string `json:"tags"`
+}
+
+type batchRequest struct {
+	Items []batchItemRequest `json:"items"`
+}
+
+type batchResponse struct {
+	Items []View `json:"items"`
+}
+
+// CreateBatch answers POST /problems/batch.
+func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	var req batchRequest
+	if err := platform.DecodeJSON(w, r, &req); err != nil {
+		platform.WriteError(w, r, err)
+		return
+	}
+	items := make([]BatchItem, 0, len(req.Items))
+	for _, it := range req.Items {
+		items = append(items, BatchItem{
+			CreateInput: CreateInput{Type: it.Type, Prompt: it.Prompt, Payload: it.Payload,
+				Explanation: it.Explanation, Source: it.Source, Status: Status(it.Status)},
+			Tags: it.Tags,
+		})
+	}
+	views, err := h.svc.CreateBatch(r.Context(), actorOf(p), items)
+	if err != nil {
+		h.fail(w, r, "create batch", err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, batchResponse{Items: views})
 }
 
 type similarRequest struct {
