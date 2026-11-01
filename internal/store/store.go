@@ -9,6 +9,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/metrics"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/quizzes"
@@ -51,6 +52,10 @@ type Store interface {
 	// Cards stores the card projection, which is derived from Attempts and
 	// can be dropped and rebuilt at any time.
 	Cards() review.Repo
+
+	// Mastery stores the tag mastery projection, which is derived from Cards
+	// and can be dropped and rebuilt at any time.
+	Mastery() metrics.Repo
 
 	// Tags stores tags, aliases and problem-to-tag mappings.
 	Tags() tags.Repo
