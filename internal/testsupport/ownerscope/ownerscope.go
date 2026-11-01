@@ -86,6 +86,12 @@ type Client struct {
 // optional JSON body, never following redirects.
 func (c *Client) Do(method, path string, body any) Response {
 	c.T.Helper()
+	return c.DoWith(method, path, body, nil)
+}
+
+// DoWith is Do with extra request headers (for example If-Match).
+func (c *Client) DoWith(method, path string, body any, hdr http.Header) Response {
+	c.T.Helper()
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -106,6 +112,11 @@ func (c *Client) Do(method, path string, body any) Response {
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, vs := range hdr {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
 	}
 	if c.User != Anonymous {
 		c.Env.Credentials(c.T, c.User)(req)
@@ -131,6 +142,9 @@ type Created struct {
 	// Secrets are strings drawn from A's data (a prompt, a title, an ID) that
 	// must never appear in any response user B receives.
 	Secrets []string
+	// Header is sent with every request of the op, from every user. Use it
+	// for preconditions the resource's creation response provides (If-Match).
+	Header http.Header
 }
 
 // Op is one operation on a resource.
@@ -337,14 +351,14 @@ func checkOp(t testing.TB, env *Env, res Resource, op Op) {
 	}
 
 	// Unauthenticated: 401, no leak.
-	if r := anon.Do(method, path, body); r.Code != http.StatusUnauthorized {
+	if r := anon.DoWith(method, path, body, created.Header); r.Code != http.StatusUnauthorized {
 		t.Errorf("%s unauthenticated = %d, want 401 (%s)", op.Pattern, r.Code, r.Body)
 	} else {
 		noLeak(t, op.Pattern+" unauthenticated", r, created.Secrets)
 	}
 
 	// User B: 404 for A's resource, or a clean success for a collection.
-	rb := b.Do(method, path, body)
+	rb := b.DoWith(method, path, body, created.Header)
 	if op.List {
 		want := orDefault(op.WantOther, http.StatusOK)
 		if rb.Code != want {
@@ -366,7 +380,7 @@ func checkOp(t testing.TB, env *Env, res Resource, op Op) {
 
 	// Sanity: the owner succeeds, so the checks above cannot pass vacuously.
 	want := orDefault(op.WantOwner, http.StatusOK)
-	if ra := a.Do(method, path, body); ra.Code != want {
+	if ra := a.DoWith(method, path, body, created.Header); ra.Code != want {
 		t.Errorf("%s as user A = %d, want %d (%s)", op.Pattern, ra.Code, want, ra.Body)
 	}
 }

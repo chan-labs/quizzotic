@@ -10,6 +10,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/settings"
+	"github.com/chan-labs/quizzotic/internal/tags"
 )
 
 // ErrNotSupported is returned for a backend that is recognized but not built yet.
@@ -38,6 +39,9 @@ type Store interface {
 
 	// Problems stores problems and their immutable versions.
 	Problems() problems.Repo
+
+	// Tags stores tags, aliases and problem-to-tag mappings.
+	Tags() tags.Repo
 
 	// Idempotency stores POST responses for Idempotency-Key replay.
 	Idempotency() platform.IdempotencyRepo
@@ -69,5 +73,16 @@ type settingsTx struct{ s Store }
 func (a settingsTx) InTx(ctx context.Context, fn func(settings.Repos) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
 		return fn(settings.Repos{Settings: tx.Settings()})
+	})
+}
+
+// TagsTx adapts a Store to tags.Transactor.
+func TagsTx(s Store) tags.Transactor { return tagsTx{s} }
+
+type tagsTx struct{ s Store }
+
+func (a tagsTx) InTx(ctx context.Context, fn func(tags.Repos) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error {
+		return fn(tags.Repos{Tags: tx.Tags(), Problems: tx.Problems()})
 	})
 }
