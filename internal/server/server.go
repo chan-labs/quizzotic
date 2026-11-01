@@ -16,6 +16,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/me"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/store"
@@ -129,7 +130,11 @@ func authOptions(cfg *config.Config, logger *slog.Logger, st store.Store, idp *a
 	if err != nil {
 		return nil, fmt.Errorf("auth clients: %w", err)
 	}
-	hopts := []HandlerOption{WithAPIAuth(&auth.BearerAuthenticator{
+	catalog, err := openapi.SpecScopes()
+	if err != nil {
+		return nil, fmt.Errorf("spec scopes: %w", err)
+	}
+	hopts := []HandlerOption{WithIdentity(me.NewService(authSvc, issuer.Issuer, cfg.Server.PublicURL, catalog)), WithAPIAuth(&auth.BearerAuthenticator{
 		Verifier: auth.NewVerifier(issuer.Issuer, idp),
 		Audience: issuer.Audience,
 		Resolver: auth.NewResolver(clients, authSvc),
@@ -157,11 +162,18 @@ type HandlerOption func(*handlerOptions)
 
 type handlerOptions struct {
 	web  *auth.LoginHandler
+	me   *me.Service
 	auth []auth.Authenticator
 	// extra operations and routes registered beside the spec's; set only by
 	// tests, through the same router and guard as production routes.
 	extraOps      []openapi.Operation
 	extraRegister func(*platform.Router)
+}
+
+// WithIdentity enables GET /me and the protected-resource metadata. Without
+// it both answer 404.
+func WithIdentity(s *me.Service) HandlerOption {
+	return func(o *handlerOptions) { o.me = s }
 }
 
 // WithAPIAuth adds an authenticator for the API, tried after those already
@@ -175,10 +187,10 @@ func WithAPIAuth(a auth.Authenticator) HandlerOption {
 // operation of the pattern the router matched. It panics if the embedded spec
 // cannot be parsed (a build-time invariant covered by tests).
 func NewAPIRouter(a auth.Authenticator) (*platform.Router, *auth.ScopeGuard) {
-	return newAPIRouter(a, nil, nil)
+	return newAPIRouter(a, me.NewHandler(nil), nil, nil)
 }
 
-func newAPIRouter(a auth.Authenticator, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
+func newAPIRouter(a auth.Authenticator, meH *me.Handler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
 	ops, err := openapi.SpecOperations()
 	if err != nil {
 		panic("server: embedded OpenAPI spec: " + err.Error())
@@ -187,6 +199,7 @@ func newAPIRouter(a auth.Authenticator, extraOps []openapi.Operation, extraRegis
 	rt := platform.NewRouter()
 	rt.SetAuthorizer(guard.Authorize)
 	openapi.Register(rt)
+	meH.Register(rt)
 	if extraRegister != nil {
 		extraRegister(rt)
 	}
@@ -224,11 +237,13 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		return st.WithTx(ctx, func(store.Store) error { return nil })
 	})
 
-	rt, _ := newAPIRouter(auth.Chain(ho.auth), ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
+	meH := me.NewHandler(ho.me)
+	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
 
 	mux := http.NewServeMux()
 	health.Register(mux)
 	rt.Mount(mux)
+	meH.RegisterRoot(mux)
 	if ho.web != nil {
 		ho.web.Register(mux)
 	}

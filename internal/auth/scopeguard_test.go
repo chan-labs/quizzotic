@@ -40,7 +40,7 @@ func newHarness(t *testing.T, a Authenticator) *harness {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	for _, p := range []string{
-		"GET /open", "GET /problems", "POST /problems", "POST /problems/similar",
+		"GET /open", "GET /whoami", "GET /problems", "POST /problems", "POST /problems/similar",
 		"GET /problems/{id}", "POST /attempts",
 	} {
 		rt.Handle(p, count)
@@ -70,6 +70,9 @@ func TestScopeGuardDecisions(t *testing.T) {
 	}{
 		{"scope-free op needs no credentials", none, "GET", "/open", 204, true},
 		{"scope-free op on same path, wrong method: router 405", none, "POST", "/open", 405, false},
+		{"security scheme, no scopes: no credentials", none, "GET", "/whoami", 401, false},
+		{"security scheme, no scopes: bad token", fakeAuth{err: invalid("x")}, "GET", "/whoami", 401, false},
+		{"security scheme, no scopes: any principal", fakeAuth{p: Principal{Kind: KindAgent}}, "GET", "/whoami", 204, true},
 		{"no credentials", none, "GET", "/problems", 401, false},
 		{"bad token", fakeAuth{err: invalid("x")}, "GET", "/problems", 401, false},
 		{"unknown client", fakeAuth{err: ErrUnknownClient}, "GET", "/problems", 401, false},

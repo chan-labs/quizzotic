@@ -25,8 +25,11 @@ info:
     Every operation has a stable `operationId` and an `x-quizzotic-scopes` list.
 
     - `x-quizzotic-scopes` (required, list of strings): OAuth scopes, any one
-      of which authorizes the operation. An empty list means the operation is
-      unauthenticated or needs no particular scope.
+      of which authorizes the operation. An empty list means the operation
+      needs no particular scope. Whether it needs authentication is decided by
+      `security`: an operation with `security: []` is public, and one that
+      lists a scheme (as `/me` does) requires any authenticated principal.
+      Every scope used must appear in `x-quizzotic-scope-catalog`.
     - `x-quizzotic-cli-columns` (optional, list of strings): response item
       fields shown by `quizzotic ... --output table`.
     - `x-quizzotic-mcp` (optional, boolean): when true, the operation is
@@ -42,12 +45,50 @@ info:
     probes), outside the versioned API.
 servers:
   - url: /api/v1
+x-quizzotic-scope-catalog:
+  problems:read: Read problems.
+  problems:write: Create, edit and retire problems.
+  quizzes:read: Read quizzes.
+  quizzes:write: Create and edit quizzes.
+  tags:read: Read tags.
+  tags:write: Create, rename, merge and retire tags.
+  tags:apply: Apply tags to problems.
+  metrics:read: Read mastery metrics.
+  attempts:read: Read attempts.
+  attempts:write: Record attempts. Never granted to agents.
+  sessions:write: Start and end review sessions. Never granted to agents.
+  admin: Administrative operations. Never granted to agents.
 tags:
   - name: meta
     description: Service metadata and probes.
   - name: auth
     description: Browser login and web sessions (host root, not under /api/v1).
 paths:
+  /me:
+    get:
+      operationId: meta.me
+      tags: [meta]
+      summary: Get the calling principal
+      description: |
+        Returns the user the request acts for, the principal kind (`human` or
+        `agent`), the OAuth client ID the credential came from (`web-session`
+        for the web cookie) and the effective scopes. Needs any authenticated
+        principal; no particular scope.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: The calling principal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   /openapi.yaml:
     get:
       operationId: meta.openapi
@@ -107,6 +148,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Readiness"
+        default:
+          $ref: "#/components/responses/Problem"
+  /.well-known/oauth-protected-resource:
+    servers:
+      - url: /
+    get:
+      operationId: meta.protectedResource
+      tags: [meta]
+      summary: OAuth protected-resource metadata
+      description: |
+        RFC 9728 metadata so remote MCP and OAuth clients can discover the
+        authorization server (the configured issuer) and the supported scopes.
+        Public; served at the host root.
+      security: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: The protected-resource metadata document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectedResourceMetadata"
         default:
           $ref: "#/components/responses/Problem"
   /auth/login:
@@ -282,6 +345,54 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
   schemas:
+    Me:
+      type: object
+      required: [user, kind, client_id, scopes]
+      properties:
+        user:
+          type: object
+          required: [id, display_name, email, created_at]
+          properties:
+            id:
+              type: string
+            display_name:
+              type: string
+            email:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+        kind:
+          type: string
+          enum: [human, agent]
+        client_id:
+          type: string
+          description: OAuth client that obtained the credential; `web-session` for the web cookie.
+        scopes:
+          type: array
+          description: Effective scopes, sorted. A human holds every scope.
+          items:
+            type: string
+    ProtectedResourceMetadata:
+      type: object
+      description: RFC 9728 OAuth 2.0 Protected Resource Metadata.
+      required: [resource, authorization_servers, scopes_supported, bearer_methods_supported]
+      properties:
+        resource:
+          type: string
+          description: The resource identifier, the server's public URL.
+        authorization_servers:
+          type: array
+          items:
+            type: string
+        scopes_supported:
+          type: array
+          items:
+            type: string
+        bearer_methods_supported:
+          type: array
+          items:
+            type: string
     Problem:
       type: object
       description: RFC 9457 problem details with a stable `type` URI per error.

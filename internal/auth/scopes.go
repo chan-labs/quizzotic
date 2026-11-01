@@ -108,8 +108,14 @@ func (s SessionAuthenticator) Authenticate(w http.ResponseWriter, r *http.Reques
 // with no spec operation is denied (fail closed).
 type ScopeGuard struct {
 	auth   Authenticator
-	ops    map[string][]string // "METHOD /path" -> scopes
+	ops    map[string]guardRule // "METHOD /path" -> rule
 	logger *slog.Logger
+}
+
+type guardRule struct {
+	scopes []string
+	// authn: authentication is required even when scopes is empty.
+	authn bool
 }
 
 // GuardOption tunes a ScopeGuard.
@@ -121,13 +127,13 @@ func WithGuardLogger(l *slog.Logger) GuardOption { return func(g *ScopeGuard) { 
 // NewScopeGuard indexes the API operations in ops (root operations such as
 // health probes are served outside the router and are skipped).
 func NewScopeGuard(a Authenticator, ops []openapi.Operation, opts ...GuardOption) *ScopeGuard {
-	g := &ScopeGuard{auth: a, ops: map[string][]string{}, logger: slog.Default()}
+	g := &ScopeGuard{auth: a, ops: map[string]guardRule{}, logger: slog.Default()}
 	for _, o := range opts {
 		o(g)
 	}
 	for _, op := range ops {
 		if !op.Root {
-			g.ops[op.Method+" "+op.Path] = op.Scopes
+			g.ops[op.Method+" "+op.Path] = guardRule{scopes: op.Scopes, authn: op.Authenticated}
 		}
 	}
 	return g
@@ -145,19 +151,21 @@ func (g *ScopeGuard) Patterns() []string {
 
 // Authorize implements platform.Authorizer. HEAD requests arrive here with
 // the GET pattern, because that is what the mux matched. An operation with no
-// required scopes needs no authentication. Otherwise the caller must
+// required scopes and no security scheme needs no authentication; one that
+// lists a scheme but no scopes needs any authenticated principal. Otherwise the caller must
 // authenticate (401) and hold at least one required scope (403), and the
 // Principal is placed in the request context. A pattern with no spec
 // operation is a 404. Requests the router could not match (unknown paths,
 // wrong methods, OPTIONS) never get here: the router rejects them with 404 or
 // 405 without running any handler.
 func (g *ScopeGuard) Authorize(pattern string, w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
-	scopes, ok := g.ops[pattern]
+	rule, ok := g.ops[pattern]
 	if !ok {
 		platform.WriteError(w, r, platform.NotFound("no such resource"))
 		return nil, false
 	}
-	if len(scopes) == 0 {
+	scopes := rule.scopes
+	if len(scopes) == 0 && !rule.authn {
 		return r, true
 	}
 	p, err := g.auth.Authenticate(w, r)
