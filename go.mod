@@ -3,6 +3,7 @@ module github.com/chan-labs/quizzotic
 go 1.26.0
 
 require (
+	github.com/yuin/goldmark v1.8.7
 	go.opentelemetry.io/contrib/exporters/autoexport v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
