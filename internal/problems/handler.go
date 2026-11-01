@@ -3,6 +3,7 @@
 package problems
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -35,6 +36,9 @@ func (h *Handler) Register(rt *platform.Router) {
 	rt.HandleFunc("POST /problems", h.Create)
 	rt.HandleFunc("GET /problems", h.List)
 	rt.HandleFunc("GET /problems/{id}", h.Get)
+	rt.HandleFunc("POST /problems/{id}/publish", h.Publish)
+	rt.HandleFunc("POST /problems/{id}/archive", h.Archive)
+	rt.HandleFunc("DELETE /problems/{id}", h.Delete)
 }
 
 type createRequest struct {
@@ -128,6 +132,64 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// Publish answers POST /problems/{id}/publish.
+func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
+	h.lifecycle(w, r, "publish", (*Service).Publish)
+}
+
+// Archive answers POST /problems/{id}/archive.
+func (h *Handler) Archive(w http.ResponseWriter, r *http.Request) {
+	h.lifecycle(w, r, "archive", (*Service).Archive)
+}
+
+func (h *Handler) lifecycle(w http.ResponseWriter, r *http.Request, op string,
+	do func(*Service, context.Context, domain.ID, domain.ID, string) (View, error)) {
+	p, id, ifMatch, ok := h.mutation(w, r)
+	if !ok {
+		return
+	}
+	v, err := do(h.svc, r.Context(), p.UserID, id, ifMatch)
+	if err != nil {
+		h.fail(w, r, op, err)
+		return
+	}
+	platform.SetETag(w, v.ETag())
+	writeJSON(w, http.StatusOK, v)
+}
+
+// Delete answers DELETE /problems/{id}.
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	p, id, ifMatch, ok := h.mutation(w, r)
+	if !ok {
+		return
+	}
+	if err := h.svc.Delete(r.Context(), p.UserID, id, ifMatch); err != nil {
+		h.fail(w, r, "delete", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// mutation authenticates, demands If-Match (428 before anything is looked up)
+// and parses the path ID.
+func (h *Handler) mutation(w http.ResponseWriter, r *http.Request) (auth.Principal, domain.ID, string, bool) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return p, domain.Nil, "", false
+	}
+	ifMatch, err := platform.RequireIfMatch(r)
+	if err != nil {
+		platform.WriteError(w, r, err)
+		return p, domain.Nil, "", false
+	}
+	id, err := domain.ParseID(r.PathValue("id"))
+	if err != nil {
+		platform.WriteError(w, r, platform.NotFound("no such problem"))
+		return p, domain.Nil, "", false
+	}
+	return p, id, ifMatch, true
 }
 
 func (h *Handler) principal(w http.ResponseWriter, r *http.Request) (auth.Principal, bool) {
