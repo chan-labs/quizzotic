@@ -1,0 +1,26 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{.Title}} · Quizzotic</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Quizzotic</a>
+  <nav aria-label="Main">
+    {{range .Nav}}<a href="{{.Href}}"{{if eq .Href $.Path}} aria-current="page"{{end}}>{{.Label}}</a>
+    {{end}}
+  </nav>
+  <form method="post" action="/auth/logout" class="logout">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit">Sign out</button>
+  </form>
+</header>
+<main>
+{{template "content" .}}
+</main>
+</body>
+</html>{{end}}
