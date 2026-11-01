@@ -194,11 +194,14 @@ func (c Cards) QuizBuilder(s Store) *review.QuizBuilder {
 // SessionTx adapts s to review.SessionTransactor: each InTx call is one store
 // transaction whose session repo, attempt log, builders and problem source are
 // all bound to it, so a session is built, stored and extended consistently.
-func (c Cards) SessionTx(s Store) review.SessionTransactor { return sessionTx{s, c} }
+func (c Cards) SessionTx(s Store) review.SessionTransactor { return sessionTx{s: s, c: c} }
 
 type sessionTx struct {
 	s Store
 	c Cards
+	// m, when set, supplies the review builder so new problems are weighted
+	// by real tag mastery.
+	m *Mastery
 }
 
 func (a sessionTx) InTx(ctx context.Context, fn func(review.SessionScope) error) error {
@@ -206,11 +209,18 @@ func (a sessionTx) InTx(ctx context.Context, fn func(review.SessionScope) error)
 		return fn(review.SessionScope{
 			Sessions: tx.Sessions(),
 			Attempts: tx.Attempts(),
-			Review:   a.c.Builder(tx),
+			Review:   a.reviewBuilder(tx),
 			Quiz:     a.c.QuizBuilder(tx),
 			Problems: problemEpochs{tx.Problems()},
 		})
 	})
+}
+
+func (a sessionTx) reviewBuilder(tx Store) *review.Builder {
+	if a.m != nil {
+		return a.m.Builder(tx)
+	}
+	return a.c.Builder(tx)
 }
 
 // quizProblems adapts quizzes.Repo to review.QuizSource.
