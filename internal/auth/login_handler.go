@@ -110,14 +110,32 @@ func SessionFrom(ctx context.Context) (WebSession, bool) {
 	return ws, ok
 }
 
+// WithSession returns ctx carrying ws, as RequireSession does. Pages and tests
+// that sit behind a different gate use it to hand the session to SessionFrom.
+func WithSession(ctx context.Context, ws WebSession) context.Context {
+	return context.WithValue(ctx, sessionKey{}, ws)
+}
+
 // RequireSession rejects requests without a live session (401) and otherwise
 // attaches the session to the context. It re-issues the cookie when the
 // sliding expiry advanced, so the browser's copy slides with the server's.
 func (h *LoginHandler) RequireSession(next http.Handler) http.Handler {
+	return h.RequireSessionOr(func(w http.ResponseWriter, r *http.Request) {
+		platform.WriteError(w, r, platform.Unauthorized("sign in at /auth/login"))
+	})(next)
+}
+
+// RequireSessionOr is RequireSession with a caller-chosen answer for requests
+// that have no live session; the website uses it to redirect to login.
+func (h *LoginHandler) RequireSessionOr(anonymous http.HandlerFunc) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler { return h.requireSession(anonymous, next) }
+}
+
+func (h *LoginHandler) requireSession(anonymous http.HandlerFunc, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ws, refreshed, err := h.authenticate(r)
 		if errors.Is(err, ErrNoSession) {
-			platform.WriteError(w, r, platform.Unauthorized("sign in at /auth/login"))
+			anonymous(w, r)
 			return
 		}
 		if err != nil {
