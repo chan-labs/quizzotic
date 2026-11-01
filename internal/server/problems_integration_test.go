@@ -46,6 +46,10 @@ func init() {
 		Ops: []ownerscope.Op{
 			{Pattern: "GET /problems/{id}"},
 			{Pattern: "GET /problems", List: true},
+			// The query text is A's own prompt; B must still get nothing back.
+			{Pattern: "POST /problems/similar", List: true, Body: func(c ownerscope.Created) any {
+				return map[string]any{"prompt": c.Secrets[0], "answers": []string{c.Secrets[1]}}
+			}},
 		},
 	})
 }
