@@ -171,8 +171,7 @@ paths:
       x-quizzotic-scopes: [problems:write]
       x-quizzotic-mcp: true
       x-quizzotic-mcp-hint: >-
-        Check for duplicates first (problems.similar once it exists, else
-        problems.list with q), default to status draft so a human can review,
+        Check for duplicates first (problems.similar), default to status draft so a human can review,
         and always tag the problem.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -206,6 +205,52 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/similar:
+    post:
+      operationId: problems.similar
+      tags: [problems]
+      summary: Find similar problems
+      description: |
+        Duplicate check. Tokenizes the given prompt and answers (lowercase
+        words and numbers) and ranks the caller's non-deleted problems by
+        token-set Jaccard similarity against each problem's current prompt and
+        answers (choice texts, accepted cloze answers, or the open reference
+        answer). Scores run from 0 to 1; problems sharing no token are never
+        returned. Results are ordered by score, highest first. This is a
+        read-only query.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [score, id, type, prompt]
+      x-quizzotic-mcp-hint: >-
+        Call this before problems.create with the draft prompt and its
+        answers. A score near 1 means the problem already exists: update or
+        skip it instead of creating a duplicate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimilarProblemsRequest"
+      responses:
+        "200":
+          description: Candidates, most similar first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimilarProblemList"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
   /problems/{id}:
@@ -1142,6 +1187,51 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/ProblemVersion"
+    SimilarProblemsRequest:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          description: The prompt text to check.
+        answers:
+          type: array
+          items:
+            type: string
+          description: Answer texts (choices, accepted answers, reference answer).
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 5
+          description: How many candidates to return at most.
+        min_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0
+          description: Drop candidates scoring below this.
+    SimilarProblem:
+      type: object
+      required: [score, problem]
+      properties:
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Token-set Jaccard similarity.
+        problem:
+          $ref: "#/components/schemas/ProblemView"
+    SimilarProblemList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SimilarProblem"
     ProblemView:
       type: object
       description: A problem's current version, with answers.

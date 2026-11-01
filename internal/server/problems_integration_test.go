@@ -51,6 +51,10 @@ func init() {
 				return map[string]any{"change_kind": "minor", "prompt": "Hijacked"}
 			}},
 			{Pattern: "GET /problems", List: true},
+			// The query text is A's own prompt; B must still get nothing back.
+			{Pattern: "POST /problems/similar", List: true, Body: func(c ownerscope.Created) any {
+				return map[string]any{"prompt": c.Secrets[0], "answers": []string{c.Secrets[1]}}
+			}},
 		},
 		Intact: func(t testing.TB, c *ownerscope.Client, created ownerscope.Created) {
 			r := c.Do("GET", "/problems/"+created.Params["id"]+"/versions", nil)
