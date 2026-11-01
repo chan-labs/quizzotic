@@ -7,6 +7,8 @@ import (
 	"io"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/chan-labs/quizzotic/internal/config"
 )
 
@@ -35,6 +37,10 @@ type requestIDHandler struct{ slog.Handler }
 func (h requestIDHandler) Handle(ctx context.Context, r slog.Record) error {
 	if id := RequestIDFrom(ctx); id != "" {
 		r.AddAttrs(slog.String("request_id", id))
+	}
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		r.AddAttrs(slog.String("trace_id", sc.TraceID().String()),
+			slog.String("span_id", sc.SpanID().String()))
 	}
 	return h.Handler.Handle(ctx, r)
 }

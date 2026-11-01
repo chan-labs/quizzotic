@@ -4,4 +4,34 @@
 // store implementation must pass.
 //
 // Layer: persistence backend (test support).
+//
+// # Running the suite
+//
+// A backend calls Run from an ordinary test in its own package:
+//
+//	func TestConformance(t *testing.T) {
+//		storetest.Run(t, func(t *testing.T) (store.Store, storetest.Scratch) {
+//			// open a fresh, migrated, empty store; register cleanup with t
+//		})
+//	}
+//
+// newStore is called once per case, so every case starts from an empty store.
+//
+// # Adding cases for a new repo
+//
+// When a feature task adds a repo interface to store.Store:
+//
+//  1. Create a file in this package named after the repo (for example
+//     problems.go) with a function runProblems(t *testing.T, newStore NewStore).
+//  2. Cover the repo's behavior through the store.Store interface only: no
+//     backend-specific types or SQL. Include owner-scoping cases (a second
+//     user must never see the first user's rows).
+//  3. Register it by adding one line to Run in storetest.go.
+//
+// A case that fails on one backend but not another is a backend bug, not a
+// reason to special-case the suite.
+//
+// Scratch is a minimal, suite-owned table that lets the transaction cases
+// observe commit and rollback before any real repo exists. Backends implement
+// it in their test files only.
 package storetest
