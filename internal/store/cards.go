@@ -14,6 +14,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/fsrs"
 	"github.com/chan-labs/quizzotic/internal/problems"
+	"github.com/chan-labs/quizzotic/internal/quizzes"
 	"github.com/chan-labs/quizzotic/internal/review"
 	"github.com/chan-labs/quizzotic/internal/settings"
 )
@@ -171,6 +172,25 @@ func (c Cards) Builder(s Store) *review.Builder {
 		Params:   paramsSource{tx: s, c: c},
 		Settings: effectiveSettings{tx: s, c: c},
 	})
+}
+
+// QuizBuilder is the quiz session builder over s. It only reads.
+func (c Cards) QuizBuilder(s Store) *review.QuizBuilder {
+	return review.NewQuizBuilder(quizProblems{s.Quizzes()}, problemEpochs{s.Problems()})
+}
+
+// quizProblems adapts quizzes.Repo to review.QuizSource.
+type quizProblems struct{ r quizzes.Repo }
+
+func (q quizProblems) QuizProblems(ctx context.Context, ownerID, quizID domain.ID) ([]domain.ID, error) {
+	quiz, err := q.r.Get(ctx, ownerID, quizID)
+	if errors.Is(err, quizzes.ErrNotFound) {
+		return nil, review.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return quiz.Items, nil
 }
 
 // effectiveSettings resolves a user's overrides against the defaults.
