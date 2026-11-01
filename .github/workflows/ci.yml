@@ -28,6 +28,17 @@ jobs:
           go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
           staticcheck ./...
 
+  openapi:
+    name: openapi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: lint api/openapi.yaml
+        run: npx --yes @redocly/cli@1.34.5 lint api/openapi.yaml
+
   test:
     name: test
     runs-on: ubuntu-latest

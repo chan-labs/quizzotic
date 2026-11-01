@@ -1,0 +1,225 @@
+openapi: 3.1.0
+info:
+  title: Quizzotic API
+  version: 0.1.0
+  summary: Spaced-repetition quiz service REST API.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+  description: |
+    The contract for the Quizzotic REST API. The server, the CLI and the MCP
+    server are all checked against, or generated from, this file.
+
+    ## Conventions
+
+    - Errors are RFC 9457 `application/problem+json` (see `Problem`).
+    - Lists use cursor pagination: `?cursor=&limit=` (default 50, max 200),
+      response `{items, next_cursor}` (see `PageResult`).
+    - Updates require `If-Match` with the resource's ETag; a stale ETag
+      returns 412.
+    - `POST` accepts an `Idempotency-Key` header; replays within 24 h return
+      the original response.
+
+    ## Vendor extensions
+
+    Every operation has a stable `operationId` and an `x-quizzotic-scopes` list.
+
+    - `x-quizzotic-scopes` (required, list of strings): OAuth scopes, any one
+      of which authorizes the operation. An empty list means the operation is
+      unauthenticated or needs no particular scope.
+    - `x-quizzotic-cli-columns` (optional, list of strings): response item
+      fields shown by `quizzotic ... --output table`.
+    - `x-quizzotic-mcp` (optional, boolean): when true, the operation is
+      exposed as an MCP tool named after its `operationId` with dots replaced
+      by underscores.
+    - `x-quizzotic-mcp-hint` (optional, string): authoring guidance appended
+      to the MCP tool description.
+
+    ## Server-relative paths
+
+    Paths are relative to the `/api/v1` server. A path item that declares its
+    own `servers` entry with url `/` lives at the host root instead (health
+    probes), outside the versioned API.
+servers:
+  - url: /api/v1
+tags:
+  - name: meta
+    description: Service metadata and probes.
+paths:
+  /openapi.yaml:
+    get:
+      operationId: meta.openapi
+      tags: [meta]
+      summary: Get this OpenAPI document
+      description: Returns the OpenAPI 3.1 document describing the API, as YAML.
+      security: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: The OpenAPI document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Problem"
+  /healthz:
+    servers:
+      - url: /
+    get:
+      operationId: meta.healthz
+      tags: [meta]
+      summary: Liveness probe
+      description: Reports that the process is up. Does not check dependencies.
+      security: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: The process is up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        default:
+          $ref: "#/components/responses/Problem"
+  /readyz:
+    servers:
+      - url: /
+    get:
+      operationId: meta.readyz
+      tags: [meta]
+      summary: Readiness probe
+      description: Runs every readiness check (store, JWKS, ...). Any failure yields 503.
+      security: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: Every check passed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        "503":
+          description: At least one check failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: OIDC access token (JWT) or a Quizzotic API token.
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor from a previous page's `next_cursor`.
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      description: Page size.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag of the resource version being updated. A stale value returns 412.
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: Client-chosen key; replays within 24 h return the original response.
+      schema:
+        type: string
+        maxLength: 255
+  headers:
+    ETag:
+      description: Version tag of the returned resource; send it back as `If-Match`.
+      schema:
+        type: string
+    IdempotencyReplayed:
+      description: Present and `true` when the response is a replay of an earlier request.
+      schema:
+        type: boolean
+  responses:
+    Problem:
+      description: An error, as RFC 9457 problem details.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details with a stable `type` URI per error.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          description: Stable identifier, for example `urn:quizzotic:problem:not-found`.
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          description: Per-field validation failures.
+          items:
+            $ref: "#/components/schemas/FieldError"
+    FieldError:
+      type: object
+      required: [field, detail]
+      properties:
+        field:
+          type: string
+        detail:
+          type: string
+    PageResult:
+      type: object
+      description: |
+        List envelope. Concrete list responses compose this with a typed
+        `items` array.
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: {}
+        next_cursor:
+          type: [string, "null"]
+          description: Null on the last page.
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    Readiness:
+      type: object
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [ok, fail]

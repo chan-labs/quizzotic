@@ -1,0 +1,5 @@
+extends:
+  - recommended
+rules:
+  # Shared components are published ahead of the operations that use them.
+  no-unused-components: off
