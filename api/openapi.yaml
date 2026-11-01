@@ -324,6 +324,11 @@ paths:
         Read the problem first and send its ETag as If-Match. Use major only
         when the correct answer or the question itself changes.
       parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
         - $ref: "#/components/parameters/IfMatch"
       requestBody:
         required: true
