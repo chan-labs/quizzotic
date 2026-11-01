@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/me"
 	"github.com/chan-labs/quizzotic/internal/openapi"
@@ -84,6 +85,7 @@ func appRouter() *platform.Router {
 	tags.NewHandler(nil, nil).Register(rt)
 	problems.NewHandler(nil, nil).Register(rt)
 	quizzes.NewHandler(nil, nil).Register(rt)
+	attempts.NewHandler(nil, nil).Register(rt)
 	return rt
 }
 

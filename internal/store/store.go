@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/platform"
@@ -42,6 +43,9 @@ type Store interface {
 
 	// Problems stores problems and their immutable versions.
 	Problems() problems.Repo
+
+	// Attempts appends answers; attempts are never updated or deleted.
+	Attempts() attempts.Repo
 
 	// Tags stores tags, aliases and problem-to-tag mappings.
 	Tags() tags.Repo
@@ -84,6 +88,15 @@ type problemsTx struct{ s Store }
 
 func (a problemsTx) InTx(ctx context.Context, fn func(problems.Repo) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Problems()) })
+}
+
+// AttemptsTx adapts a Store to attempts.Transactor.
+func AttemptsTx(s Store) attempts.Transactor { return attemptsTx{s} }
+
+type attemptsTx struct{ s Store }
+
+func (a attemptsTx) InTx(ctx context.Context, fn func(attempts.Repo) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Attempts()) })
 }
 
 // ProblemsBatchTx adapts a Store to problems.BatchTransactor: problems and
