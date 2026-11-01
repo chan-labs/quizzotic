@@ -8,6 +8,7 @@ import (
 
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/platform"
+	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/settings"
 )
 
@@ -34,6 +35,9 @@ type Store interface {
 
 	// Settings reads and writes a user's scheduling overrides.
 	Settings() settings.Repo
+
+	// Problems stores problems and their immutable versions.
+	Problems() problems.Repo
 
 	// Idempotency stores POST responses for Idempotency-Key replay.
 	Idempotency() platform.IdempotencyRepo

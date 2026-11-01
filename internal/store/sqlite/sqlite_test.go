@@ -88,3 +88,32 @@ func TestMillisRoundTrip(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestProblemVersionsAreImmutable(t *testing.T) {
+	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "p.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if _, err := s.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	db := s.DB()
+	for _, q := range []string{
+		`INSERT INTO users (id, created_at) VALUES ('u', 0)`,
+		`INSERT INTO problems (id, owner_id, status, current_version, created_by_kind, created_at, updated_at)
+			VALUES ('p', 'u', 'live', 1, 'system', 0, 0)`,
+		`INSERT INTO problem_versions (problem_id, version, type, prompt, payload, change_kind, created_by_kind, created_at)
+			VALUES ('p', 1, 'open', 'q', '{}', 'major', 'system', 0)`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`UPDATE problem_versions SET prompt = 'changed'`); err == nil {
+		t.Fatal("update of a version succeeded")
+	}
+	if _, err := db.Exec(`DELETE FROM problem_versions`); err == nil {
+		t.Fatal("delete of a version succeeded")
+	}
+}
