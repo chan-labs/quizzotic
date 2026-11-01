@@ -447,6 +447,27 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+func TestObservability_MetricsOffByDefault(t *testing.T) {
+	cfg, err := Parse([]byte(minimalYAML), []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Observability.MetricsEnabled {
+		t.Error("metrics must be off by default")
+	}
+}
+
+func TestObservability_MetricsEnabledFromYAMLAndEnv(t *testing.T) {
+	cfg, err := Parse([]byte(minimalYAML+"observability:\n  metrics_enabled: true\n"),[]string{})
+	if err != nil || !cfg.Observability.MetricsEnabled {
+		t.Fatalf("yaml: %v", err)
+	}
+	cfg, err = Parse([]byte(minimalYAML), []string{"QUIZZOTIC_OBSERVABILITY_METRICS_ENABLED=true"})
+	if err != nil || !cfg.Observability.MetricsEnabled {
+		t.Fatalf("env: %v", err)
+	}
+}
+
 func TestLoad_DefaultPath(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "quizzotic.yaml"), []byte(minimalYAML), 0o600); err != nil {

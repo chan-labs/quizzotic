@@ -91,6 +91,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	setMatchedRoute(r.Context(), strings.Replace(pattern, " /", " "+APIPrefix+"/", 1))
 	rt.api.ServeHTTP(w, r2)
 }
 

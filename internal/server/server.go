@@ -105,6 +105,12 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 		logger.Warn("web login disabled: no human client with a secret under auth.issuers[0].clients")
 	}
 
+	if cfg.Observability.MetricsEnabled {
+		m := platform.NewMetrics()
+		st = instrumentStore(st, m)
+		hopts = append(hopts, WithMetrics(m))
+	}
+
 	srv := &http.Server{
 		Handler:           Handler(logger, st, idp, hopts...),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -147,8 +153,14 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 type HandlerOption func(*handlerOptions)
 
 type handlerOptions struct {
-	web  *auth.LoginHandler
-	auth []auth.Authenticator
+	web     *auth.LoginHandler
+	auth    []auth.Authenticator
+	metrics *platform.Metrics
+}
+
+// WithMetrics observes every request with m and serves GET /metrics from it.
+func WithMetrics(m *platform.Metrics) HandlerOption {
+	return func(o *handlerOptions) { o.metrics = m }
 }
 
 // WithAPIAuth adds an authenticator for the API, tried after those already
@@ -189,7 +201,7 @@ func webClient(is config.Issuer) (config.Client, bool) {
 	return config.Client{}, false
 }
 
-// Handler builds Tracing(RequestID(TraceRoute(mux))) with the health probes
+// Handler builds Tracing(RequestID(Metrics(TraceRoute(mux)))) with the health probes
 // at the root and the API router under /api/v1. Each feature registers its
 // routes on the router here as it lands.
 func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...HandlerOption) http.Handler {
@@ -213,5 +225,9 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		ho.web.Register(mux)
 	}
 
-	return platform.Tracing(nil)(platform.RequestID(logger)(platform.TraceRoute(mux)))
+	if ho.metrics != nil {
+		ho.metrics.Register(mux)
+	}
+
+	return platform.Tracing(nil)(platform.RequestID(logger)(ho.metrics.Middleware(platform.TraceRoute(mux))))
 }

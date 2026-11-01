@@ -109,6 +109,28 @@ paths:
                 $ref: "#/components/schemas/Readiness"
         default:
           $ref: "#/components/responses/Problem"
+  /metrics:
+    servers:
+      - url: /
+    get:
+      operationId: meta.metrics
+      tags: [meta]
+      summary: Prometheus metrics
+      description: |
+        Prometheus text-format exposition (version 0.0.4) of request counts and
+        latency, store errors, attempts recorded and sessions served. Served
+        only when `observability.metrics_enabled` is true (default false);
+        otherwise the route does not exist. Unauthenticated like the health
+        probes, so restrict it at the network level.
+      security: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: The metrics exposition.
+          content:
+            text/plain:
+              schema:
+                type: string
   /auth/login:
     servers:
       - url: /
