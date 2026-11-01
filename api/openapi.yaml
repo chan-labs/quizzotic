@@ -177,8 +177,10 @@ paths:
       x-quizzotic-scopes: [problems:write]
       x-quizzotic-mcp: true
       x-quizzotic-mcp-hint: >-
-        Check for duplicates first (problems.similar), default to status draft so a human can review,
-        and always tag the problem.
+        Check for duplicates first (call problems.similar before creating),
+        default to status draft so a human can review, and always tag the
+        problem. List tags first (tags.list) and prefer existing tags; an
+        alias resolves to its tag.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -281,8 +283,10 @@ paths:
       x-quizzotic-mcp: true
       x-quizzotic-mcp-hint: >-
         Prefer this over many problems.create calls when adding a set of
-        problems. Default each item to status draft, tag every item, and send
-        an Idempotency-Key so a retry cannot duplicate the batch.
+        problems. Call problems.similar for each item first to avoid
+        duplicates. Default each item to status draft, tag every item with
+        existing tags (call tags.list first; aliases resolve), and send an
+        Idempotency-Key so a retry cannot duplicate the batch.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -1048,8 +1052,9 @@ paths:
       x-quizzotic-scopes: [tags:write]
       x-quizzotic-mcp: true
       x-quizzotic-mcp-hint: |
-        Prefer an existing tag (tags.list) over creating a near-duplicate.
-        Slugs are lowercase words joined by hyphens.
+        List tags first (tags.list) and prefer an existing tag over creating a
+        near-duplicate; aliases resolve to their tag. Slugs are lowercase
+        words joined by hyphens.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -1213,7 +1218,9 @@ paths:
         - sessionCookie: []
       x-quizzotic-scopes: [problems:write, tags:apply]
       x-quizzotic-mcp: true
-      x-quizzotic-mcp-hint: Send the complete desired tag list; omitted tags are removed.
+      x-quizzotic-mcp-hint: >-
+        Send the complete desired tag list; omitted tags are removed. List
+        tags first (tags.list) and prefer existing tags; aliases resolve.
       requestBody:
         required: true
         content:
