@@ -201,6 +201,23 @@ func (s *SessionService) Get(ctx context.Context, userID, id domain.ID) (Session
 	return v, sessionError(err)
 }
 
+// Exists reports whether the session exists and belongs to the user. A
+// session owned by someone else is reported like a missing one. It lets the
+// attempts service validate a session_id without reaching into this package's
+// repositories.
+func (s *SessionService) Exists(ctx context.Context, userID, id domain.ID) (bool, error) {
+	found := true
+	err := s.tx.InTx(ctx, func(sc SessionScope) error {
+		_, err := sc.Sessions.Get(ctx, userID, id)
+		if errors.Is(err, ErrSessionNotFound) {
+			found = false
+			return nil
+		}
+		return err
+	})
+	return found && err == nil, err
+}
+
 // Complete marks the user's session completed. Completing a completed session
 // is not an error and keeps its first completion time.
 func (s *SessionService) Complete(ctx context.Context, userID, id domain.ID) (SessionView, error) {

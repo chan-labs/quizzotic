@@ -600,6 +600,11 @@ paths:
         attempt is never edited afterwards, except that a missing rating may
         be filled in once.
 
+        When `session_id` is sent it must name one of the caller's own review
+        or quiz sessions. An unknown session and another user's session are
+        indistinguishable: both return 422 with an error on the `session_id`
+        field. The session's completion state is not checked.
+
         Humans only: agent clients never hold `attempts:write` and get 403.
       security:
         - bearer: []
@@ -2619,7 +2624,10 @@ components:
           description: Milliseconds from showing the prompt to submitting.
         session_id:
           type: string
-          description: Review or quiz session the answer belongs to.
+          description: >-
+            Review or quiz session the answer belongs to. Must be one of the
+            caller's own sessions; an unknown or foreign ID is a 422 on this
+            field.
         rating:
           type: integer
           minimum: 1
