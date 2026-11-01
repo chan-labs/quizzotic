@@ -37,6 +37,7 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("Provision", func(t *testing.T) { runProvision(t, newStore) })
 	t.Run("WebSessions", func(t *testing.T) { runWebSessions(t, newStore) })
 	t.Run("LoginStates", func(t *testing.T) { runLoginStates(t, newStore) })
+	t.Run("Idempotency", func(t *testing.T) { runIdempotency(t, newStore) })
 }
 
 func runTx(t *testing.T, newStore NewStore) {
