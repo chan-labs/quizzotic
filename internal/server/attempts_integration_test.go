@@ -12,9 +12,13 @@ import (
 	"github.com/chan-labs/quizzotic/internal/testsupport/ownerscope"
 )
 
+// itAttemptReader is an agent client that may read attempts and nothing else.
+const itAttemptReader = "quizzotic-attempt-reader"
+
 func init() {
 	// POST /attempts names a problem in its body. Another user's live problem
-	// must answer 404 and leak nothing, exactly like a by-ID path.
+	// must answer 404 and leak nothing, exactly like a by-ID path. The reads
+	// are guarded the same way: B never sees A's attempt.
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "attempts",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
@@ -29,18 +33,29 @@ func init() {
 			if err := json.Unmarshal(r.Body, &v); err != nil {
 				t.Fatal(err)
 			}
+			a := c.Do("POST", "/attempts", map[string]any{"problem_id": v.ID.String(), "problem_version": 1,
+				"latency_ms": 10, "rating": 3, "response": map[string]any{"text": "my private answer"}})
+			if a.Code != http.StatusCreated {
+				t.Fatalf("create attempt = %d (%s)", a.Code, a.Body)
+			}
+			var res attemptResult
+			if err := json.Unmarshal(a.Body, &res); err != nil {
+				t.Fatal(err)
+			}
 			return ownerscope.Created{
-				Params:  ownerscope.Params{"id": v.ID.String()},
-				Secrets: []string{prompt, "secret reference answer"},
+				Params:  ownerscope.Params{"id": res.Attempt.ID, "problem": v.ID.String()},
+				Secrets: []string{prompt, "secret reference answer", "my private answer"},
 			}
 		},
-		Ops: []ownerscope.Op{{
-			Pattern: "POST /attempts", WantOwner: http.StatusCreated,
-			Body: func(c ownerscope.Created) any {
-				return map[string]any{"problem_id": c.Params["id"], "problem_version": 1, "latency_ms": 10,
-					"rating": 3, "response": map[string]any{"text": "mine"}}
-			},
-		}},
+		Ops: []ownerscope.Op{
+			{Pattern: "GET /attempts/{id}"},
+			{Pattern: "GET /attempts", List: true},
+			{Pattern: "POST /attempts", WantOwner: http.StatusCreated,
+				Body: func(c ownerscope.Created) any {
+					return map[string]any{"problem_id": c.Params["problem"], "problem_version": 1, "latency_ms": 10,
+						"rating": 3, "response": map[string]any{"text": "mine"}}
+				}},
+		},
 	})
 }
 

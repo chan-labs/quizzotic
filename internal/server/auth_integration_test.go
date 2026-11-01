@@ -162,6 +162,7 @@ func newITEnv(t *testing.T) *itEnv {
 			{ID: "quizzotic-cli", Kind: "human"},
 			{ID: "quizzotic-agent", Kind: "agent", AllowedScopes: []string{"problems:read", "problems:write"}},
 			{ID: "quizzotic-headless", Kind: "agent", ActsFor: "cli-sub", AllowedScopes: []string{"problems:read"}},
+			{ID: itAttemptReader, Kind: "agent", AllowedScopes: []string{"attempts:read"}},
 			{ID: itTagAgent, Kind: "agent", AllowedScopes: []string{"tags:read", "tags:write", "problems:read"}},
 			{ID: itTagApplier, Kind: "agent", AllowedScopes: []string{"tags:read", "tags:write", "tags:apply"}},
 		},

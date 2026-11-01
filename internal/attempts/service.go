@@ -101,6 +101,8 @@ type Service struct {
 	tx       Transactor
 	problems ProblemSource
 	cards    CardUpdater
+	reads    Repo
+	tags     TagResolver
 	clock    domain.Clock
 	ids      *domain.IDGenerator
 }
