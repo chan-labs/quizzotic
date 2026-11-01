@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
@@ -27,13 +28,13 @@ const ShutdownTimeout = 15 * time.Second
 type Options struct {
 	// Listener, when set, replaces listening on cfg.Server.Listen.
 	Listener net.Listener
+	// HTTPClient, when set, is used for calls to the identity provider.
+	HTTPClient *http.Client
 }
 
 // Run serves until ctx is cancelled, then shuts down gracefully. It returns
 // nil after a clean shutdown.
 func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Options) error {
-	// No auth feature exists yet (M1); ValidateForServe still insists on the
-	// issuer block so config files written now keep working later.
 	if err := cfg.ValidateForServe(); err != nil {
 		return err
 	}
@@ -64,8 +65,15 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 		logger.Info("migrations checked", slog.Int("applied", len(applied)))
 	}
 
+	// v1 validates exactly one issuer (config.Validate), so Issuers[0] is it.
+	var provOpts []auth.Option
+	if opts.HTTPClient != nil {
+		provOpts = append(provOpts, auth.WithHTTPClient(opts.HTTPClient))
+	}
+	idp := auth.NewProvider(cfg.Auth.Issuers[0].Issuer, provOpts...)
+
 	srv := &http.Server{
-		Handler:           Handler(logger, st),
+		Handler:           Handler(logger, st, idp),
 		ReadHeaderTimeout: 10 * time.Second,
 		// In-flight requests must outlive the signal that starts shutdown.
 		BaseContext: func(net.Listener) context.Context { return context.WithoutCancel(ctx) },
@@ -105,8 +113,9 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 // Handler builds Tracing(RequestID(TraceRoute(mux))) with the health probes
 // at the root and the API router under /api/v1. Each feature registers its
 // routes on the router here as it lands.
-func Handler(logger *slog.Logger, st store.Store) http.Handler {
+func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider) http.Handler {
 	health := platform.NewHealth(logger)
+	health.AddCheck("jwks", idp.Ready)
 	health.AddCheck("store", func(ctx context.Context) error {
 		// A no-op transaction proves a connection can be acquired.
 		return st.WithTx(ctx, func(store.Store) error { return nil })
