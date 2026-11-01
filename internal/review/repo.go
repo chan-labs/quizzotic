@@ -5,6 +5,7 @@ package review
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/domain"
@@ -36,6 +37,23 @@ type Repo interface {
 
 	// List returns the owner's cards ordered by problem ID.
 	List(ctx context.Context, ownerID domain.ID) ([]Card, error)
+
+	// Query returns the owner's cards matching f ordered by problem ID.
+	Query(ctx context.Context, ownerID domain.ID, f CardFilter) ([]Card, error)
+}
+
+// CardFilter narrows Repo.Query. The zero value matches all of the owner's
+// cards.
+type CardFilter struct {
+	// DueBefore, when not zero, keeps cards due strictly before it.
+	DueBefore time.Time
+	// TagID, when set, keeps cards of problems carrying this tag. The caller
+	// has resolved it for the same owner.
+	TagID domain.ID
+	// After is a keyset cursor: only problem IDs greater than this.
+	After domain.ID
+	// Limit caps the result; <= 0 means no limit.
+	Limit int
 }
 
 // AttemptLog reads the attempt log. attempts.Repo implements it.

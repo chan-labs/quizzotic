@@ -9,6 +9,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/metrics"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/quizzes"
@@ -51,6 +52,17 @@ type Store interface {
 	// Cards stores the card projection, which is derived from Attempts and
 	// can be dropped and rebuilt at any time.
 	Cards() review.Repo
+
+	// Sessions stores review and quiz sessions: the frozen lists served to a
+	// client. Whether an item is answered is derived from Attempts.
+	Sessions() review.SessionRepo
+
+	// Mastery stores the tag mastery projection, which is derived from Cards
+	// and can be dropped and rebuilt at any time.
+	Mastery() metrics.Repo
+
+	// MasterySnapshots stores the daily per-tag mastery rollup.
+	MasterySnapshots() metrics.SnapshotRepo
 
 	// Tags stores tags, aliases and problem-to-tag mappings.
 	Tags() tags.Repo

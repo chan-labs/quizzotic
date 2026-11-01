@@ -14,6 +14,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/fsrs"
 	"github.com/chan-labs/quizzotic/internal/problems"
+	"github.com/chan-labs/quizzotic/internal/quizzes"
 	"github.com/chan-labs/quizzotic/internal/review"
 	"github.com/chan-labs/quizzotic/internal/settings"
 )
@@ -159,4 +160,77 @@ func (p paramsSource) Params(ctx context.Context, userID domain.ID) (fsrs.Params
 		out.LearningSteps, out.RelearningSteps = steps, steps
 	}
 	return out, nil
+}
+
+// Builder is the review session builder over s: it reads cards, attempts and
+// live problems from the store, and the user's effective scheduling settings
+// (the configured defaults with the user's overrides). Tag recall is the stub
+// of 0.5 for every problem; use Mastery.Builder for real tag recall. The
+// builder only reads, so it needs no transaction.
+func (c Cards) Builder(s Store) *review.Builder { return c.builder(s, nil) }
+
+func (c Cards) builder(s Store, tags review.TagRecall) *review.Builder {
+	return review.NewBuilder(review.BuildSource{
+		Tags:     tags,
+		Cards:    s.Cards(),
+		Attempts: s.Attempts(),
+		Problems: problemEpochs{s.Problems()},
+		Params:   paramsSource{tx: s, c: c},
+		Settings: effectiveSettings{tx: s, c: c},
+	})
+}
+
+// QuizBuilder is the quiz session builder over s. It only reads.
+func (c Cards) QuizBuilder(s Store) *review.QuizBuilder {
+	return review.NewQuizBuilder(quizProblems{s.Quizzes()}, problemEpochs{s.Problems()})
+}
+
+// SessionTx adapts s to review.SessionTransactor: each InTx call is one store
+// transaction whose session repo, attempt log, builders and problem source are
+// all bound to it, so a session is built, stored and extended consistently.
+func (c Cards) SessionTx(s Store) review.SessionTransactor { return sessionTx{s, c} }
+
+type sessionTx struct {
+	s Store
+	c Cards
+}
+
+func (a sessionTx) InTx(ctx context.Context, fn func(review.SessionScope) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error {
+		return fn(review.SessionScope{
+			Sessions: tx.Sessions(),
+			Attempts: tx.Attempts(),
+			Review:   a.c.Builder(tx),
+			Quiz:     a.c.QuizBuilder(tx),
+			Problems: problemEpochs{tx.Problems()},
+		})
+	})
+}
+
+// quizProblems adapts quizzes.Repo to review.QuizSource.
+type quizProblems struct{ r quizzes.Repo }
+
+func (q quizProblems) QuizProblems(ctx context.Context, ownerID, quizID domain.ID) (review.QuizContents, error) {
+	quiz, err := q.r.Get(ctx, ownerID, quizID)
+	if errors.Is(err, quizzes.ErrNotFound) {
+		return review.QuizContents{}, review.ErrNotFound
+	}
+	if err != nil {
+		return review.QuizContents{}, err
+	}
+	return review.QuizContents{Live: quiz.Status == quizzes.StatusLive, Problems: quiz.Items}, nil
+}
+
+// effectiveSettings resolves a user's overrides against the defaults.
+type effectiveSettings struct {
+	tx Store
+	c  Cards
+}
+
+func (e effectiveSettings) Get(ctx context.Context, userID domain.ID) (settings.Settings, error) {
+	o, err := e.tx.Settings().Get(ctx, userID)
+	if err != nil {
+		return settings.Settings{}, err
+	}
+	return settings.Resolve(e.c.defaults, o), nil
 }

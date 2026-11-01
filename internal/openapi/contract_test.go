@@ -87,7 +87,9 @@ func appRouter() *platform.Router {
 	problems.NewHandler(nil, nil).Register(rt)
 	quizzes.NewHandler(nil, nil).Register(rt)
 	attempts.NewHandler(nil, nil).Register(rt)
-	review.NewHandler(nil, nil).Register(rt)
+	review.NewSessionHandler(nil, nil).Register(rt)
+	review.NewCardHandler(nil, nil).Register(rt)
+	review.NewAdminHandler(nil, nil).Register(rt)
 	return rt
 }
 
