@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Golden tests for the generated CLI help and MCP tool list; `make golden` regenerates them.
 - Postgres store (`postgres://` in `storage.url`) on pgx/v5 with `timestamptz`/`jsonb` migrations mirroring SQLite, passing the shared conformance suite; CI runs it against a Postgres service container.
 - Optional Prometheus text-format `GET /metrics` (config `observability.metrics_enabled`, default off): request counts and latency histogram, store errors, attempts recorded and sessions served.
 - Open-source project files: LICENSE (Apache-2.0), NOTICE, README, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, CHANGELOG.
