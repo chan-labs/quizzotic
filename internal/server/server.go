@@ -120,6 +120,7 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 		st = instrumentStore(st, m)
 		hopts = append(hopts, WithMetrics(m))
 	}
+	hopts = append(hopts, WithScheduling(cfg.Scheduling))
 
 	srv := &http.Server{
 		Handler:           Handler(logger, st, idp, hopts...),
@@ -214,6 +215,7 @@ type handlerOptions struct {
 	site    *web.Web
 	auth    []auth.Authenticator
 	metrics *platform.Metrics
+	cards   *store.Cards
 	// extra operations and routes registered beside the spec's; set only by
 	// tests, through the same router and guard as production routes.
 	extraOps      []openapi.Operation
@@ -234,6 +236,13 @@ func WithTags(s *tags.Service) HandlerOption {
 // WithMetrics observes every request with m and serves GET /metrics from it.
 func WithMetrics(m *platform.Metrics) HandlerOption {
 	return func(o *handlerOptions) { o.metrics = m }
+}
+
+// WithScheduling sets the scheduling configuration of the card projection:
+// default desired retention and learning steps. Without it the built-in
+// configuration defaults are used.
+func WithScheduling(c config.Scheduling) HandlerOption {
+	return func(o *handlerOptions) { cards := store.NewCards(c); o.cards = &cards }
 }
 
 // WithAPIAuth adds an authenticator for the API, tried after those already
@@ -313,10 +322,15 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	if ho.tags != nil {
 		popts = append(popts, problems.WithTagResolver(ho.tags))
 	}
-	problemsSvc := problems.NewService(st.Problems(), store.ProblemsTx(st), clock, domain.NewIDGenerator(clock), popts...)
+	cards := store.DefaultCards()
+	if ho.cards != nil {
+		cards = *ho.cards
+	}
+	problemsSvc := problems.NewService(st.Problems(), store.ProblemsEditTx(st, cards.MajorEdit), clock, domain.NewIDGenerator(clock), popts...)
 	problemsH := problems.NewHandler(problemsSvc, logger)
 	quizzesH := quizzes.NewHandler(quizzes.NewService(store.QuizzesTx(st), problemsSvc, clock, domain.NewIDGenerator(clock)), logger)
-	attemptsH := attempts.NewHandler(attempts.NewService(store.AttemptsTx(st), problemsSvc, clock, domain.NewIDGenerator(clock)), logger)
+	attemptsH := attempts.NewHandler(attempts.NewService(store.AttemptsCardTx(st, cards.CardUpdater), problemsSvc, clock,
+		domain.NewIDGenerator(clock), attempts.WithAttemptRecorder(ho.metrics)), logger)
 	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, quizzesH, attemptsH, ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
 	// After the scope guard has authenticated the request: replays are per user.
 	rt.UseAfterAuth(platform.Idempotency(st.Idempotency(), clock, func(ctx context.Context) (domain.ID, bool) {

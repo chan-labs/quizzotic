@@ -5,7 +5,9 @@ package server_test
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/problems"
@@ -142,8 +144,11 @@ func TestAttemptsRoundTripEveryType(t *testing.T) {
 		if err := json.Unmarshal(res.Answer, &ans); err != nil || len(ans.Correct) != 1 || ans.Correct[0] != "c" {
 			t.Errorf("answer = %s (%v)", res.Answer, err)
 		}
-		if res.Explanation != "Because of the explanation." || res.NextDue != nil {
-			t.Errorf("explanation = %q next_due = %v", res.Explanation, res.NextDue)
+		if res.Explanation != "Because of the explanation." || res.NextDue == nil {
+			t.Fatalf("explanation = %q next_due = %v", res.Explanation, res.NextDue)
+		}
+		if _, err := time.Parse(time.RFC3339, *res.NextDue); err != nil {
+			t.Errorf("next_due %q: %v", *res.NextDue, err)
 		}
 
 		wrong := decode(t, e.answer(t, e.human, attemptBody(p, map[string]any{"selected": []string{"a"}}, nil)), 201)
@@ -388,5 +393,26 @@ func TestAttemptsLateRating(t *testing.T) {
 	if r := rate(e.human, id, map[string]any{"rating": 4}); r.code != http.StatusConflict ||
 		r.header.Get("Content-Type") != "application/problem+json" {
 		t.Errorf("second rating = %d (%s)", r.code, r.body)
+	}
+}
+
+// Answering counts the stored attempt in the attempts metric; a refused answer
+// counts nothing.
+func TestAttemptsAreCountedInMetrics(t *testing.T) {
+	e := newProbEnv(t)
+	live := openBody("Is this counted?")
+	live["status"] = "live"
+	p := e.create(t, e.human, live)
+	if !strings.Contains(e.metricsText(t), "quizzotic_attempts_recorded_total 0\n") {
+		t.Fatalf("want 0 attempts at the start:\n%s", e.metricsText(t))
+	}
+	if r := e.answer(t, e.human, attemptBody(p, map[string]any{"text": "x"}, map[string]any{"rating": 3})); r.code != http.StatusCreated {
+		t.Fatalf("answer = %d (%s)", r.code, r.body)
+	}
+	if r := e.answer(t, e.human, attemptBody(p, map[string]any{"text": "x"}, map[string]any{"rating": 9})); r.code == http.StatusCreated {
+		t.Fatalf("an invalid rating was accepted")
+	}
+	if !strings.Contains(e.metricsText(t), "quizzotic_attempts_recorded_total 1\n") {
+		t.Errorf("want 1 attempt:\n%s", e.metricsText(t))
 	}
 }

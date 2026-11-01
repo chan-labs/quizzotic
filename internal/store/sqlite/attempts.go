@@ -88,7 +88,10 @@ func (r attemptRepo) SetRating(ctx context.Context, ownerID, id domain.ID, ratin
 	return attempts.ErrAlreadyRated
 }
 
-func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.Attempt, error) {
+// rowScanner is *sql.Row or *sql.Rows.
+type rowScanner interface{ Scan(dest ...any) error }
+
+func scanAttempt(row rowScanner) (attempts.Attempt, error) {
 	var (
 		a                          attempts.Attempt
 		aid, uid, pid, kind, actor string
@@ -98,12 +101,8 @@ func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.A
 		score                      sql.NullFloat64
 		answered                   int64
 	)
-	err := r.q.QueryRowContext(ctx, `SELECT `+attemptCols+` FROM attempts WHERE user_id = ? AND id = ?`,
-		ownerID.String(), id.String()).Scan(&aid, &uid, &pid, &a.ProblemVersion, &a.CardEpoch, &session, &response,
+	err := row.Scan(&aid, &uid, &pid, &a.ProblemVersion, &a.CardEpoch, &session, &response,
 		&autoCorrect, &score, &rating, &a.LatencyMS, &answered, &kind, &actor, &a.Client.ClientID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return attempts.Attempt{}, attempts.ErrNotFound
-	}
 	if err != nil {
 		return attempts.Attempt{}, err
 	}
@@ -139,6 +138,36 @@ func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.A
 	a.AnsweredAt = FromMillis(answered)
 	a.Client.Kind = domain.ActorKind(kind)
 	return a, nil
+}
+
+func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.Attempt, error) {
+	a, err := scanAttempt(r.q.QueryRowContext(ctx, `SELECT `+attemptCols+` FROM attempts WHERE user_id = ? AND id = ?`,
+		ownerID.String(), id.String()))
+	if errors.Is(err, sql.ErrNoRows) {
+		return attempts.Attempt{}, attempts.ErrNotFound
+	}
+	return a, err
+}
+
+// ForCard lists the owner's attempts at one problem and card epoch, oldest
+// answer first (ties broken by ID, which is time-ordered).
+func (r attemptRepo) ForCard(ctx context.Context, ownerID, problemID domain.ID, epoch int) ([]attempts.Attempt, error) {
+	rows, err := r.q.QueryContext(ctx, `SELECT `+attemptCols+` FROM attempts
+		WHERE user_id = ? AND problem_id = ? AND card_epoch = ? ORDER BY answered_at, id`,
+		ownerID.String(), problemID.String(), epoch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []attempts.Attempt
+	for rows.Next() {
+		a, err := scanAttempt(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }
 
 func boolInt(b bool) int {

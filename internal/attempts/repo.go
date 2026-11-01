@@ -35,4 +35,9 @@ type Repo interface {
 
 	// Get returns the owner's attempt, or ErrNotFound.
 	Get(ctx context.Context, ownerID, id domain.ID) (Attempt, error)
+
+	// ForCard lists the owner's attempts at one problem and card epoch in
+	// answered_at order (ties by ID). It is the input of the card fold; an
+	// unknown problem or foreign owner yields an empty list.
+	ForCard(ctx context.Context, ownerID, problemID domain.ID, epoch int) ([]Attempt, error)
 }

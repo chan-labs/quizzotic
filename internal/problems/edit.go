@@ -36,6 +36,24 @@ type noopMajorEdit struct{}
 
 func (noopMajorEdit) ProblemMajorEdit(context.Context, MajorEdit) error { return nil }
 
+// EditTransactor is a Transactor that can also hand the edit's own
+// transaction to the major-edit handler, so a handler that writes (the card
+// projection) writes in the same transaction as the edit. When Service's
+// Transactor implements it, the handler it supplies is used for that edit and
+// the one set with WithMajorEditHandler is not.
+type EditTransactor interface {
+	Transactor
+	InEditTx(ctx context.Context, fn func(r Repo, onMajor MajorEditHandler) error) error
+}
+
+// inEditTx runs fn in a transaction with the major-edit handler for it.
+func (s *Service) inEditTx(ctx context.Context, fn func(Repo, MajorEditHandler) error) error {
+	if et, ok := s.tx.(EditTransactor); ok {
+		return et.InEditTx(ctx, fn)
+	}
+	return s.tx.InTx(ctx, func(r Repo) error { return fn(r, s.onMajor) })
+}
+
 // WithMajorEditHandler sets who is told about major edits.
 func WithMajorEditHandler(h MajorEditHandler) Option {
 	return func(s *Service) {
@@ -85,7 +103,7 @@ func (s *Service) Edit(ctx context.Context, actor domain.Actor, id domain.ID, if
 			platform.FieldError{Field: "body", Detail: "change at least one of type, prompt, payload, explanation, source"})
 	}
 	var out View
-	err := s.tx.InTx(ctx, func(r Repo) error {
+	err := s.inEditTx(ctx, func(r Repo, onMajor MajorEditHandler) error {
 		p, err := r.Get(ctx, actor.UserID, id)
 		if err != nil {
 			return notFound(err)
@@ -134,7 +152,7 @@ func (s *Service) Edit(ctx context.Context, actor domain.Actor, id domain.ID, if
 			return notFound(err)
 		}
 		if in.ChangeKind == ChangeMajor {
-			err := s.onMajor.ProblemMajorEdit(ctx, MajorEdit{OwnerID: actor.UserID, ProblemID: id,
+			err := onMajor.ProblemMajorEdit(ctx, MajorEdit{OwnerID: actor.UserID, ProblemID: id,
 				FromVersion: cur.Version, ToVersion: stored.Version, At: stored.CreatedAt})
 			if err != nil {
 				return err

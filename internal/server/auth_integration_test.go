@@ -135,6 +135,16 @@ type itEnv struct {
 	logs *bytes.Buffer
 }
 
+// metricsText fetches /metrics, which newITEnv serves.
+func (e *itEnv) metricsText(t *testing.T) string {
+	t.Helper()
+	r := e.do(t, "GET", "/metrics", nil, "")
+	if r.code != http.StatusOK {
+		t.Fatalf("/metrics = %d", r.code)
+	}
+	return string(r.body)
+}
+
 // newITEnv wires the production auth (server.AuthOptions) over a real SQLite
 // store and a fake IdP, and mounts it behind the real router and scope guard
 // with test-only scoped operations registered beside the spec's.
@@ -202,7 +212,7 @@ func newITEnv(t *testing.T) *itEnv {
 		}
 	}
 	h := server.Handler(logger, st, auth.NewProvider(idp.srv.URL),
-		append(hopts, server.WithExtraOperations(ops, register))...)
+		append(hopts, server.WithExtraOperations(ops, register), server.WithMetrics(platform.NewMetrics()))...)
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return &itEnv{idp: idp, srv: srv, st: st, logs: logs}
