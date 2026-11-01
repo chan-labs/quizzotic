@@ -4,6 +4,7 @@ package me
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/chan-labs/quizzotic/internal/auth"
@@ -15,10 +16,18 @@ import (
 var RootRoutes = []string{"GET /.well-known/oauth-protected-resource"}
 
 // Handler serves the identity endpoints.
-type Handler struct{ svc *Service }
+type Handler struct {
+	svc    *Service
+	logger *slog.Logger
+}
 
-// NewHandler builds a Handler.
-func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
+// NewHandler builds a Handler. A nil logger means slog.Default().
+func NewHandler(svc *Service, logger *slog.Logger) *Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Handler{svc: svc, logger: logger}
+}
 
 // Register mounts GET /me on the API router. The scope guard has already
 // authenticated the request, so a principal is always present.
@@ -44,6 +53,8 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := h.svc.Me(r.Context(), p)
 	if err != nil {
+		// The cause stays in the log; the client gets an opaque 500.
+		h.logger.ErrorContext(r.Context(), "me: user lookup failed", slog.String("error", err.Error()))
 		platform.WriteError(w, r, err)
 		return
 	}

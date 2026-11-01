@@ -3,7 +3,10 @@
 package me_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +15,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/me"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 type fakeUsers struct{ err error }
@@ -24,21 +28,29 @@ func (f fakeUsers) GetUser(context.Context, domain.ID) (auth.User, error) {
 // a 200 and never another user's data.
 func TestMeUserNotFound(t *testing.T) {
 	svc := me.NewService(fakeUsers{err: auth.ErrNotFound}, "https://idp.example.com", "https://q.example.com", []string{"admin"})
-	h := me.NewHandler(svc)
+	var logs bytes.Buffer
+	h := me.NewHandler(svc, slog.New(slog.NewTextHandler(&logs, nil)))
 
 	req := httptest.NewRequest("GET", "/me", nil)
 	req = req.WithContext(auth.WithPrincipal(req.Context(), auth.Principal{Kind: auth.KindHuman, ClientID: "c"}))
 	rec := httptest.NewRecorder()
 	h.Me(rec, req)
 
-	if rec.Code == http.StatusOK {
-		t.Fatalf("status = 200 (%s)", rec.Body)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 (%s)", rec.Code, rec.Body)
 	}
-	if rec.Code < 400 {
-		t.Fatalf("status = %d", rec.Code)
+	var p platform.Problem
+	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
+		t.Fatal(err)
 	}
-	if strings.Contains(rec.Body.String(), `"user"`) {
-		t.Errorf("error body leaks user data: %s", rec.Body)
+	if p.Type != platform.TypeInternal || p.Status != 500 {
+		t.Errorf("problem = %+v", p)
+	}
+	if strings.Contains(rec.Body.String(), `"user"`) || strings.Contains(rec.Body.String(), "not found") {
+		t.Errorf("error body leaks detail: %s", rec.Body)
+	}
+	if !strings.Contains(logs.String(), "user lookup failed") || !strings.Contains(logs.String(), "not found") {
+		t.Errorf("cause not logged: %s", logs.String())
 	}
 }
 
@@ -47,7 +59,7 @@ func TestMetadataUsesConfiguredPublicURLOnly(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://evil.example.net/.well-known/oauth-protected-resource", nil)
 	req.Host = "evil.example.net"
 	rec := httptest.NewRecorder()
-	me.NewHandler(svc).Metadata(rec, req)
+	me.NewHandler(svc, nil).Metadata(rec, req)
 	body := rec.Body.String()
 	if !strings.Contains(body, `"resource":"https://q.example.com"`) || strings.Contains(body, "evil") {
 		t.Errorf("body = %s", body)

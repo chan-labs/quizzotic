@@ -77,7 +77,7 @@ func specOps(t *testing.T) (api, root []string) {
 func appRouter() *platform.Router {
 	rt := platform.NewRouter()
 	openapi.Register(rt)
-	me.NewHandler(nil).Register(rt)
+	me.NewHandler(nil, nil).Register(rt)
 	return rt
 }
 
@@ -125,6 +125,7 @@ func TestServesSpec(t *testing.T) {
 func TestRootRoutesServed(t *testing.T) {
 	mux := http.NewServeMux()
 	platform.NewHealth(nil).Register(mux)
+	platform.NewMetrics().Register(mux)
 	for _, p := range platform.RootRoutes {
 		method, path, _ := strings.Cut(p, " ")
 		rec := httptest.NewRecorder()

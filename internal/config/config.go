@@ -60,11 +60,12 @@ func (d Duration) Std() time.Duration { return time.Duration(d) }
 
 // Config is the whole service configuration.
 type Config struct {
-	Server     Server     `yaml:"server"`
-	Storage    Storage    `yaml:"storage"`
-	Auth       Auth       `yaml:"auth"`
-	Scheduling Scheduling `yaml:"scheduling"`
-	Logging    Logging    `yaml:"logging"`
+	Server        Server        `yaml:"server"`
+	Storage       Storage       `yaml:"storage"`
+	Auth          Auth          `yaml:"auth"`
+	Scheduling    Scheduling    `yaml:"scheduling"`
+	Logging       Logging       `yaml:"logging"`
+	Observability Observability `yaml:"observability"`
 }
 
 // Server configures the HTTP listener.
@@ -120,6 +121,14 @@ type Scheduling struct {
 type Logging struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
+}
+
+// Observability configures optional operational endpoints.
+type Observability struct {
+	// MetricsEnabled serves Prometheus text-format metrics at GET /metrics.
+	// Off by default. The endpoint is unauthenticated, like /healthz: expose
+	// it only to your scraper (bind or firewall it accordingly).
+	MetricsEnabled bool `yaml:"metrics_enabled"`
 }
 
 // Default returns the configuration used for keys the file leaves out.

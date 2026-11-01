@@ -79,6 +79,12 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 		return err
 	}
 
+	if cfg.Observability.MetricsEnabled {
+		m := platform.NewMetrics()
+		st = instrumentStore(st, m)
+		hopts = append(hopts, WithMetrics(m))
+	}
+
 	srv := &http.Server{
 		Handler:           Handler(logger, st, idp, hopts...),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -166,10 +172,11 @@ func authOptions(cfg *config.Config, logger *slog.Logger, st store.Store, idp *a
 type HandlerOption func(*handlerOptions)
 
 type handlerOptions struct {
-	web  *auth.LoginHandler
-	me   *me.Service
-	site *web.Web
-	auth []auth.Authenticator
+	web     *auth.LoginHandler
+	me      *me.Service
+	site    *web.Web
+	auth    []auth.Authenticator
+	metrics *platform.Metrics
 	// extra operations and routes registered beside the spec's; set only by
 	// tests, through the same router and guard as production routes.
 	extraOps      []openapi.Operation
@@ -180,6 +187,11 @@ type handlerOptions struct {
 // it both answer 404.
 func WithIdentity(s *me.Service) HandlerOption {
 	return func(o *handlerOptions) { o.me = s }
+}
+
+// WithMetrics observes every request with m and serves GET /metrics from it.
+func WithMetrics(m *platform.Metrics) HandlerOption {
+	return func(o *handlerOptions) { o.metrics = m }
 }
 
 // WithAPIAuth adds an authenticator for the API, tried after those already
@@ -193,7 +205,7 @@ func WithAPIAuth(a auth.Authenticator) HandlerOption {
 // operation of the pattern the router matched. It panics if the embedded spec
 // cannot be parsed (a build-time invariant covered by tests).
 func NewAPIRouter(a auth.Authenticator) (*platform.Router, *auth.ScopeGuard) {
-	return newAPIRouter(a, me.NewHandler(nil), nil, nil)
+	return newAPIRouter(a, me.NewHandler(nil, nil), nil, nil)
 }
 
 func newAPIRouter(a auth.Authenticator, meH *me.Handler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
@@ -233,7 +245,7 @@ func webClient(is config.Issuer) (config.Client, bool) {
 	return config.Client{}, false
 }
 
-// Handler builds Tracing(RequestID(TraceRoute(mux))) with the health probes
+// Handler builds Tracing(RequestID(Metrics(TraceRoute(mux)))) with the health probes
 // at the root and the API router under /api/v1. Each feature registers its
 // routes on the router here as it lands.
 func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...HandlerOption) http.Handler {
@@ -248,7 +260,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		return st.WithTx(ctx, func(store.Store) error { return nil })
 	})
 
-	meH := me.NewHandler(ho.me)
+	meH := me.NewHandler(ho.me, logger)
 	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
 
 	mux := http.NewServeMux()
@@ -262,5 +274,9 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		ho.site.Register(mux)
 	}
 
-	return platform.Tracing(nil)(platform.RequestID(logger)(platform.TraceRoute(mux)))
+	if ho.metrics != nil {
+		ho.metrics.Register(mux)
+	}
+
+	return platform.Tracing(nil)(platform.RequestID(logger)(ho.metrics.Middleware(platform.TraceRoute(mux))))
 }
