@@ -69,6 +69,14 @@ func (a snapshotTx) InTx(ctx context.Context, fn func(metrics.SnapshotScope) err
 	})
 }
 
+// Builder is the review session builder over s with real tag recall: new
+// problems are weighted by the mastery of their tags (spec: Review session
+// builder, step 3). Tag recall only changes which new problems are drawn; it
+// never reads or writes a card. Like Cards.Builder it only reads.
+func (m Mastery) Builder(s Store) *review.Builder {
+	return m.cards.builder(s, metrics.NewRecallReader(m.Scope(s), m.clock))
+}
+
 type masteryTx struct {
 	s Store
 	m Mastery
