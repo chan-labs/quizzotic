@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -229,4 +230,24 @@ func rawRequest(t *testing.T, addr, method, target string) int {
 	}
 	defer resp.Body.Close()
 	return resp.StatusCode
+}
+
+// TestGuardLogsCauseOfOpaque500: the response hides the cause; the log keeps it.
+func TestGuardLogsCauseOfOpaque500(t *testing.T) {
+	ops, _ := openapi.Operations([]byte(guardSpec))
+	var buf strings.Builder
+	rt := platform.NewRouter()
+	rt.SetAuthorizer(NewScopeGuard(fakeAuth{err: errors.New("db down: disk on fire")}, ops,
+		WithGuardLogger(slog.New(slog.NewTextHandler(&buf, nil)))).Authorize)
+	rt.HandleFunc("GET /problems", func(http.ResponseWriter, *http.Request) {})
+	mux := http.NewServeMux()
+	rt.Mount(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/problems", nil))
+	if rec.Code != 500 || strings.Contains(rec.Body.String(), "disk") {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(buf.String(), "disk on fire") {
+		t.Errorf("cause not logged: %q", buf.String())
+	}
 }

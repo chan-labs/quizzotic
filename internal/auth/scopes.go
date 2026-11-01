@@ -4,6 +4,7 @@ package auth
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -15,8 +16,10 @@ import (
 // Authenticator establishes the Principal of a request.
 type Authenticator interface {
 	// Authenticate returns ErrNoCredentials when the request carries none,
-	// and any other error when credentials are present but unacceptable.
-	Authenticate(r *http.Request) (Principal, error)
+	// and any other error when credentials are present but unacceptable. It
+	// may set response headers (the sliding session cookie) but never writes
+	// the body or status.
+	Authenticate(w http.ResponseWriter, r *http.Request) (Principal, error)
 }
 
 // ErrNoCredentials means the request carried no credentials.
@@ -34,7 +37,7 @@ type BearerAuthenticator struct {
 }
 
 // Authenticate implements Authenticator.
-func (b *BearerAuthenticator) Authenticate(r *http.Request) (Principal, error) {
+func (b *BearerAuthenticator) Authenticate(_ http.ResponseWriter, r *http.Request) (Principal, error) {
 	h := r.Header.Get("Authorization")
 	scheme, tok, ok := strings.Cut(h, " ")
 	if h == "" {
@@ -55,9 +58,9 @@ func (b *BearerAuthenticator) Authenticate(r *http.Request) (Principal, error) {
 type Chain []Authenticator
 
 // Authenticate implements Authenticator.
-func (c Chain) Authenticate(r *http.Request) (Principal, error) {
+func (c Chain) Authenticate(w http.ResponseWriter, r *http.Request) (Principal, error) {
 	for _, a := range c {
-		p, err := a.Authenticate(r)
+		p, err := a.Authenticate(w, r)
 		if errors.Is(err, ErrNoCredentials) {
 			continue
 		}
@@ -68,12 +71,13 @@ func (c Chain) Authenticate(r *http.Request) (Principal, error) {
 
 // SessionAuthenticator authenticates the web session cookie. Sessions belong
 // to humans, so the principal holds every scope. State-changing methods must
-// also carry the session's CSRF token.
+// also carry the session's CSRF token. A session whose expiry slid is
+// re-issued on the response, as RequireSession does.
 type SessionAuthenticator struct{ Login *LoginHandler }
 
 // Authenticate implements Authenticator.
-func (s SessionAuthenticator) Authenticate(r *http.Request) (Principal, error) {
-	ws, _, err := s.Login.authenticate(r)
+func (s SessionAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (Principal, error) {
+	ws, refreshed, err := s.Login.authenticate(r)
 	if errors.Is(err, ErrNoSession) {
 		if _, cerr := r.Cookie(SessionCookieName); cerr != nil {
 			return Principal{}, ErrNoCredentials
@@ -82,6 +86,11 @@ func (s SessionAuthenticator) Authenticate(r *http.Request) (Principal, error) {
 	}
 	if err != nil {
 		return Principal{}, err
+	}
+	if refreshed {
+		if c, cerr := r.Cookie(SessionCookieName); cerr == nil {
+			s.Login.setCookie(w, c.Value, ws.ExpiresAt)
+		}
 	}
 	switch r.Method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
@@ -98,14 +107,24 @@ func (s SessionAuthenticator) Authenticate(r *http.Request) (Principal, error) {
 // guard looks that exact pattern up among the spec's operations. A pattern
 // with no spec operation is denied (fail closed).
 type ScopeGuard struct {
-	auth Authenticator
-	ops  map[string][]string // "METHOD /path" -> scopes
+	auth   Authenticator
+	ops    map[string][]string // "METHOD /path" -> scopes
+	logger *slog.Logger
 }
+
+// GuardOption tunes a ScopeGuard.
+type GuardOption func(*ScopeGuard)
+
+// WithGuardLogger sets where the guard logs the cause of an opaque 500.
+func WithGuardLogger(l *slog.Logger) GuardOption { return func(g *ScopeGuard) { g.logger = l } }
 
 // NewScopeGuard indexes the API operations in ops (root operations such as
 // health probes are served outside the router and are skipped).
-func NewScopeGuard(a Authenticator, ops []openapi.Operation) *ScopeGuard {
-	g := &ScopeGuard{auth: a, ops: map[string][]string{}}
+func NewScopeGuard(a Authenticator, ops []openapi.Operation, opts ...GuardOption) *ScopeGuard {
+	g := &ScopeGuard{auth: a, ops: map[string][]string{}, logger: slog.Default()}
+	for _, o := range opts {
+		o(g)
+	}
 	for _, op := range ops {
 		if !op.Root {
 			g.ops[op.Method+" "+op.Path] = op.Scopes
@@ -141,7 +160,7 @@ func (g *ScopeGuard) Authorize(pattern string, w http.ResponseWriter, r *http.Re
 	if len(scopes) == 0 {
 		return r, true
 	}
-	p, err := g.auth.Authenticate(r)
+	p, err := g.auth.Authenticate(w, r)
 	switch {
 	case err == nil:
 	case errors.Is(err, ErrCSRF):
@@ -156,7 +175,9 @@ func (g *ScopeGuard) Authorize(pattern string, w http.ResponseWriter, r *http.Re
 		platform.WriteError(w, r, platform.Unauthorized(detail))
 		return nil, false
 	default:
-		platform.WriteError(w, r, err) // infrastructure failure: opaque 500
+		// Infrastructure failure: log the cause, answer an opaque 500.
+		g.logger.ErrorContext(r.Context(), "api auth failed", slog.String("error", err.Error()))
+		platform.WriteError(w, r, platform.NewProblem(platform.TypeInternal, http.StatusInternalServerError, ""))
 		return nil, false
 	}
 	if !p.HasAny(scopes) {

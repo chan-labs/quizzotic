@@ -158,7 +158,9 @@ type fakeAuth struct {
 	err error
 }
 
-func (f fakeAuth) Authenticate(*http.Request) (Principal, error) { return f.p, f.err }
+func (f fakeAuth) Authenticate(http.ResponseWriter, *http.Request) (Principal, error) {
+	return f.p, f.err
+}
 
 const guardSpec = `
 openapi: 3.1.0
@@ -195,17 +197,17 @@ func TestBearerAuthenticatorEndToEnd(t *testing.T) {
 		return r
 	}
 
-	if _, err := ba.Authenticate(req("")); !errors.Is(err, ErrNoCredentials) {
+	if _, err := ba.Authenticate(nil, req("")); !errors.Is(err, ErrNoCredentials) {
 		t.Errorf("no header: %v", err)
 	}
-	if _, err := ba.Authenticate(req("Basic abc")); !errors.Is(err, ErrInvalidToken) {
+	if _, err := ba.Authenticate(nil, req("Basic abc")); !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("basic: %v", err)
 	}
 
 	c := goodClaims()
 	c["client_id"] = "agent-local"
 	c["scope"] = "problems:read"
-	p, err := ba.Authenticate(req("Bearer " + s.token(t, hdr, c)))
+	p, err := ba.Authenticate(nil, req("Bearer "+s.token(t, hdr, c)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +216,7 @@ func TestBearerAuthenticatorEndToEnd(t *testing.T) {
 	}
 
 	c["client_id"] = "stranger"
-	if _, err := ba.Authenticate(req("Bearer " + s.token(t, hdr, c))); !errors.Is(err, ErrUnknownClient) {
+	if _, err := ba.Authenticate(nil, req("Bearer "+s.token(t, hdr, c))); !errors.Is(err, ErrUnknownClient) {
 		t.Errorf("unknown client: %v", err)
 	}
 }
