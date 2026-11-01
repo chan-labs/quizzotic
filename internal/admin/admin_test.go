@@ -29,7 +29,7 @@ func TestMigrateCreatesSchemaMigrationsAndIsIdempotent(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("run %d: exit %d stderr=%s", i+1, code, errs)
 		}
-		want := "applied 3 migration(s): [1 2 3]"
+		want := "applied 14 migration(s): [1 2 3 4 5 6 7 8 9 10 11 12 13 14]"
 		if i == 1 {
 			want = "schema up to date"
 		}
@@ -62,9 +62,9 @@ func TestMigrateFromConfigFile(t *testing.T) {
 	}
 }
 
-func TestMigratePostgresNotYetSupported(t *testing.T) {
-	code, _, errs := run(t, "migrate", "--storage-url", "postgres://u:p@db.example.com/q")
-	if code == 0 || !strings.Contains(errs, "not yet supported") {
+func TestMigratePostgresUnreachableDoesNotLeakCredentials(t *testing.T) {
+	code, _, errs := run(t, "migrate", "--storage-url", "postgres://u:p@127.0.0.1:1/q?connect_timeout=2")
+	if code == 0 || !strings.Contains(errs, "postgres") {
 		t.Fatalf("code=%d stderr=%q", code, errs)
 	}
 	if strings.Contains(errs, "u:p") {

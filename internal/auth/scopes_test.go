@@ -167,6 +167,8 @@ openapi: 3.1.0
 paths:
   /open:
     get: {operationId: open, x-quizzotic-scopes: []}
+  /whoami:
+    get: {operationId: whoami, security: [{bearer: []}], x-quizzotic-scopes: []}
   /problems:
     get: {operationId: problems.list, x-quizzotic-scopes: [problems:read]}
     post: {operationId: problems.create, x-quizzotic-scopes: [problems:write]}

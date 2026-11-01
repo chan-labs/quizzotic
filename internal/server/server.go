@@ -13,15 +13,31 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/me"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
+	"github.com/chan-labs/quizzotic/internal/problems"
+	"github.com/chan-labs/quizzotic/internal/quizzes"
+	"github.com/chan-labs/quizzotic/internal/review"
+	"github.com/chan-labs/quizzotic/internal/seed"
+	"github.com/chan-labs/quizzotic/internal/seedrun"
 	"github.com/chan-labs/quizzotic/internal/store"
 	"github.com/chan-labs/quizzotic/internal/store/driver"
+	"github.com/chan-labs/quizzotic/internal/tags"
 	"github.com/chan-labs/quizzotic/internal/web"
 )
+
+// IdempotencySweepInterval is how often expired Idempotency-Key records are
+// deleted. Records are ignored once expired, so this only bounds table size.
+const IdempotencySweepInterval = time.Hour
+
+// SnapshotInterval is how often the mastery snapshot scheduler checks whether
+// a user's study day has turned over and needs its snapshot.
+const SnapshotInterval = 5 * time.Minute
 
 // ShutdownTimeout bounds how long in-flight requests get to finish.
 const ShutdownTimeout = 15 * time.Second
@@ -67,6 +83,47 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 		logger.Info("migrations checked", slog.Int("applied", len(applied)))
 	}
 
+	// storage.seed is keyed, so applying it on every start is safe.
+	skipped, err := seedrun.Startup(ctx, st, cfg.Storage.Seed, func(spec string, r seed.Report) {
+		logger.Info("seed applied", slog.String("source", spec),
+			slog.Int("created", r.Tags.Created+r.Problems.Created+r.Quizzes.Created),
+			slog.Int("updated", r.Tags.Updated+r.Problems.Updated+r.Quizzes.Updated))
+	})
+	if err != nil {
+		return fmt.Errorf("seed: %w", err)
+	}
+	if skipped != nil {
+		logger.Warn("seed skipped; run `quizzotic admin seed` or restart once it can pick an owner",
+			slog.String("reason", skipped.Error()))
+	}
+
+	// Expired idempotency records are ignored on read; the sweep reclaims them.
+	sweepCtx, stopSweep := context.WithCancel(ctx)
+	sweepDone := make(chan struct{})
+	go func() {
+		defer close(sweepDone)
+		platform.SweepIdempotency(sweepCtx, st.Idempotency(), domain.SystemClock{}, IdempotencySweepInterval, logger)
+	}()
+	defer func() {
+		stopSweep()
+		<-sweepDone // finish before the deferred st.Close
+	}()
+
+	// The daily mastery snapshots are written in-process: each pass ensures
+	// every user has a snapshot for the study day they are in, so one lands
+	// within SnapshotInterval of each user's rollover hour.
+	snapCtx, stopSnap := context.WithCancel(ctx)
+	snapDone := make(chan struct{})
+	snapshotter := store.NewMastery(store.NewCards(cfg.Scheduling), domain.SystemClock{}).Snapshotter(st, logger)
+	go func() {
+		defer close(snapDone)
+		snapshotter.Run(snapCtx, SnapshotInterval)
+	}()
+	defer func() {
+		stopSnap()
+		<-snapDone // finish before the deferred st.Close
+	}()
+
 	var provOpts []auth.Option
 	if opts.HTTPClient != nil {
 		provOpts = append(provOpts, auth.WithHTTPClient(opts.HTTPClient))
@@ -77,6 +134,13 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 	if err != nil {
 		return err
 	}
+
+	if cfg.Observability.MetricsEnabled {
+		m := platform.NewMetrics()
+		st = instrumentStore(st, m)
+		hopts = append(hopts, WithMetrics(m))
+	}
+	hopts = append(hopts, WithScheduling(cfg.Scheduling))
 
 	srv := &http.Server{
 		Handler:           Handler(logger, st, idp, hopts...),
@@ -130,7 +194,11 @@ func authOptions(cfg *config.Config, logger *slog.Logger, st store.Store, idp *a
 	if err != nil {
 		return nil, fmt.Errorf("auth clients: %w", err)
 	}
-	hopts := []HandlerOption{WithAPIAuth(&auth.BearerAuthenticator{
+	catalog, err := openapi.SpecScopes()
+	if err != nil {
+		return nil, fmt.Errorf("spec scopes: %w", err)
+	}
+	hopts := []HandlerOption{WithMCP(cfg.Server.PublicURL), WithTags(tags.NewService(store.TagsTx(st), clock, ids)), WithIdentity(me.NewService(authSvc, issuer.Issuer, cfg.Server.PublicURL, catalog)), WithAPIAuth(&auth.BearerAuthenticator{
 		Verifier: auth.NewVerifier(issuer.Issuer, idp),
 		Audience: issuer.Audience,
 		Resolver: auth.NewResolver(clients, authSvc),
@@ -161,13 +229,42 @@ func authOptions(cfg *config.Config, logger *slog.Logger, st store.Store, idp *a
 type HandlerOption func(*handlerOptions)
 
 type handlerOptions struct {
-	web  *auth.LoginHandler
-	site *web.Web
-	auth []auth.Authenticator
+	web     *auth.LoginHandler
+	me      *me.Service
+	tags    *tags.Service
+	site    *web.Web
+	auth    []auth.Authenticator
+	metrics *platform.Metrics
+	cards   *store.Cards
+	mcp     bool
+	mcpURL  string
 	// extra operations and routes registered beside the spec's; set only by
 	// tests, through the same router and guard as production routes.
 	extraOps      []openapi.Operation
 	extraRegister func(*platform.Router)
+}
+
+// WithIdentity enables GET /me and the protected-resource metadata. Without
+// it both answer 404.
+func WithIdentity(s *me.Service) HandlerOption {
+	return func(o *handlerOptions) { o.me = s }
+}
+
+// WithTags enables the tag endpoints. Without it they answer 404.
+func WithTags(s *tags.Service) HandlerOption {
+	return func(o *handlerOptions) { o.tags = s }
+}
+
+// WithMetrics observes every request with m and serves GET /metrics from it.
+func WithMetrics(m *platform.Metrics) HandlerOption {
+	return func(o *handlerOptions) { o.metrics = m }
+}
+
+// WithScheduling sets the scheduling configuration of the card projection:
+// default desired retention and learning steps. Without it the built-in
+// configuration defaults are used.
+func WithScheduling(c config.Scheduling) HandlerOption {
+	return func(o *handlerOptions) { cards := store.NewCards(c); o.cards = &cards }
 }
 
 // WithAPIAuth adds an authenticator for the API, tried after those already
@@ -181,10 +278,11 @@ func WithAPIAuth(a auth.Authenticator) HandlerOption {
 // operation of the pattern the router matched. It panics if the embedded spec
 // cannot be parsed (a build-time invariant covered by tests).
 func NewAPIRouter(a auth.Authenticator) (*platform.Router, *auth.ScopeGuard) {
-	return newAPIRouter(a, nil, nil)
+	return newAPIRouter(a, me.NewHandler(nil, nil), tags.NewHandler(nil, nil), problems.NewHandler(nil, nil), quizzes.NewHandler(nil, nil), attempts.NewHandler(nil, nil),
+		review.NewSessionHandler(nil, nil), review.NewCardHandler(nil, nil), review.NewAdminHandler(nil, nil), nil, nil)
 }
 
-func newAPIRouter(a auth.Authenticator, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
+func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, problemsH *problems.Handler, quizzesH *quizzes.Handler, attemptsH *attempts.Handler, sessionsH *review.SessionHandler, cardsH *review.CardHandler, adminH *review.AdminHandler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
 	ops, err := openapi.SpecOperations()
 	if err != nil {
 		panic("server: embedded OpenAPI spec: " + err.Error())
@@ -193,6 +291,14 @@ func newAPIRouter(a auth.Authenticator, extraOps []openapi.Operation, extraRegis
 	rt := platform.NewRouter()
 	rt.SetAuthorizer(guard.Authorize)
 	openapi.Register(rt)
+	meH.Register(rt)
+	tagH.Register(rt)
+	problemsH.Register(rt)
+	quizzesH.Register(rt)
+	attemptsH.Register(rt)
+	sessionsH.Register(rt)
+	cardsH.Register(rt)
+	adminH.Register(rt)
 	if extraRegister != nil {
 		extraRegister(rt)
 	}
@@ -220,8 +326,9 @@ func webClient(is config.Issuer) (config.Client, bool) {
 	return config.Client{}, false
 }
 
-// Handler builds Tracing(RequestID(TraceRoute(mux))) with the health probes
-// at the root and the API router under /api/v1. Each feature registers its
+// Handler builds Tracing(RequestID(Metrics(TraceRoute(mux)))) with the health probes
+// at the root and the API router under /api/v1, whose authenticated requests
+// pass through the Idempotency-Key middleware. Each feature registers its
 // routes on the router here as it lands.
 func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...HandlerOption) http.Handler {
 	var ho handlerOptions
@@ -235,17 +342,69 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		return st.WithTx(ctx, func(store.Store) error { return nil })
 	})
 
-	rt, _ := newAPIRouter(auth.Chain(ho.auth), ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
+	clock := domain.SystemClock{}
+	meH := me.NewHandler(ho.me, logger)
+	popts := []problems.Option{problems.WithBatch(store.ProblemsBatchTx(st))}
+	if ho.tags != nil {
+		popts = append(popts, problems.WithTagResolver(ho.tags))
+	}
+	cards := store.DefaultCards()
+	if ho.cards != nil {
+		cards = *ho.cards
+	}
+	problemsSvc := problems.NewService(st.Problems(), store.ProblemsEditTx(st, cards.MajorEdit), clock, domain.NewIDGenerator(clock), popts...)
+	problemsH := problems.NewHandler(problemsSvc, logger)
+	quizzesH := quizzes.NewHandler(quizzes.NewService(store.QuizzesTx(st), problemsSvc, clock, domain.NewIDGenerator(clock)), logger)
+	aopts := []attempts.Option{attempts.WithReader(st.Attempts()), attempts.WithAttemptRecorder(ho.metrics)}
+	if ho.tags != nil {
+		aopts = append(aopts, attempts.WithTagResolver(ho.tags))
+	}
+	attemptsH := attempts.NewHandler(attempts.NewService(store.AttemptsCardTx(st, cards.CardUpdater), problemsSvc, clock,
+		domain.NewIDGenerator(clock), aopts...), logger)
+	// ho.metrics may be nil: Metrics methods tolerate a nil receiver.
+	sessionsH := review.NewSessionHandler(review.NewSessionService(cards.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock)), logger)
+	var cardTags review.TagResolver
+	if ho.tags != nil {
+		cardTags = ho.tags
+	}
+	cardsH := review.NewCardHandler(review.NewCardService(st.Cards(), cardTags), logger)
+	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, quizzesH, attemptsH, sessionsH, cardsH, review.NewAdminHandler(cards.Service(st, review.WithLogger(logger)), logger), ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
+	// After the scope guard has authenticated the request: replays are per user.
+	rt.UseAfterAuth(platform.Idempotency(st.Idempotency(), clock, func(ctx context.Context) (domain.ID, bool) {
+		p, ok := auth.PrincipalFrom(ctx)
+		return p.UserID, ok
+	}))
 
 	mux := http.NewServeMux()
 	health.Register(mux)
 	rt.Mount(mux)
+	meH.RegisterRoot(mux)
 	if ho.web != nil {
 		ho.web.Register(mux)
 	}
 	if ho.site != nil {
+		if ho.tags != nil {
+			ho.site.UseProblems(problemsSvc, ho.tags)
+		} else {
+			ho.site.UseProblems(problemsSvc, nil)
+		}
+		ho.site.UseDrafts(problemsSvc)
+		ho.site.UseSettings(cards.SettingsService(st, review.WithLogger(logger)))
 		ho.site.Register(mux)
 	}
 
-	return platform.Tracing(nil)(platform.RequestID(logger)(platform.TraceRoute(mux)))
+	if ho.metrics != nil {
+		ho.metrics.Register(mux)
+	}
+
+	final := platform.Tracing(nil)(platform.RequestID(logger)(ho.metrics.Middleware(platform.TraceRoute(mux))))
+	if ho.mcp {
+		// Tool calls re-enter final, so they pass the same auth and scope checks.
+		mh, err := mcpHandler(auth.Chain(ho.auth), ho.mcpURL, func() http.Handler { return final })
+		if err != nil {
+			panic("server: " + err.Error()) // only a malformed embedded spec fails
+		}
+		mux.Handle("/mcp", mh)
+	}
+	return final
 }

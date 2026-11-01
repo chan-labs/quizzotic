@@ -8,7 +8,9 @@ Adding any other dependency needs the maintainer's approval and a new entry here
 | --- | --- |
 | `modernc.org/sqlite` | Pure-Go SQLite driver; keeps the binary cgo-free. |
 | `github.com/jackc/pgx/v5` | Postgres driver. |
-| `gopkg.in/yaml.v3` | Config file and OpenAPI spec parsing. |
-| `github.com/modelcontextprotocol/go-sdk` | Official MCP protocol implementation; avoids protocol drift. |
+| `gopkg.in/yaml.v3` | Config file, OpenAPI spec and seed file parsing. |
+| `github.com/modelcontextprotocol/go-sdk` | Official MCP protocol implementation (stdio transport, tool registry, test client); avoids protocol drift. Its own transitive requirements (OAuth2, JWT, JSON schema) come with it and are not used directly by Quizzotic code. |
 | `github.com/yuin/goldmark` | Markdown rendering for prompts and explanations, with raw HTML disabled. |
 | `go.opentelemetry.io/otel` (+ SDK and `contrib/exporters/autoexport`) | Tracing that honors the standard `OTEL_*` environment variables. |
+
+Build tooling (GoReleaser, staticcheck) is run via `go run` or `go install` at pinned versions and is not part of `go.mod`, so it is outside the runtime-dependency rule above.

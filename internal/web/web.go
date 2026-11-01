@@ -30,21 +30,22 @@ type Config struct {
 	// Gate protects every page.
 	Gate   Gate
 	Logger *slog.Logger
-	// Settings backs the Settings page; the page is not mounted when nil.
-	Settings SettingsService
 }
 
 // Web is the website adapter. Pages call feature services only; it holds no
 // rules of its own.
 type Web struct {
-	cfg  Config
-	tmpl map[string]*template.Template
+	cfg    Config
+	tmpl   map[string]*template.Template
+	drafts Drafts
+	prob   problemPages
+	sets   SettingsService
 }
 
 type navItem struct{ Href, Label string }
 
 // nav lists the top-level pages. Entries are added as their pages land.
-var nav = []navItem{{"/", "Today"}, {"/settings", "Settings"}}
+var nav = []navItem{{"/", "Today"}, {"/drafts", "Drafts"}, {"/problems", "Problems"}, {"/settings", "Settings"}}
 
 // page is the data every template receives.
 type page struct {
@@ -53,7 +54,7 @@ type page struct {
 	Nav       []navItem
 	CSRFToken string
 	Rendered  template.HTML
-	Settings  settingsForm
+	Data      any // page-specific data
 }
 
 // New parses the embedded templates.
@@ -66,7 +67,7 @@ func New(cfg Config) (*Web, error) {
 		return nil, err
 	}
 	w := &Web{cfg: cfg, tmpl: map[string]*template.Template{}}
-	for _, name := range []string{"shell", "settings"} {
+	for _, name := range []string{"shell", "drafts", "settings"} {
 		t, err := layout.Clone()
 		if err != nil {
 			return nil, err
@@ -75,6 +76,9 @@ func New(cfg Config) (*Web, error) {
 			return nil, err
 		}
 		w.tmpl[name] = t
+	}
+	if err := w.parseProblemTemplates(layout); err != nil {
+		return nil, err
 	}
 	return w, nil
 }
@@ -96,10 +100,9 @@ func (w *Web) Register(mux *http.ServeMux) {
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(sub)))
 	mux.Handle("GET /{$}", w.gate(http.HandlerFunc(w.today)))
-	if w.cfg.Settings != nil {
-		mux.Handle("GET /settings", w.gate(http.HandlerFunc(w.settingsPage)))
-		mux.Handle("POST /settings", w.gate(http.HandlerFunc(w.settingsSave)))
-	}
+	w.registerProblems(mux)
+	w.registerDrafts(mux)
+	w.registerSettings(mux)
 }
 
 func (w *Web) gate(h http.Handler) http.Handler {
@@ -116,6 +119,11 @@ func (w *Web) today(rw http.ResponseWriter, r *http.Request) {
 // render executes the named page inside the layout. The body is buffered so a
 // template error yields a clean 500 rather than a half-written page.
 func (w *Web) render(rw http.ResponseWriter, r *http.Request, name string, p page) {
+	w.renderStatus(rw, r, http.StatusOK, name, p)
+}
+
+// renderStatus is render with an explicit status code.
+func (w *Web) renderStatus(rw http.ResponseWriter, r *http.Request, status int, name string, p page) {
 	ws, _ := auth.SessionFrom(r.Context())
 	p.CSRFToken = ws.CSRFToken
 	p.Path = r.URL.Path
@@ -131,5 +139,6 @@ func (w *Web) render(rw http.ResponseWriter, r *http.Request, name string, p pag
 	h.Set("Cache-Control", "no-store")
 	h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'")
 	h.Set("X-Content-Type-Options", "nosniff")
+	rw.WriteHeader(status)
 	_, _ = rw.Write(buf.Bytes())
 }

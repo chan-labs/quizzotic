@@ -4,7 +4,9 @@ package storetest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/chan-labs/quizzotic/internal/store"
@@ -38,7 +40,19 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("Settings", func(t *testing.T) { runSettings(t, newStore) })
 	t.Run("WebSessions", func(t *testing.T) { runWebSessions(t, newStore) })
 	t.Run("LoginStates", func(t *testing.T) { runLoginStates(t, newStore) })
+	t.Run("Problems", func(t *testing.T) { runProblems(t, newStore) })
+	t.Run("Attempts", func(t *testing.T) { runAttempts(t, newStore) })
+	t.Run("Cards", func(t *testing.T) { runCards(t, newStore) })
+	t.Run("Mastery", func(t *testing.T) { runMastery(t, newStore) })
+	t.Run("MasterySnapshots", func(t *testing.T) { runSnapshots(t, newStore) })
+	t.Run("Rebuild", func(t *testing.T) { runRebuild(t, newStore) })
+	t.Run("Tags", func(t *testing.T) { runTags(t, newStore) })
+	t.Run("Quizzes", func(t *testing.T) { runQuizzes(t, newStore) })
+	t.Run("TagMerge", func(t *testing.T) { runTagMerge(t, newStore) })
+	t.Run("TagOperations", func(t *testing.T) { runTagOperations(t, newStore) })
 	t.Run("Idempotency", func(t *testing.T) { runIdempotency(t, newStore) })
+	t.Run("SeedKeys", func(t *testing.T) { runSeedKeys(t, newStore) })
+	t.Run("SoleUser", func(t *testing.T) { runSoleUser(t, newStore) })
 }
 
 func runTx(t *testing.T, newStore NewStore) {
@@ -144,4 +158,15 @@ func runTx(t *testing.T, newStore NewStore) {
 			t.Fatalf("count after panic = %d, want 0", n)
 		}
 	})
+}
+
+// sameJSON reports whether a and b hold the same JSON value. Backends may
+// normalize whitespace and key order (Postgres jsonb does), so stored JSON is
+// compared by value, never by bytes.
+func sameJSON(a, b []byte) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	return reflect.DeepEqual(x, y)
 }

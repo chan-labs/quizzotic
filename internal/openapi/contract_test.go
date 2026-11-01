@@ -11,9 +11,15 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
+	"github.com/chan-labs/quizzotic/internal/me"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
+	"github.com/chan-labs/quizzotic/internal/problems"
+	"github.com/chan-labs/quizzotic/internal/quizzes"
+	"github.com/chan-labs/quizzotic/internal/review"
+	"github.com/chan-labs/quizzotic/internal/tags"
 )
 
 var httpMethods = map[string]bool{
@@ -76,6 +82,14 @@ func specOps(t *testing.T) (api, root []string) {
 func appRouter() *platform.Router {
 	rt := platform.NewRouter()
 	openapi.Register(rt)
+	me.NewHandler(nil, nil).Register(rt)
+	tags.NewHandler(nil, nil).Register(rt)
+	problems.NewHandler(nil, nil).Register(rt)
+	quizzes.NewHandler(nil, nil).Register(rt)
+	attempts.NewHandler(nil, nil).Register(rt)
+	review.NewSessionHandler(nil, nil).Register(rt)
+	review.NewCardHandler(nil, nil).Register(rt)
+	review.NewAdminHandler(nil, nil).Register(rt)
 	return rt
 }
 
@@ -99,6 +113,7 @@ func TestRoutesMatchSpec(t *testing.T) {
 	diff(t, "registered route without spec operation", routes, apiOps)
 	diff(t, "spec operation without registered route", apiOps, routes)
 	rootRoutes := append(append([]string(nil), platform.RootRoutes...), auth.WebRoutes...)
+	rootRoutes = append(rootRoutes, me.RootRoutes...)
 	diff(t, "root route without spec operation", rootRoutes, rootOps)
 	diff(t, "spec root operation without route", rootOps, rootRoutes)
 }
@@ -122,6 +137,7 @@ func TestServesSpec(t *testing.T) {
 func TestRootRoutesServed(t *testing.T) {
 	mux := http.NewServeMux()
 	platform.NewHealth(nil).Register(mux)
+	platform.NewMetrics().Register(mux)
 	for _, p := range platform.RootRoutes {
 		method, path, _ := strings.Cut(p, " ")
 		rec := httptest.NewRecorder()

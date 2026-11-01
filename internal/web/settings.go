@@ -42,14 +42,14 @@ func formFrom(s settings.Settings) settingsForm {
 
 func (w *Web) settingsPage(rw http.ResponseWriter, r *http.Request) {
 	ws, _ := auth.SessionFrom(r.Context())
-	cur, err := w.cfg.Settings.Get(r.Context(), ws.UserID)
+	cur, err := w.sets.Get(r.Context(), ws.UserID)
 	if err != nil {
-		w.fail(rw, "load settings", err)
+		w.fail(rw, err)
 		return
 	}
 	f := formFrom(cur)
 	f.Saved = r.URL.Query().Get("saved") == "1"
-	w.render(rw, r, "settings", page{Title: "Settings", Settings: f})
+	w.render(rw, r, "settings", page{Title: "Settings", Data: f})
 }
 
 func (w *Web) settingsSave(rw http.ResponseWriter, r *http.Request) {
@@ -68,9 +68,9 @@ func (w *Web) settingsSave(rw http.ResponseWriter, r *http.Request) {
 	}
 	// Start from the stored overrides so fields this page does not edit keep
 	// their state. A blank input clears the override (use the default).
-	o, err := w.cfg.Settings.Overrides(r.Context(), ws.UserID)
+	o, err := w.sets.Overrides(r.Context(), ws.UserID)
 	if err != nil {
-		w.fail(rw, "load settings", err)
+		w.fail(rw, err)
 		return
 	}
 	o.DesiredRetention = parseOpt(f.Retention, "desired_retention", f.Errors, parseFloat)
@@ -82,7 +82,7 @@ func (w *Web) settingsSave(rw http.ResponseWriter, r *http.Request) {
 		o.Timezone = &f.Timezone
 	}
 	if len(f.Errors) == 0 {
-		_, err = w.cfg.Settings.Update(r.Context(), ws.UserID, o)
+		_, err = w.sets.Update(r.Context(), ws.UserID, o)
 		var ve *settings.ValidationError
 		switch {
 		case errors.As(err, &ve):
@@ -90,15 +90,14 @@ func (w *Web) settingsSave(rw http.ResponseWriter, r *http.Request) {
 				f.Errors[fe.Field] = fe.Detail
 			}
 		case err != nil:
-			w.fail(rw, "save settings", err)
+			w.fail(rw, err)
 			return
 		default:
 			http.Redirect(rw, r, "/settings?saved=1", http.StatusSeeOther)
 			return
 		}
 	}
-	rw.WriteHeader(http.StatusUnprocessableEntity)
-	w.render(rw, r, "settings", page{Title: "Settings", Settings: f})
+	w.renderStatus(rw, r, http.StatusUnprocessableEntity, "settings", page{Title: "Settings", Data: f})
 }
 
 func parseOpt[T int | float64](s, field string, errs map[string]string, parse func(string) (T, error)) *T {
@@ -115,7 +114,13 @@ func parseOpt[T int | float64](s, field string, errs map[string]string, parse fu
 
 func parseFloat(s string) (float64, error) { return strconv.ParseFloat(s, 64) }
 
-func (w *Web) fail(rw http.ResponseWriter, what string, err error) {
-	w.cfg.Logger.Error(what, "error", err.Error())
-	http.Error(rw, "internal error", http.StatusInternalServerError)
+// UseSettings enables the Settings page.
+func (w *Web) UseSettings(s SettingsService) { w.sets = s }
+
+func (w *Web) registerSettings(mux *http.ServeMux) {
+	if w.sets == nil {
+		return
+	}
+	mux.Handle("GET /settings", w.gate(http.HandlerFunc(w.settingsPage)))
+	mux.Handle("POST /settings", w.gate(http.HandlerFunc(w.settingsSave)))
 }

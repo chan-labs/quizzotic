@@ -25,8 +25,11 @@ info:
     Every operation has a stable `operationId` and an `x-quizzotic-scopes` list.
 
     - `x-quizzotic-scopes` (required, list of strings): OAuth scopes, any one
-      of which authorizes the operation. An empty list means the operation is
-      unauthenticated or needs no particular scope.
+      of which authorizes the operation. An empty list means the operation
+      needs no particular scope. Whether it needs authentication is decided by
+      `security`: an operation with `security: []` is public, and one that
+      lists a scheme (as `/me` does) requires any authenticated principal.
+      Every scope used must appear in `x-quizzotic-scope-catalog`.
     - `x-quizzotic-cli-columns` (optional, list of strings): response item
       fields shown by `quizzotic ... --output table`.
     - `x-quizzotic-mcp` (optional, boolean): when true, the operation is
@@ -42,12 +45,1063 @@ info:
     probes), outside the versioned API.
 servers:
   - url: /api/v1
+x-quizzotic-scope-catalog:
+  problems:read: Read problems.
+  problems:write: Create, edit and retire problems.
+  quizzes:read: Read quizzes.
+  quizzes:write: Create and edit quizzes.
+  tags:read: Read tags.
+  tags:write: Create, rename, merge and retire tags.
+  tags:apply: Apply tags to problems.
+  metrics:read: Read mastery metrics.
+  attempts:read: Read attempts.
+  attempts:write: Record attempts. Never granted to agents.
+  sessions:write: Start and end review sessions. Never granted to agents.
+  admin: Administrative operations. Never granted to agents.
 tags:
   - name: meta
     description: Service metadata and probes.
   - name: auth
     description: Browser login and web sessions (host root, not under /api/v1).
+  - name: tags
+    description: Tags and aliases.
+  - name: tag-operations
+    description: Tag rename, merge and split proposals and their decisions.
+  - name: problems
+    description: Problems and their versions.
+  - name: quizzes
+    description: Quizzes and their ordered items.
+  - name: attempts
+    description: Answers to problems and their grades.
+  - name: admin
+    description: Operator tasks. Needs the admin scope, which agents never hold.
+  - name: sessions
+    description: Review and quiz sessions, the frozen lists a client works through.
+  - name: cards
+    description: Per-user scheduling state of each problem.
 paths:
+  /me:
+    get:
+      operationId: meta.me
+      tags: [meta]
+      summary: Get the calling principal
+      description: |
+        Returns the user the request acts for, the principal kind (`human` or
+        `agent`), the OAuth client ID the credential came from (`web-session`
+        for the web cookie) and the effective scopes. Needs any authenticated
+        principal; no particular scope.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: The calling principal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems:
+    get:
+      operationId: problems.list
+      tags: [problems]
+      summary: List problems
+      description: |
+        Lists the caller's non-deleted problems, oldest first, with cursor
+        pagination. Filters combine with AND. `type` and `q` apply to the
+        problem's current version, `created_by_kind` to its creator. `q` is a
+        case-insensitive substring match over the prompt. `tag` accepts a tag
+        slug or ID.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, status, type, version, prompt]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          description: Only problems in this status.
+          schema:
+            $ref: "#/components/schemas/ProblemStatus"
+        - name: type
+          in: query
+          description: Only problems of this type.
+          schema:
+            $ref: "#/components/schemas/ProblemType"
+        - name: created_by_kind
+          in: query
+          description: Only problems created by this kind of actor.
+          schema:
+            type: string
+            enum: [human, agent, system]
+        - name: q
+          in: query
+          description: Case-insensitive substring of the prompt.
+          schema:
+            type: string
+        - name: tag
+          in: query
+          description: |
+            Only problems carrying this tag, named by ID, slug or alias (a
+            merged tag stands for the tag it was merged into). An unknown tag
+            is answered 422.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: One page of problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemPage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: problems.create
+      tags: [problems]
+      summary: Create a problem
+      description: |
+        Creates a problem and its first version. `status` is `draft` (the
+        default) or `live`. The payload is validated against the type; every
+        failure is listed in `errors` of a 422 response.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: >-
+        Check for duplicates first (call problems.similar before creating),
+        default to status draft so a human can review, and always tag the
+        problem. List tags first (tags.list) and prefer existing tags; an
+        alias resolves to its tag.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProblemRequest"
+      responses:
+        "201":
+          description: The created problem.
+          headers:
+            Location:
+              description: URL of the new problem.
+              schema:
+                type: string
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemView"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/similar:
+    post:
+      operationId: problems.similar
+      tags: [problems]
+      summary: Find similar problems
+      description: |
+        Duplicate check. Tokenizes the given prompt and answers (lowercase
+        words and numbers) and ranks the caller's non-deleted problems by
+        token-set Jaccard similarity against each problem's current prompt and
+        answers (choice texts, accepted cloze answers, or the open reference
+        answer). Scores run from 0 to 1; problems sharing no token are never
+        returned. Results are ordered by score, highest first. This is a
+        read-only query.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [score, id, type, prompt]
+      x-quizzotic-mcp-hint: >-
+        Call this before problems.create with the draft prompt and its
+        answers. A score near 1 means the problem already exists: update or
+        skip it instead of creating a duplicate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimilarProblemsRequest"
+      responses:
+        "200":
+          description: Candidates, most similar first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimilarProblemList"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/batch:
+    post:
+      operationId: problems.createBatch
+      tags: [problems]
+      summary: Create up to 100 problems at once
+      description: |
+        Creates every item (a problem plus its tags) in one transaction. The
+        batch holds 1 to 100 items. If any item is invalid, nothing is written
+        and the 422 response lists the invalid fields of every bad item in
+        `errors`, each `field` prefixed with the item's index, for example
+        `items[3].payload.choices` or `items[0].tags[1]`. Items are validated
+        like `problems.create`; each tag is an ID, slug or alias of one of the
+        caller's tags (a merged tag resolves to the tag it was merged into).
+        The created problems are returned in request order. The request body
+        is limited to 1 MiB.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: >-
+        Prefer this over many problems.create calls when adding a set of
+        problems. Call problems.similar for each item first to avoid
+        duplicates. Default each item to status draft, tag every item with
+        existing tags (call tags.list first; aliases resolve), and send an
+        Idempotency-Key so a retry cannot duplicate the batch.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProblemBatchRequest"
+      responses:
+        "201":
+          description: The created problems, in request order.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemBatch"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}:
+    get:
+      operationId: problems.get
+      tags: [problems]
+      summary: Get a problem
+      description: |
+        Returns the problem's current version. The default `full` view
+        includes correct answers, reference answer and rubric. `view=prompt`
+        is what a client shows while answering: no correct answers, reference
+        answer, rubric or explanation, and MCQ choices shuffled when the
+        payload says `shuffle`.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:read]
+      x-quizzotic-mcp: true
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: view
+          in: query
+          description: Which view to return. Defaults to `full`.
+          schema:
+            type: string
+            enum: [full, prompt]
+            default: full
+      responses:
+        "200":
+          description: The problem, as `ProblemView` for `full` or `ProblemPromptView` for `prompt`.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ProblemView"
+                  - $ref: "#/components/schemas/ProblemPromptView"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: problems.edit
+      tags: [problems]
+      summary: Edit a problem
+      description: |
+        Creates a new version from the current one with the given fields
+        replaced; omitted fields keep their value. `change_kind` is required:
+        `minor` (typo, wording) keeps the card; `major` (different correct
+        answer or question) starts a new card epoch, so earlier attempts stay
+        attached to the old epoch. The merged result is validated like a
+        create. Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: >-
+        Read the problem first and send its ETag as If-Match. Use major only
+        when the correct answer or the question itself changes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditProblemRequest"
+      responses:
+        "200":
+          description: The problem at its new version.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemView"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: problems.delete
+      tags: [problems]
+      summary: Delete a problem
+      description: |
+        Soft-deletes the problem from any status. Versions and attempts are
+        kept; the problem stops appearing in reads and lists. Requires
+        `If-Match` (412 when stale, 428 when missing). Deleting an already
+        deleted problem is 404.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      parameters:
+        - $ref: "#/components/parameters/ProblemId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: The problem was deleted.
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}/publish:
+    post:
+      operationId: problems.publish
+      tags: [problems]
+      summary: Publish a problem
+      description: |
+        Moves a `draft` problem to `live`, so it can enter review. Any other
+        status is 409 (`live` to `draft` and `archived` to `live` are not
+        allowed). Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      parameters:
+        - $ref: "#/components/parameters/ProblemId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: The problem, now `live`.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemView"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}/archive:
+    post:
+      operationId: problems.archive
+      tags: [problems]
+      summary: Archive a problem
+      description: |
+        Moves a `live` problem to `archived`, so it leaves review. Any other
+        status is 409 (a draft is discarded by deleting it; `archived` is
+        terminal). Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      parameters:
+        - $ref: "#/components/parameters/ProblemId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: The problem, now `archived`.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemView"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}/versions:
+    get:
+      operationId: problems.versions
+      tags: [problems]
+      summary: List a problem's versions
+      description: |
+        Returns every version of the problem, oldest first, with answers.
+        Old versions stay readable after an edit.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:read]
+      x-quizzotic-mcp: true
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: All versions, oldest first. `next_cursor` is always null.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemVersionList"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /attempts:
+    post:
+      operationId: attempts.create
+      tags: [attempts]
+      summary: Answer a problem
+      description: |
+        Records one attempt. In a single transaction the server grades the
+        response, stores the attempt and updates the card, then returns the
+        grade, the full answer, the explanation and the card's next due date
+        (`next_due`; null for an `open` attempt that has no rating yet).
+
+        `problem_version` must be the problem's current version (409
+        otherwise, so the client refetches); the problem must be `live`.
+
+        `response` depends on the problem type: `mcq` takes the selected
+        choice ids, `cloze` a map of blank id to typed text, `open` the typed
+        text. `rating` is optional for `mcq` and `cloze` (a right answer
+        defaults to Good, a wrong one is always Again) and required for
+        `open` to be scheduled. Rating 1 (Again) is invalid when the answer
+        is right: it returns 422 with an error on the `rating` field. An
+        attempt is never edited afterwards, except that a missing rating may
+        be filled in once.
+
+        Humans only: agent clients never hold `attempts:write` and get 403.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:write]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAttemptRequest"
+      responses:
+        "201":
+          description: The graded attempt.
+          headers:
+            Location:
+              description: URL of the new attempt.
+              schema:
+                type: string
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: >-
+            The problem is not live, or `problem_version` is not its current
+            version (`type` is `urn:quizzotic:problem:stale-problem-version`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+    get:
+      operationId: attempts.list
+      tags: [attempts]
+      summary: List attempts
+      description: |
+        Lists the caller's attempts, oldest first (answer order), with cursor
+        pagination. Filters combine with AND. `problem` is a problem ID. `tag`
+        accepts a tag ID, slug or alias and keeps attempts at problems that
+        carry it. `since` (inclusive) and `until` (exclusive) are RFC 3339
+        timestamps bounding `answered_at`. Agents with `attempts:read` may
+        read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, problem_id, score, rating, answered_at]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: problem
+          in: query
+          description: Only attempts at this problem ID.
+          schema:
+            type: string
+        - name: tag
+          in: query
+          description: |
+            Only attempts at problems carrying this tag, named by ID, slug or
+            alias. An unknown tag is answered 422.
+          schema:
+            type: string
+        - name: since
+          in: query
+          description: Only attempts answered at or after this RFC 3339 time.
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          description: Only attempts answered before this RFC 3339 time.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: One page of attempts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptPage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /attempts/{id}:
+    get:
+      operationId: attempts.get
+      tags: [attempts]
+      summary: Get an attempt
+      description: Returns one of the caller's attempts. Agents with `attempts:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:read]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/AttemptId"
+      responses:
+        "200":
+          description: The attempt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attempt"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /attempts/{id}/rating:
+    post:
+      operationId: attempts.rate
+      tags: [attempts]
+      summary: Rate an attempt late
+      description: |
+        Sets the rating of an attempt that has none. The rating can be set
+        once, and only within 15 minutes of the attempt (`answered_at`); after
+        that the default rating stands. An `open` attempt submitted without a
+        rating stays unscheduled and unscored until it is rated here.
+
+        The same rules as `POST /attempts` apply: rating 1 (Again) is invalid
+        for a right `mcq` or `cloze` answer (422 on the `rating` field), and a
+        wrong one is always Again. A successful rating recomputes the card, and
+        the response is the same grade, answer and next due date that answering
+        returns, with the rated attempt.
+
+        Returns 409 when the attempt already has a rating (including one sent
+        with the answer) or when the 15 minutes have passed. Humans only:
+        agent clients never hold `attempts:write` and get 403.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:write]
+      parameters:
+        - $ref: "#/components/parameters/AttemptId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RateAttemptRequest"
+      responses:
+        "200":
+          description: The rated attempt, its grade and the card's next due time.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: The attempt already has a rating, or its 15-minute rating window has closed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /sessions:
+    post:
+      operationId: sessions.create
+      tags: [sessions]
+      summary: Start a review or quiz session
+      description: |
+        Builds and freezes the ordered list of problems to work through, and
+        returns it. Humans only: `sessions:write` is never granted to agents.
+
+        `kind: review` collects the caller's due cards (lowest current recall
+        first, within the daily review budget) and a weighted sample of new
+        problems (within the daily new-card budget), interleaving one new card
+        after every `new_interval` reviews. The same session ID over the same
+        data always builds the same list. The daily budgets are measured
+        against the attempt log of the caller's study day, so quiz answers
+        count toward them like any other answer.
+
+        `kind: quiz` serves the live problems of the quiz named by `quiz_id`
+        in authored order, or shuffled when `shuffle` is true. The quiz must be
+        `live`; a draft or archived quiz is refused with 422, and so is
+        `shuffle` on a review session. Daily limits do not apply to a quiz.
+        Answers update cards like any other attempt.
+
+        A session with nothing to serve is valid: it is created with no items,
+        and `next` reports that nothing remains. Answers join the session by
+        sending its `id` as `session_id` to `POST /attempts`.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [sessions:write]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "201":
+          description: The new session and its frozen list.
+          headers:
+            Location:
+              description: URL of the new session.
+              schema:
+                type: string
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /sessions/{id}:
+    get:
+      operationId: sessions.get
+      tags: [sessions]
+      summary: Get a session
+      description: |
+        Returns the session with its frozen list, marking which items have been
+        answered. An item is answered when the caller has sent an attempt with
+        this session's ID for its problem. Humans only.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [sessions:write]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: The session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /sessions/{id}/next:
+    get:
+      operationId: sessions.next
+      tags: [sessions]
+      summary: Get the next problem of a session
+      description: |
+        Returns the first unanswered item of the session as a prompt (no
+        correct answers, reference answer or explanation), and how many
+        unanswered items remain, this one included. Items whose problem is no
+        longer live are skipped.
+
+        For a review session, learning-step cards that have come due since the
+        session started are first appended to its list, so a card answered
+        Again is offered again once its step has elapsed. `item` is null when
+        nothing is left to serve right now; a learning card that is not yet due
+        may still be appended by a later call. Returns 409 once the session is
+        completed. Humans only.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [sessions:write]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: The next item, or none.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionNext"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: The session is already completed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /sessions/{id}/complete:
+    post:
+      operationId: sessions.complete
+      tags: [sessions]
+      summary: Complete a session
+      description: |
+        Marks the session completed. Unanswered items are left unanswered; no
+        card changes. Completing a completed session returns it unchanged.
+        Humans only.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [sessions:write]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The completed session.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /cards:
+    get:
+      operationId: cards.list
+      tags: [cards]
+      summary: List cards
+      description: |
+        Lists the caller's cards ordered by problem ID, with cursor pagination.
+        A card exists once its problem has a scheduled attempt; a problem never
+        answered has none. `due_before` keeps cards due strictly before that
+        RFC 3339 time. `tag` accepts a tag ID, slug or alias and keeps cards of
+        problems that carry it; an unknown tag is answered 422. Agents with
+        `attempts:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [problem_id, state, due, reps, lapses]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: due_before
+          in: query
+          description: Only cards due before this RFC 3339 time.
+          schema:
+            type: string
+            format: date-time
+        - name: tag
+          in: query
+          description: Only cards of problems carrying this tag (ID, slug or alias).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: One page of cards.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /cards/{problem_id}:
+    get:
+      operationId: cards.get
+      tags: [cards]
+      summary: Get a card
+      description: |
+        Returns the caller's card for a problem. Answers 404 when the problem
+        does not exist or has no card yet (it has not been answered, or is not
+        live). Agents with `attempts:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:read]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/CardProblemId"
+      responses:
+        "200":
+          description: The card.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /admin/rebuild:
+    post:
+      operationId: admin.rebuild
+      tags: [admin]
+      summary: Rebuild cards from the attempt log
+      description: |
+        Drops and recomputes cards from the attempt log: one card for each
+        live problem that has a scheduled attempt at its current epoch. The
+        result equals what the incremental updates produce; this is the
+        recovery tool if the projection is ever suspect.
+
+        Without a body (or with an empty object) every user's cards are
+        rebuilt, in batches, one transaction per user, with progress in the
+        server log. With `user_id` only that user's cards are rebuilt; an
+        unknown ID is 404. Rebuilding is idempotent and safe to repeat.
+
+        Needs the `admin` scope: a human only, since agent clients never hold
+        it and get 403. The scope is instance-wide: it is not limited to the
+        caller's own data.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [admin]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RebuildRequest"
+      responses:
+        "200":
+          description: The rebuild finished.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RebuildResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
   /openapi.yaml:
     get:
       operationId: meta.openapi
@@ -107,6 +1161,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Readiness"
+        default:
+          $ref: "#/components/responses/Problem"
+  /metrics:
+    servers:
+      - url: /
+    get:
+      operationId: meta.metrics
+      tags: [meta]
+      summary: Prometheus metrics
+      description: |
+        Prometheus text-format exposition (version 0.0.4) of request counts and
+        latency, store errors, attempts recorded and sessions served. Served
+        only when `observability.metrics_enabled` is true (default false);
+        otherwise the route does not exist. Unauthenticated like the health
+        probes, so restrict it at the network level.
+      security: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: The metrics exposition.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /.well-known/oauth-protected-resource:
+    servers:
+      - url: /
+    get:
+      operationId: meta.protectedResource
+      tags: [meta]
+      summary: OAuth protected-resource metadata
+      description: |
+        RFC 9728 metadata so remote MCP and OAuth clients can discover the
+        authorization server (the configured issuer) and the supported scopes.
+        Public; served at the host root.
+      security: []
+      x-quizzotic-scopes: []
+      responses:
+        "200":
+          description: The protected-resource metadata document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectedResourceMetadata"
         default:
           $ref: "#/components/responses/Problem"
   /auth/login:
@@ -215,6 +1313,712 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /tags:
+    get:
+      operationId: tags.list
+      tags: [tags]
+      summary: List tags
+      description: |
+        Lists the caller's tags ordered by ID. Without `status`, only active
+        tags are listed.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [slug, name, status]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          description: Only tags with this status. Defaults to `active`.
+          schema:
+            $ref: "#/components/schemas/TagStatus"
+      responses:
+        "200":
+          description: A page of tags.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: tags.create
+      tags: [tags]
+      summary: Create a tag
+      description: |
+        Creates an active tag. When `slug` is omitted it is derived from
+        `name`. The slug must be unique among the caller's active tags and
+        must not be an alias of any of their tags (409 otherwise).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: |
+        List tags first (tags.list) and prefer an existing tag over creating a
+        near-duplicate; aliases resolve to their tag. Slugs are lowercase
+        words joined by hyphens.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagCreate"
+      responses:
+        "201":
+          description: The new tag.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tags/{tag}:
+    parameters:
+      - $ref: "#/components/parameters/TagRef"
+    get:
+      operationId: tags.get
+      tags: [tags]
+      summary: Get a tag
+      description: The tag is addressed by ID, slug or alias.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      responses:
+        "200":
+          description: The tag.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: tags.update
+      tags: [tags]
+      summary: Update a tag
+      description: |
+        Changes the name, description and/or slug. Changing the slug is a
+        rename: the old slug becomes an alias of the tag, so it keeps
+        resolving. Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:write]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagUpdate"
+      responses:
+        "200":
+          description: The updated tag.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tags/{tag}/problems:
+    parameters:
+      - $ref: "#/components/parameters/TagRef"
+    get:
+      operationId: tags.listProblems
+      tags: [tags]
+      summary: List the problems with a tag
+      description: |
+        Lists the caller's non-deleted problems carrying the tag, ordered by
+        problem ID, with the prompt of their current version.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, status, type, prompt]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaggedProblemPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}/tags:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Problem ID.
+        schema:
+          type: string
+    put:
+      operationId: problems.setTags
+      tags: [tags]
+      summary: Replace a problem's tags
+      description: |
+        Replaces the set of tags on a problem. Each entry is a tag ID, slug or
+        alias; duplicates are ignored. A merged tag resolves to the tag it was
+        merged into. Unknown or retired tags are a 422. Tags attach to the
+        problem, not to a version.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write, tags:apply]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: >-
+        Send the complete desired tag list; omitted tags are removed. List
+        tags first (tags.list) and prefer existing tags; aliases resolve.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetProblemTags"
+      responses:
+        "200":
+          description: The problem's tags after the change, ordered by slug.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagList"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /quizzes:
+    get:
+      operationId: quizzes.list
+      tags: [quizzes]
+      summary: List quizzes
+      description: |
+        Lists the caller's non-deleted quizzes ordered by ID, each with its
+        ordered items. Without `status`, quizzes of every status are listed.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, title, status]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          description: Only quizzes with this status.
+          schema:
+            $ref: "#/components/schemas/QuizStatus"
+      responses:
+        "200":
+          description: A page of quizzes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: quizzes.create
+      tags: [quizzes]
+      summary: Create a quiz
+      description: |
+        Creates a quiz, `draft` unless `status` says otherwise. `problem_ids`
+        optionally sets the initial items in order; each must be a distinct,
+        non-deleted problem of the caller (422 otherwise).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, title, status]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizCreate"
+      responses:
+        "201":
+          description: The created quiz.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Location:
+              description: URL of the new quiz.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /quizzes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/QuizId"
+    get:
+      operationId: quizzes.get
+      tags: [quizzes]
+      summary: Get a quiz
+      description: Returns the quiz with its items in order.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:read]
+      x-quizzotic-mcp: true
+      responses:
+        "200":
+          description: The quiz.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: quizzes.update
+      tags: [quizzes]
+      summary: Update a quiz
+      description: |
+        Changes the title, description and/or status. Items are replaced
+        through `PUT /quizzes/{id}/items`. Requires `If-Match` (412 when
+        stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:write]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizUpdate"
+      responses:
+        "200":
+          description: The updated quiz.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: quizzes.delete
+      tags: [quizzes]
+      summary: Delete a quiz
+      description: |
+        Soft-deletes the quiz; it no longer appears in reads or lists.
+        Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:write]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: The quiz was deleted.
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /quizzes/{id}/items:
+    parameters:
+      - $ref: "#/components/parameters/QuizId"
+    put:
+      operationId: quizzes.setItems
+      tags: [quizzes]
+      summary: Replace a quiz's items
+      description: |
+        Replaces the quiz's ordered problem list; position follows the order
+        of `problem_ids`. Each ID must be a distinct, non-deleted problem of
+        the caller: an unknown ID, another user's problem or a duplicate is a
+        422 naming the entry, and nothing changes. Requires `If-Match`
+        (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: Send the complete desired problem list in order; omitted problems are removed.
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizSetItems"
+      responses:
+        "200":
+          description: The quiz with its new items.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tag-operations:
+    get:
+      operationId: tagOperations.list
+      tags: [tag-operations]
+      summary: List tag operations
+      description: |
+        Lists the caller's tag operations ordered by ID, optionally only those
+        with one status.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, kind, status]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          description: Only operations with this status.
+          schema:
+            $ref: "#/components/schemas/TagOperationStatus"
+      responses:
+        "200":
+          description: A page of operations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperationPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: tagOperations.propose
+      tags: [tag-operations]
+      summary: Propose a tag operation
+      description: |
+        Validates a rename, merge or split and stores it as `proposed`, with a
+        preview of the problems it would move and the resulting tag counts.
+        Nothing changes until a human applies it. With `apply: true` the
+        operation is applied at once in the same request, which needs the
+        `tags:apply` scope (403 otherwise). Tags in the payload may be given
+        by ID, slug or alias.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: |
+        Propose, never apply: leave `apply` unset so the human can review the
+        preview and approve it. For a split, read tags.listProblems first and
+        assign every problem; set `retire_source` only when every problem has
+        an assignment.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagOperationCreate"
+      responses:
+        "201":
+          description: The proposed (or, with `apply`, applied) operation.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tag-operations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/TagOperationId"
+    get:
+      operationId: tagOperations.get
+      tags: [tag-operations]
+      summary: Get a tag operation
+      description: |
+        Returns the operation. A proposed operation carries a live `preview`:
+        the problems affected and the resulting tag counts if it were applied
+        now.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      responses:
+        "200":
+          description: The operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tag-operations/{id}/apply:
+    parameters:
+      - $ref: "#/components/parameters/TagOperationId"
+    post:
+      operationId: tagOperations.apply
+      tags: [tag-operations]
+      summary: Apply a proposed tag operation
+      description: |
+        Applies a proposed operation in one transaction: captures the
+        before-snapshot, rewrites the tag rows, aliases and problem mappings,
+        and records the decider. The payload is validated again against the
+        current state (422 or 409 when it no longer holds). An operation that
+        is already decided is a 409.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:apply]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The applied operation, with its `result`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tag-operations/{id}/reject:
+    parameters:
+      - $ref: "#/components/parameters/TagOperationId"
+    post:
+      operationId: tagOperations.reject
+      tags: [tag-operations]
+      summary: Reject a proposed tag operation
+      description: |
+        Marks a proposed operation rejected and records the decider. Nothing
+        else changes. An operation that is already decided is a 409.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:apply]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The rejected operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tag-operations/{id}/revert:
+    parameters:
+      - $ref: "#/components/parameters/TagOperationId"
+    post:
+      operationId: tagOperations.revert
+      tags: [tag-operations]
+      summary: Revert an applied tag operation
+      description: |
+        Restores the operation's before-snapshot in one transaction: the tag
+        rows, aliases and problem mappings it recorded come back, and tags the
+        operation created are removed. The operation keeps status `applied`
+        and gains `reverted_at` and `reverted_by`. A 409 means the operation is
+        not applied, was already reverted, or a later applied operation
+        touched the same tags (revert that one first).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:apply]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The reverted operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     sessionCookie:
@@ -242,6 +2046,55 @@ components:
         minimum: 1
         maximum: 200
         default: 50
+    TagRef:
+      name: tag
+      in: path
+      required: true
+      description: A tag ID, slug or alias.
+      schema:
+        type: string
+    ProblemId:
+      name: id
+      in: path
+      required: true
+      description: A problem ID.
+      schema:
+        type: string
+    QuizId:
+      name: id
+      in: path
+      required: true
+      description: Quiz ID.
+      schema:
+        type: string
+    AttemptId:
+      name: id
+      in: path
+      required: true
+      description: Attempt ID.
+      schema:
+        type: string
+    SessionId:
+      name: id
+      in: path
+      required: true
+      description: Session ID.
+      schema:
+        type: string
+    CardProblemId:
+      name: problem_id
+      in: path
+      required: true
+      description: The ID of the problem the card is for.
+      schema:
+        type: string
+    TagOperationId:
+      name: id
+      in: path
+      required: true
+      description: Tag operation ID.
+      schema:
+        type: string
     IfMatch:
       name: If-Match
       in: header
@@ -268,9 +2121,11 @@ components:
   responses:
     IdempotencyKeyReuse:
       description: >-
-        The `Idempotency-Key` was already used (within 24 h) with a different
-        method, path, query or body. `type` is
-        `urn:quizzotic:problem:idempotency-key-reuse`.
+        The request is unprocessable. Either it failed validation (`type` is
+        `urn:quizzotic:problem:validation`, with per-field `errors`), or the
+        `Idempotency-Key` was already used (within 24 h) with a different
+        method, path, query or body (`type` is
+        `urn:quizzotic:problem:idempotency-key-reuse`).
       content:
         application/problem+json:
           schema:
@@ -282,6 +2137,54 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
   schemas:
+    Me:
+      type: object
+      required: [user, kind, client_id, scopes]
+      properties:
+        user:
+          type: object
+          required: [id, display_name, email, created_at]
+          properties:
+            id:
+              type: string
+            display_name:
+              type: string
+            email:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+        kind:
+          type: string
+          enum: [human, agent]
+        client_id:
+          type: string
+          description: OAuth client that obtained the credential; `web-session` for the web cookie.
+        scopes:
+          type: array
+          description: Effective scopes, sorted. A human holds every scope.
+          items:
+            type: string
+    ProtectedResourceMetadata:
+      type: object
+      description: RFC 9728 OAuth 2.0 Protected Resource Metadata.
+      required: [resource, authorization_servers, scopes_supported, bearer_methods_supported]
+      properties:
+        resource:
+          type: string
+          description: The resource identifier, the server's public URL.
+        authorization_servers:
+          type: array
+          items:
+            type: string
+        scopes_supported:
+          type: array
+          items:
+            type: string
+        bearer_methods_supported:
+          type: array
+          items:
+            type: string
     Problem:
       type: object
       description: RFC 9457 problem details with a stable `type` URI per error.
@@ -402,6 +2305,288 @@ components:
           items:
             type: string
             minLength: 1
+    ProblemStatus:
+      type: string
+      enum: [draft, live, archived]
+    ProblemType:
+      type: string
+      enum: [mcq, cloze, open]
+    Actor:
+      type: object
+      description: Who performed a write.
+      required: [kind, user_id, client_id]
+      properties:
+        kind:
+          type: string
+          enum: [human, agent, system]
+        user_id:
+          type: string
+          description: Empty for a system actor.
+        client_id:
+          type: string
+    ProblemPayload:
+      description: Type-specific payload; the shape follows `type`.
+      oneOf:
+        - $ref: "#/components/schemas/MCQPayload"
+        - $ref: "#/components/schemas/ClozePayload"
+        - $ref: "#/components/schemas/OpenPayload"
+    CreateProblemRequest:
+      type: object
+      additionalProperties: false
+      required: [type, prompt, payload]
+      properties:
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+          minLength: 1
+          description: Markdown. For `cloze`, carries the `{{blank_id}}` markers.
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+          description: Markdown, shown after the answer.
+        source:
+          type: string
+        status:
+          type: string
+          enum: [draft, live]
+          default: draft
+    CreateProblemBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/CreateProblemBatchItem"
+    CreateProblemBatchItem:
+      type: object
+      additionalProperties: false
+      required: [type, prompt, payload]
+      description: A `CreateProblemRequest` plus the tags to attach.
+      properties:
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+          minLength: 1
+          description: Markdown. For `cloze`, carries the `{{blank_id}}` markers.
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+          enum: [draft, live]
+          default: draft
+        tags:
+          type: array
+          maxItems: 50
+          description: Tag IDs, slugs or aliases to attach.
+          items:
+            type: string
+    ProblemBatch:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProblemView"
+    EditProblemRequest:
+      type: object
+      additionalProperties: false
+      required: [change_kind]
+      description: Fields to replace; at least one besides `change_kind`.
+      properties:
+        change_kind:
+          type: string
+          enum: [minor, major]
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+          minLength: 1
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        source:
+          type: string
+    ProblemVersion:
+      type: object
+      description: One immutable revision of a problem.
+      required: [version, type, prompt, payload, explanation, source, change_kind, created_by, created_at]
+      properties:
+        version:
+          type: integer
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        source:
+          type: string
+        change_kind:
+          type: string
+          enum: [minor, major]
+        created_by:
+          $ref: "#/components/schemas/Actor"
+        created_at:
+          type: string
+          format: date-time
+    ProblemVersionList:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProblemVersion"
+    SimilarProblemsRequest:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          description: The prompt text to check.
+        answers:
+          type: array
+          items:
+            type: string
+          description: Answer texts (choices, accepted answers, reference answer).
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 5
+          description: How many candidates to return at most.
+        min_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0
+          description: Drop candidates scoring below this.
+    SimilarProblem:
+      type: object
+      required: [score, problem]
+      properties:
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Token-set Jaccard similarity.
+        problem:
+          $ref: "#/components/schemas/ProblemView"
+    SimilarProblemList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SimilarProblem"
+    ProblemView:
+      type: object
+      description: A problem's current version, with answers.
+      required: [id, status, version, type, prompt, payload, explanation, source, created_by, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        status:
+          $ref: "#/components/schemas/ProblemStatus"
+        version:
+          type: integer
+          description: The current version number.
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        source:
+          type: string
+        created_by:
+          $ref: "#/components/schemas/Actor"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProblemPromptView:
+      type: object
+      description: |
+        What a client shows while answering. Carries no correct answers,
+        reference answer, rubric or explanation.
+      required: [id, status, version, type, prompt, payload]
+      properties:
+        id:
+          type: string
+        status:
+          $ref: "#/components/schemas/ProblemStatus"
+        version:
+          type: integer
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/MCQPromptPayload"
+            - $ref: "#/components/schemas/ClozePromptPayload"
+            - $ref: "#/components/schemas/OpenPromptPayload"
+    MCQPromptPayload:
+      type: object
+      required: [choices, multiple, shuffle]
+      properties:
+        choices:
+          type: array
+          description: Shuffled on each request when `shuffle` is true.
+          items:
+            $ref: "#/components/schemas/MCQChoice"
+        multiple:
+          type: boolean
+        shuffle:
+          type: boolean
+    ClozePromptPayload:
+      type: object
+      required: [blanks]
+      properties:
+        blanks:
+          type: array
+          items:
+            type: object
+            required: [id]
+            properties:
+              id:
+                type: string
+    OpenPromptPayload:
+      type: object
+      description: Empty; the reference answer and rubric are withheld.
+    ProblemPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProblemView"
     PageResult:
       type: object
       description: |
@@ -415,6 +2600,710 @@ components:
         next_cursor:
           type: [string, "null"]
           description: Null on the last page.
+    CreateAttemptRequest:
+      type: object
+      additionalProperties: false
+      required: [problem_id, problem_version, response, latency_ms]
+      properties:
+        problem_id:
+          type: string
+        problem_version:
+          type: integer
+          minimum: 1
+          description: The version the client showed. Must be the current version.
+        response:
+          $ref: "#/components/schemas/AttemptResponse"
+        latency_ms:
+          type: integer
+          minimum: 0
+          description: Milliseconds from showing the prompt to submitting.
+        session_id:
+          type: string
+          description: Review or quiz session the answer belongs to.
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: |
+            Again (1), Hard (2), Good (3), Easy (4). Rating 1 (Again) is
+            invalid when the answer is right: a right `mcq` or `cloze` answer
+            takes 2-4 and a bad value returns 422. A wrong answer is always
+            Again whatever is sent. `open` problems take 1-4 and are
+            unscheduled until rated.
+    RebuildRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        user_id:
+          type: string
+          description: Rebuild only this user. Omit to rebuild every user.
+    RebuildResult:
+      type: object
+      required: [users, cards]
+      properties:
+        users:
+          type: integer
+          description: Users whose cards were rebuilt.
+        cards:
+          type: integer
+          description: Cards written.
+    RateAttemptRequest:
+      type: object
+      additionalProperties: false
+      required: [rating]
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: >-
+            Again (1), Hard (2), Good (3), Easy (4). Rating 1 (Again) is invalid
+            for a right `mcq` or `cloze` answer and returns 422.
+    AttemptResponse:
+      description: The answer given; the shape follows the problem's type.
+      oneOf:
+        - $ref: "#/components/schemas/MCQResponse"
+        - $ref: "#/components/schemas/ClozeResponse"
+        - $ref: "#/components/schemas/OpenResponse"
+    MCQResponse:
+      type: object
+      additionalProperties: false
+      required: [selected]
+      properties:
+        selected:
+          type: array
+          minItems: 1
+          description: Chosen choice ids; one id unless the problem is `multiple`.
+          items:
+            type: string
+    ClozeResponse:
+      type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        answers:
+          type: object
+          description: Typed text by blank id. A missing blank counts as wrong.
+          additionalProperties:
+            type: string
+    OpenResponse:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text:
+          type: string
+    Attempt:
+      type: object
+      description: One stored answer. Append-only.
+      required: [id, problem_id, problem_version, card_epoch, session_id, response, auto_correct, score, rating, latency_ms, answered_at, client]
+      properties:
+        id:
+          type: string
+        problem_id:
+          type: string
+        problem_version:
+          type: integer
+        card_epoch:
+          type: integer
+          description: Card epoch the version belongs to; a major edit starts a new one.
+        session_id:
+          type: [string, "null"]
+        response:
+          $ref: "#/components/schemas/AttemptResponse"
+        auto_correct:
+          type: [boolean, "null"]
+          description: Null for `open`, which is not auto-graded.
+        score:
+          type: [number, "null"]
+          description: 0-1. Null for an `open` attempt until it is rated.
+        rating:
+          type: [integer, "null"]
+          description: The rating the client sent; null when none was sent.
+        latency_ms:
+          type: integer
+        answered_at:
+          type: string
+          format: date-time
+        client:
+          $ref: "#/components/schemas/Actor"
+    AttemptPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Attempt"
+    AttemptGrade:
+      type: object
+      required: [correct, score, rating, scheduled]
+      properties:
+        correct:
+          type: [boolean, "null"]
+          description: Fully right; null for `open`.
+        score:
+          type: [number, "null"]
+          description: 0-1; null for an unrated `open` attempt.
+        rating:
+          type: [integer, "null"]
+          description: >-
+            The rating that applies now (a wrong answer is Again, a right one
+            without a chosen rating is Good); null for an unrated `open` attempt.
+        scheduled:
+          type: boolean
+          description: False while an `open` attempt waits for its rating.
+        blanks:
+          type: object
+          description: Cloze only. Whether each blank was right, by blank id.
+          additionalProperties:
+            type: boolean
+    AttemptResult:
+      type: object
+      required: [attempt, grade, answer, explanation, next_due]
+      properties:
+        attempt:
+          $ref: "#/components/schemas/Attempt"
+        grade:
+          $ref: "#/components/schemas/AttemptGrade"
+        answer:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        next_due:
+          type: [string, "null"]
+          format: date-time
+          description: The card's next due time; null while the attempt is unscheduled (an open attempt still waiting for its rating).
+    SessionKind:
+      type: string
+      enum: [review, quiz]
+    SessionItemKind:
+      type: string
+      description: >-
+        `review` is a card that was due, `new` a problem with no card yet,
+        `quiz` a problem served by a quiz session.
+      enum: [review, new, quiz]
+    CreateSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          $ref: "#/components/schemas/SessionKind"
+        quiz_id:
+          type: string
+          description: The quiz to serve. Required for `quiz`, not allowed for `review`.
+        shuffle:
+          type: boolean
+          default: false
+          description: >-
+            Quiz only: serve the quiz's problems in an order that is a pure
+            function of the session ID instead of the authored order. `true`
+            on a review session is refused with 422.
+    SessionItem:
+      type: object
+      required: [position, problem_id, card_epoch, kind, answered]
+      properties:
+        position:
+          type: integer
+          minimum: 0
+        problem_id:
+          type: string
+        card_epoch:
+          type: integer
+          description: The card epoch the item was frozen at.
+        kind:
+          $ref: "#/components/schemas/SessionItemKind"
+        answered:
+          type: boolean
+    Session:
+      type: object
+      required: [id, kind, quiz_id, items, answered, created_at, completed_at]
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: "#/components/schemas/SessionKind"
+        quiz_id:
+          type: [string, "null"]
+        items:
+          type: array
+          description: The frozen list in serving order. Only appends ever change it.
+          items:
+            $ref: "#/components/schemas/SessionItem"
+        answered:
+          type: integer
+          description: How many items have been answered.
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+    SessionNextItem:
+      type: object
+      required: [position, kind, problem]
+      properties:
+        position:
+          type: integer
+          minimum: 0
+        kind:
+          $ref: "#/components/schemas/SessionItemKind"
+        problem:
+          $ref: "#/components/schemas/ProblemPromptView"
+    SessionNext:
+      type: object
+      required: [session_id, remaining, item]
+      properties:
+        session_id:
+          type: string
+        remaining:
+          type: integer
+          minimum: 0
+          description: Unanswered items still servable, `item` included.
+        item:
+          oneOf:
+            - $ref: "#/components/schemas/SessionNextItem"
+            - type: "null"
+    CardState:
+      type: string
+      enum: [new, learning, review, relearning]
+    Card:
+      type: object
+      required: [problem_id, card_epoch, state, step, stability, difficulty, due, last_review, reps, lapses]
+      properties:
+        problem_id:
+          type: string
+        card_epoch:
+          type: integer
+        state:
+          $ref: "#/components/schemas/CardState"
+        step:
+          type: integer
+          description: Index into the learning steps while the card is in a learning state.
+        stability:
+          type: number
+        difficulty:
+          type: number
+        due:
+          type: string
+          format: date-time
+        last_review:
+          type: [string, "null"]
+          format: date-time
+        reps:
+          type: integer
+        lapses:
+          type: integer
+    CardPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Card"
+    TagStatus:
+      type: string
+      enum: [active, merged, retired]
+    Tag:
+      type: object
+      required: [id, slug, name, description, status, merged_into, aliases, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+          description: Lowercase words joined by hyphens; unique among the owner's active tags.
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/TagStatus"
+        merged_into:
+          type: [string, "null"]
+          description: ID of the tag this one was merged into; null unless `status` is `merged`.
+        aliases:
+          type: array
+          description: Old slugs that still resolve to this tag, sorted.
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TagCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        slug:
+          type: string
+          maxLength: 64
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+          description: Derived from `name` when omitted.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+    TagUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        slug:
+          type: string
+          maxLength: 64
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+    TagPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Tag"
+    TagList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+    SetProblemTags:
+      type: object
+      additionalProperties: false
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          maxItems: 50
+          description: Tag IDs, slugs or aliases.
+          items:
+            type: string
+    TaggedProblem:
+      type: object
+      description: A problem with the content of its current version.
+      required: [id, status, current_version, type, prompt, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [draft, live, archived]
+        current_version:
+          type: integer
+        type:
+          type: string
+          enum: [mcq, cloze, open]
+        prompt:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TaggedProblemPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/TaggedProblem"
+    QuizStatus:
+      type: string
+      enum: [draft, live, archived]
+    QuizItem:
+      type: object
+      required: [problem_id, position]
+      properties:
+        problem_id:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+          description: Zero-based position in the quiz.
+    Quiz:
+      type: object
+      required: [id, title, description, status, created_by, items, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/QuizStatus"
+        created_by:
+          $ref: "#/components/schemas/Actor"
+        items:
+          type: array
+          description: The quiz's problems in order.
+          items:
+            $ref: "#/components/schemas/QuizItem"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    QuizCreate:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        status:
+          $ref: "#/components/schemas/QuizStatus"
+        problem_ids:
+          type: array
+          maxItems: 500
+          description: Initial items in order.
+          items:
+            type: string
+    QuizUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        status:
+          $ref: "#/components/schemas/QuizStatus"
+    QuizSetItems:
+      type: object
+      additionalProperties: false
+      required: [problem_ids]
+      properties:
+        problem_ids:
+          type: array
+          maxItems: 500
+          description: Problem IDs in the desired order; no duplicates.
+          items:
+            type: string
+    QuizPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Quiz"
+    TagOperationStatus:
+      type: string
+      enum: [proposed, applied, rejected]
+    TagOperationKind:
+      type: string
+      enum: [rename, merge, split]
+    TagOperationCreate:
+      type: object
+      additionalProperties: false
+      required: [kind, payload]
+      properties:
+        kind:
+          $ref: "#/components/schemas/TagOperationKind"
+        payload:
+          description: |
+            Kind-specific input. `rename`: `{tag, slug?, name?}`. `merge`:
+            `{sources[], target}`. `split`: `{source, targets[], assignments,
+            retire_source}`, where each target is `{ref}` (an existing tag) or
+            `{new: {name, slug?, description?}}`, and `assignments` maps a
+            problem ID to the target IDs, slugs or new-tag slugs it moves to.
+            Tags are given by ID, slug or alias.
+          oneOf:
+            - $ref: "#/components/schemas/RenamePayload"
+            - $ref: "#/components/schemas/MergePayload"
+            - $ref: "#/components/schemas/SplitPayload"
+        apply:
+          type: boolean
+          default: false
+          description: Apply at once instead of proposing. Needs `tags:apply`.
+    RenamePayload:
+      type: object
+      required: [tag]
+      properties:
+        tag:
+          type: string
+        slug:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 200
+    MergePayload:
+      type: object
+      required: [sources, target]
+      properties:
+        sources:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: string
+        target:
+          type: string
+    SplitPayload:
+      type: object
+      required: [source, targets]
+      properties:
+        source:
+          type: string
+        targets:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              ref:
+                type: string
+                description: An existing tag. Exactly one of `ref` and `new` is required.
+              new:
+                $ref: "#/components/schemas/TagCreate"
+        assignments:
+          type: object
+          description: Problem ID to the targets it moves to.
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        retire_source:
+          type: boolean
+          default: false
+    TagOperationActor:
+      type: object
+      required: [kind, user_id, client_id]
+      properties:
+        kind:
+          type: string
+          enum: [human, agent, system]
+        user_id:
+          type: string
+        client_id:
+          type: string
+    TagEffect:
+      type: object
+      required: [id, slug, name, status, problems_before, problems_after, created]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/TagStatus"
+        problems_before:
+          type: integer
+          description: Non-deleted problems carrying the tag before the operation; 0 for a tag the operation creates.
+        problems_after:
+          type: integer
+        created:
+          type: boolean
+          description: True for a tag the operation creates.
+    TagOperationEffect:
+      type: object
+      required: [affected_problem_ids, tags]
+      properties:
+        affected_problem_ids:
+          type: array
+          description: Problems whose tag mappings change, ascending.
+          items:
+            type: string
+        tags:
+          type: array
+          description: Every tag the operation touches, with problem counts before and after.
+          items:
+            $ref: "#/components/schemas/TagEffect"
+    TagOperation:
+      type: object
+      required: [id, kind, status, payload, proposed_by, decided_by, created_at, decided_at, applied_at, reverted_by, reverted_at, preview, preview_error, result]
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: "#/components/schemas/TagOperationKind"
+        status:
+          $ref: "#/components/schemas/TagOperationStatus"
+        payload:
+          description: The normalized input, with tags as IDs.
+        proposed_by:
+          $ref: "#/components/schemas/TagOperationActor"
+        decided_by:
+          oneOf:
+            - $ref: "#/components/schemas/TagOperationActor"
+            - type: "null"
+        created_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: [string, "null"]
+          format: date-time
+        applied_at:
+          type: [string, "null"]
+          format: date-time
+        reverted_by:
+          description: Who reverted the operation; null unless it was reverted. A reverted operation keeps status `applied`.
+          oneOf:
+            - $ref: "#/components/schemas/TagOperationActor"
+            - type: "null"
+        reverted_at:
+          type: [string, "null"]
+          format: date-time
+        preview:
+          description: Present on a proposed operation; null otherwise.
+          oneOf:
+            - $ref: "#/components/schemas/TagOperationEffect"
+            - type: "null"
+        preview_error:
+          type: [string, "null"]
+          description: Set instead of `preview` when a proposed operation no longer validates against the current state.
+        result:
+          description: Present on the response that applied the operation; null otherwise.
+          oneOf:
+            - $ref: "#/components/schemas/TagOperationEffect"
+            - type: "null"
+    TagOperationPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/TagOperation"
     Health:
       type: object
       required: [status]

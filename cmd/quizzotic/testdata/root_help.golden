@@ -1,0 +1,3 @@
+usage: quizzotic <command> [flags]
+commands: serve, mcp, admin, login, logout, version
+api resources: attempts, auth, cards, meta, problems, quizzes, sessions, tag-operations, tags (run "quizzotic <resource>" for actions)

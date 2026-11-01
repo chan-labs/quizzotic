@@ -13,10 +13,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/chan-labs/quizzotic/internal/admin"
+	"github.com/chan-labs/quizzotic/internal/cli"
 	"github.com/chan-labs/quizzotic/internal/config"
+	"github.com/chan-labs/quizzotic/internal/mcp"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/server"
 )
@@ -41,13 +44,27 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return admin.Run(context.Background(), args[1:], stdout, stderr)
 	case "serve":
 		return serve(args[1:], stderr)
+	case "login", "logout":
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		env := cli.Env{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr}
+		if args[0] == "login" {
+			return cli.Login(ctx, args[1:], env)
+		}
+		return cli.Logout(ctx, args[1:], env)
 	case "mcp":
-		fmt.Fprintf(stderr, "quizzotic: %s is not implemented yet\n", args[0])
-		return 1
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		return mcp.Run(ctx, args[1:], cli.Env{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr}, version)
 	case "help", "-h", "--help":
 		usage(stdout)
 		return 0
 	default:
+		if cli.IsResource(args[0]) {
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			return cli.Run(ctx, args, cli.Env{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr})
+		}
 		fmt.Fprintf(stderr, "quizzotic: unknown command %q\n", args[0])
 		usage(stderr)
 		return 2
@@ -84,5 +101,8 @@ func serve(args []string, stderr io.Writer) int {
 
 func usage(w io.Writer) {
 	fmt.Fprintln(w, "usage: quizzotic <command> [flags]")
-	fmt.Fprintln(w, "commands: serve, mcp, admin, version")
+	fmt.Fprintln(w, "commands: serve, mcp, admin, login, logout, version")
+	if res := cli.Resources(); len(res) > 0 {
+		fmt.Fprintf(w, "api resources: %s (run \"quizzotic <resource>\" for actions)\n", strings.Join(res, ", "))
+	}
 }

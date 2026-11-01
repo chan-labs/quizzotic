@@ -17,6 +17,16 @@
 //
 // newStore is called once per case, so every case starts from an empty store.
 //
+// Both backends call Run: SQLite in internal/store/sqlite and Postgres in
+// internal/store/postgres (CI runs the latter against a service container,
+// locally set QUIZZOTIC_TEST_POSTGRES_URL). A case registered in Run therefore
+// runs on both, and a new repo that only one backend implements fails to
+// compile there, because each backend asserts store.Store. A new migration
+// needs a twin in both migrations/ directories (TestMigrationParity).
+//
+// Stored JSON is compared by value (sameJSON), not bytes: Postgres jsonb
+// normalizes whitespace and key order.
+//
 // # Adding cases for a new repo
 //
 // When a feature task adds a repo interface to store.Store:

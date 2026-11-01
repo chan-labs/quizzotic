@@ -1,0 +1,1347 @@
+=== quizzotic attempts --help ===
+usage: quizzotic attempts <action> [flags]
+actions:
+  create           Answer a problem
+  get              Get an attempt
+  list             List attempts
+  rate             Rate an attempt late
+
+=== quizzotic attempts create --help ===
+usage: quizzotic attempts create [flags]
+
+Answer a problem
+
+Records one attempt. In a single transaction the server grades the
+response, stores the attempt and updates the card, then returns the
+grade, the full answer, the explanation and the card's next due date
+(`next_due`; null for an `open` attempt that has no rating yet).
+
+`problem_version` must be the problem's current version (409
+otherwise, so the client refetches); the problem must be `live`.
+
+`response` depends on the problem type: `mcq` takes the selected
+choice ids, `cloze` a map of blank id to typed text, `open` the typed
+text. `rating` is optional for `mcq` and `cloze` (a right answer
+defaults to Good, a wrong one is always Again) and required for
+`open` to be scheduled. Rating 1 (Again) is invalid when the answer
+is right: it returns 422 with an error on the `rating` field. An
+attempt is never edited afterwards, except that a missing rating may
+be filled in once.
+
+Humans only: agent clients never hold `attempts:write` and get 403.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic attempts get --help ===
+usage: quizzotic attempts get <id> [flags]
+
+Get an attempt
+
+Returns one of the caller's attempts. Agents with `attempts:read` may read.
+
+arguments:
+  <id>  Attempt ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic attempts list --help ===
+usage: quizzotic attempts list [flags]
+
+List attempts
+
+Lists the caller's attempts, oldest first (answer order), with cursor
+pagination. Filters combine with AND. `problem` is a problem ID. `tag`
+accepts a tag ID, slug or alias and keeps attempts at problems that
+carry it. `since` (inclusive) and `until` (exclusive) are RFC 3339
+timestamps bounding `answered_at`. Agents with `attempts:read` may
+read.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --cursor
+      Opaque cursor from a previous page's `next_cursor`.
+  --limit
+      Page size.
+  --output
+      output format: json or table (default json)
+  --problem
+      Only attempts at this problem ID.
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --since
+      Only attempts answered at or after this RFC 3339 time.
+  --tag
+      Only attempts at problems carrying this tag, named by ID, slug or alias. An unknown tag is answered 422.
+  --until
+      Only attempts answered before this RFC 3339 time.
+
+table columns: id, problem_id, score, rating, answered_at
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic attempts rate --help ===
+usage: quizzotic attempts rate <id> [flags]
+
+Rate an attempt late
+
+Sets the rating of an attempt that has none. The rating can be set
+once, and only within 15 minutes of the attempt (`answered_at`); after
+that the default rating stands. An `open` attempt submitted without a
+rating stays unscheduled and unscored until it is rated here.
+
+The same rules as `POST /attempts` apply: rating 1 (Again) is invalid
+for a right `mcq` or `cloze` answer (422 on the `rating` field), and a
+wrong one is always Again. A successful rating recomputes the card, and
+the response is the same grade, answer and next due date that answering
+returns, with the rated attempt.
+
+Returns 409 when the attempt already has a rating (including one sent
+with the answer) or when the 15 minutes have passed. Humans only:
+agent clients never hold `attempts:write` and get 403.
+
+arguments:
+  <id>  Attempt ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic auth --help ===
+usage: quizzotic auth <action> [flags]
+actions:
+  callback         Complete a web login
+  login            Start a web login
+  logout           End the web session
+
+=== quizzotic auth callback --help ===
+usage: quizzotic auth callback [flags]
+
+Complete a web login
+
+The redirect URI registered with the issuer. Consumes the one-time
+state, exchanges the code, verifies the ID token (signature, `iss`,
+`aud`, `exp`, `nonce`), provisions the user on first login, creates a
+server-side session and sets the session cookie (HttpOnly, Secure,
+SameSite=Lax, 30-day sliding expiry).
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --code
+      
+  --error
+      Error code from the issuer; the login is rejected.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --state
+      
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic auth login --help ===
+usage: quizzotic auth login [flags]
+
+Start a web login
+
+Starts the OIDC Authorization Code + PKCE flow. Generates and stores
+state, nonce and the PKCE verifier server-side, then redirects the
+browser to the issuer's authorization endpoint.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --return_to
+      Local path to return to after login. Must start with a single `/`; anything else is ignored and `/` is used.
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic auth logout --help ===
+usage: quizzotic auth logout [flags]
+
+End the web session
+
+Deletes the server-side session and clears the cookie. Requires the
+session's CSRF token, as form field `csrf_token` or header
+`X-CSRF-Token`. With no valid session it only clears the cookie.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic cards --help ===
+usage: quizzotic cards <action> [flags]
+actions:
+  get              Get a card
+  list             List cards
+
+=== quizzotic cards get --help ===
+usage: quizzotic cards get <problem_id> [flags]
+
+Get a card
+
+Returns the caller's card for a problem. Answers 404 when the problem
+does not exist or has no card yet (it has not been answered, or is not
+live). Agents with `attempts:read` may read.
+
+arguments:
+  <problem_id>  The ID of the problem the card is for.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic cards list --help ===
+usage: quizzotic cards list [flags]
+
+List cards
+
+Lists the caller's cards ordered by problem ID, with cursor pagination.
+A card exists once its problem has a scheduled attempt; a problem never
+answered has none. `due_before` keeps cards due strictly before that
+RFC 3339 time. `tag` accepts a tag ID, slug or alias and keeps cards of
+problems that carry it; an unknown tag is answered 422. Agents with
+`attempts:read` may read.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --cursor
+      Opaque cursor from a previous page's `next_cursor`.
+  --due_before
+      Only cards due before this RFC 3339 time.
+  --limit
+      Page size.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --tag
+      Only cards of problems carrying this tag (ID, slug or alias).
+
+table columns: problem_id, state, due, reps, lapses
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic meta --help ===
+usage: quizzotic meta <action> [flags]
+actions:
+  healthz          Liveness probe
+  me               Get the calling principal
+  metrics          Prometheus metrics
+  openapi          Get this OpenAPI document
+  protected-resource OAuth protected-resource metadata
+  readyz           Readiness probe
+
+=== quizzotic meta healthz --help ===
+usage: quizzotic meta healthz [flags]
+
+Liveness probe
+
+Reports that the process is up. Does not check dependencies.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic meta me --help ===
+usage: quizzotic meta me [flags]
+
+Get the calling principal
+
+Returns the user the request acts for, the principal kind (`human` or
+`agent`), the OAuth client ID the credential came from (`web-session`
+for the web cookie) and the effective scopes. Needs any authenticated
+principal; no particular scope.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic meta metrics --help ===
+usage: quizzotic meta metrics [flags]
+
+Prometheus metrics
+
+Prometheus text-format exposition (version 0.0.4) of request counts and
+latency, store errors, attempts recorded and sessions served. Served
+only when `observability.metrics_enabled` is true (default false);
+otherwise the route does not exist. Unauthenticated like the health
+probes, so restrict it at the network level.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic meta openapi --help ===
+usage: quizzotic meta openapi [flags]
+
+Get this OpenAPI document
+
+Returns the OpenAPI 3.1 document describing the API, as YAML.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic meta protected-resource --help ===
+usage: quizzotic meta protected-resource [flags]
+
+OAuth protected-resource metadata
+
+RFC 9728 metadata so remote MCP and OAuth clients can discover the
+authorization server (the configured issuer) and the supported scopes.
+Public; served at the host root.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic meta readyz --help ===
+usage: quizzotic meta readyz [flags]
+
+Readiness probe
+
+Runs every readiness check (store, JWKS, ...). Any failure yields 503.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems --help ===
+usage: quizzotic problems <action> [flags]
+actions:
+  archive          Archive a problem
+  create           Create a problem
+  create-batch     Create up to 100 problems at once
+  delete           Delete a problem
+  edit             Edit a problem
+  get              Get a problem
+  list             List problems
+  publish          Publish a problem
+  similar          Find similar problems
+  versions         List a problem's versions
+
+=== quizzotic problems archive --help ===
+usage: quizzotic problems archive <id> [flags]
+
+Archive a problem
+
+Moves a `live` problem to `archived`, so it leaves review. Any other
+status is 409 (a draft is discarded by deleting it; `archived` is
+terminal). Requires `If-Match` (412 when stale, 428 when missing).
+
+arguments:
+  <id>  A problem ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --if-match
+      ETag of the resource version being updated. A stale value returns 412. [sent as the If-Match header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems create --help ===
+usage: quizzotic problems create [flags]
+
+Create a problem
+
+Creates a problem and its first version. `status` is `draft` (the
+default) or `live`. The payload is validated against the type; every
+failure is listed in `errors` of a 422 response.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems create-batch --help ===
+usage: quizzotic problems create-batch [flags]
+
+Create up to 100 problems at once
+
+Creates every item (a problem plus its tags) in one transaction. The
+batch holds 1 to 100 items. If any item is invalid, nothing is written
+and the 422 response lists the invalid fields of every bad item in
+`errors`, each `field` prefixed with the item's index, for example
+`items[3].payload.choices` or `items[0].tags[1]`. Items are validated
+like `problems.create`; each tag is an ID, slug or alias of one of the
+caller's tags (a merged tag resolves to the tag it was merged into).
+The created problems are returned in request order. The request body
+is limited to 1 MiB.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems delete --help ===
+usage: quizzotic problems delete <id> [flags]
+
+Delete a problem
+
+Soft-deletes the problem from any status. Versions and attempts are
+kept; the problem stops appearing in reads and lists. Requires
+`If-Match` (412 when stale, 428 when missing). Deleting an already
+deleted problem is 404.
+
+arguments:
+  <id>  A problem ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --if-match
+      ETag of the resource version being updated. A stale value returns 412. [sent as the If-Match header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems edit --help ===
+usage: quizzotic problems edit <id> [flags]
+
+Edit a problem
+
+Creates a new version from the current one with the given fields
+replaced; omitted fields keep their value. `change_kind` is required:
+`minor` (typo, wording) keeps the card; `major` (different correct
+answer or question) starts a new card epoch, so earlier attempts stay
+attached to the old epoch. The merged result is validated like a
+create. Requires `If-Match` (412 when stale, 428 when missing).
+
+arguments:
+  <id>  
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --if-match
+      ETag of the resource version being updated. A stale value returns 412. [sent as the If-Match header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems get --help ===
+usage: quizzotic problems get <id> [flags]
+
+Get a problem
+
+Returns the problem's current version. The default `full` view
+includes correct answers, reference answer and rubric. `view=prompt`
+is what a client shows while answering: no correct answers, reference
+answer, rubric or explanation, and MCQ choices shuffled when the
+payload says `shuffle`.
+
+arguments:
+  <id>  
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --view
+      Which view to return. Defaults to `full`. (one of: full, prompt)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems list --help ===
+usage: quizzotic problems list [flags]
+
+List problems
+
+Lists the caller's non-deleted problems, oldest first, with cursor
+pagination. Filters combine with AND. `type` and `q` apply to the
+problem's current version, `created_by_kind` to its creator. `q` is a
+case-insensitive substring match over the prompt. `tag` accepts a tag
+slug or ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --created_by_kind
+      Only problems created by this kind of actor. (one of: human, agent, system)
+  --cursor
+      Opaque cursor from a previous page's `next_cursor`.
+  --limit
+      Page size.
+  --output
+      output format: json or table (default json)
+  --q
+      Case-insensitive substring of the prompt.
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --status
+      Only problems in this status. (one of: draft, live, archived)
+  --tag
+      Only problems carrying this tag, named by ID, slug or alias (a merged tag stands for the tag it was merged into). An unknown tag is answered 422.
+  --type
+      Only problems of this type. (one of: mcq, cloze, open)
+
+table columns: id, status, type, version, prompt
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems publish --help ===
+usage: quizzotic problems publish <id> [flags]
+
+Publish a problem
+
+Moves a `draft` problem to `live`, so it can enter review. Any other
+status is 409 (`live` to `draft` and `archived` to `live` are not
+allowed). Requires `If-Match` (412 when stale, 428 when missing).
+
+arguments:
+  <id>  A problem ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --if-match
+      ETag of the resource version being updated. A stale value returns 412. [sent as the If-Match header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems similar --help ===
+usage: quizzotic problems similar [flags]
+
+Find similar problems
+
+Duplicate check. Tokenizes the given prompt and answers (lowercase
+words and numbers) and ranks the caller's non-deleted problems by
+token-set Jaccard similarity against each problem's current prompt and
+answers (choice texts, accepted cloze answers, or the open reference
+answer). Scores run from 0 to 1; problems sharing no token are never
+returned. Results are ordered by score, highest first. This is a
+read-only query.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+table columns: score, id, type, prompt
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic problems versions --help ===
+usage: quizzotic problems versions <id> [flags]
+
+List a problem's versions
+
+Returns every version of the problem, oldest first, with answers.
+Old versions stay readable after an edit.
+
+arguments:
+  <id>  
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic quizzes --help ===
+usage: quizzotic quizzes <action> [flags]
+actions:
+  create           Create a quiz
+  delete           Delete a quiz
+  get              Get a quiz
+  list             List quizzes
+  set-items        Replace a quiz's items
+  update           Update a quiz
+
+=== quizzotic quizzes create --help ===
+usage: quizzotic quizzes create [flags]
+
+Create a quiz
+
+Creates a quiz, `draft` unless `status` says otherwise. `problem_ids`
+optionally sets the initial items in order; each must be a distinct,
+non-deleted problem of the caller (422 otherwise).
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+table columns: id, title, status
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic quizzes delete --help ===
+usage: quizzotic quizzes delete <id> [flags]
+
+Delete a quiz
+
+Soft-deletes the quiz; it no longer appears in reads or lists.
+Requires `If-Match` (412 when stale, 428 when missing).
+
+arguments:
+  <id>  Quiz ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --if-match
+      ETag of the resource version being updated. A stale value returns 412. [sent as the If-Match header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic quizzes get --help ===
+usage: quizzotic quizzes get <id> [flags]
+
+Get a quiz
+
+Returns the quiz with its items in order.
+
+arguments:
+  <id>  Quiz ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic quizzes list --help ===
+usage: quizzotic quizzes list [flags]
+
+List quizzes
+
+Lists the caller's non-deleted quizzes ordered by ID, each with its
+ordered items. Without `status`, quizzes of every status are listed.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --cursor
+      Opaque cursor from a previous page's `next_cursor`.
+  --limit
+      Page size.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --status
+      Only quizzes with this status. (one of: draft, live, archived)
+
+table columns: id, title, status
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic quizzes set-items --help ===
+usage: quizzotic quizzes set-items <id> [flags]
+
+Replace a quiz's items
+
+Replaces the quiz's ordered problem list; position follows the order
+of `problem_ids`. Each ID must be a distinct, non-deleted problem of
+the caller: an unknown ID, another user's problem or a duplicate is a
+422 naming the entry, and nothing changes. Requires `If-Match`
+(412 when stale, 428 when missing).
+
+arguments:
+  <id>  Quiz ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --if-match
+      ETag of the resource version being updated. A stale value returns 412. [sent as the If-Match header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic quizzes update --help ===
+usage: quizzotic quizzes update <id> [flags]
+
+Update a quiz
+
+Changes the title, description and/or status. Items are replaced
+through `PUT /quizzes/{id}/items`. Requires `If-Match` (412 when
+stale, 428 when missing).
+
+arguments:
+  <id>  Quiz ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --if-match
+      ETag of the resource version being updated. A stale value returns 412. [sent as the If-Match header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic sessions --help ===
+usage: quizzotic sessions <action> [flags]
+actions:
+  complete         Complete a session
+  create           Start a review or quiz session
+  get              Get a session
+  next             Get the next problem of a session
+
+=== quizzotic sessions complete --help ===
+usage: quizzotic sessions complete <id> [flags]
+
+Complete a session
+
+Marks the session completed. Unanswered items are left unanswered; no
+card changes. Completing a completed session returns it unchanged.
+Humans only.
+
+arguments:
+  <id>  Session ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic sessions create --help ===
+usage: quizzotic sessions create [flags]
+
+Start a review or quiz session
+
+Builds and freezes the ordered list of problems to work through, and
+returns it. Humans only: `sessions:write` is never granted to agents.
+
+`kind: review` collects the caller's due cards (lowest current recall
+first, within the daily review budget) and a weighted sample of new
+problems (within the daily new-card budget), interleaving one new card
+after every `new_interval` reviews. The same session ID over the same
+data always builds the same list. The daily budgets are measured
+against the attempt log of the caller's study day, so quiz answers
+count toward them like any other answer.
+
+`kind: quiz` serves the live problems of the quiz named by `quiz_id`
+in authored order, or shuffled when `shuffle` is true. The quiz must be
+`live`; a draft or archived quiz is refused with 422, and so is
+`shuffle` on a review session. Daily limits do not apply to a quiz.
+Answers update cards like any other attempt.
+
+A session with nothing to serve is valid: it is created with no items,
+and `next` reports that nothing remains. Answers join the session by
+sending its `id` as `session_id` to `POST /attempts`.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic sessions get --help ===
+usage: quizzotic sessions get <id> [flags]
+
+Get a session
+
+Returns the session with its frozen list, marking which items have been
+answered. An item is answered when the caller has sent an attempt with
+this session's ID for its problem. Humans only.
+
+arguments:
+  <id>  Session ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic sessions next --help ===
+usage: quizzotic sessions next <id> [flags]
+
+Get the next problem of a session
+
+Returns the first unanswered item of the session as a prompt (no
+correct answers, reference answer or explanation), and how many
+unanswered items remain, this one included. Items whose problem is no
+longer live are skipped.
+
+For a review session, learning-step cards that have come due since the
+session started are first appended to its list, so a card answered
+Again is offered again once its step has elapsed. `item` is null when
+nothing is left to serve right now; a learning card that is not yet due
+may still be appended by a later call. Returns 409 once the session is
+completed. Humans only.
+
+arguments:
+  <id>  Session ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tag-operations --help ===
+usage: quizzotic tag-operations <action> [flags]
+actions:
+  apply            Apply a proposed tag operation
+  get              Get a tag operation
+  list             List tag operations
+  propose          Propose a tag operation
+  reject           Reject a proposed tag operation
+  revert           Revert an applied tag operation
+
+=== quizzotic tag-operations apply --help ===
+usage: quizzotic tag-operations apply <id> [flags]
+
+Apply a proposed tag operation
+
+Applies a proposed operation in one transaction: captures the
+before-snapshot, rewrites the tag rows, aliases and problem mappings,
+and records the decider. The payload is validated again against the
+current state (422 or 409 when it no longer holds). An operation that
+is already decided is a 409.
+
+arguments:
+  <id>  Tag operation ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tag-operations get --help ===
+usage: quizzotic tag-operations get <id> [flags]
+
+Get a tag operation
+
+Returns the operation. A proposed operation carries a live `preview`:
+the problems affected and the resulting tag counts if it were applied
+now.
+
+arguments:
+  <id>  Tag operation ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tag-operations list --help ===
+usage: quizzotic tag-operations list [flags]
+
+List tag operations
+
+Lists the caller's tag operations ordered by ID, optionally only those
+with one status.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --cursor
+      Opaque cursor from a previous page's `next_cursor`.
+  --limit
+      Page size.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --status
+      Only operations with this status. (one of: proposed, applied, rejected)
+
+table columns: id, kind, status
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tag-operations propose --help ===
+usage: quizzotic tag-operations propose [flags]
+
+Propose a tag operation
+
+Validates a rename, merge or split and stores it as `proposed`, with a
+preview of the problems it would move and the resulting tag counts.
+Nothing changes until a human applies it. With `apply: true` the
+operation is applied at once in the same request, which needs the
+`tags:apply` scope (403 otherwise). Tags in the payload may be given
+by ID, slug or alias.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tag-operations reject --help ===
+usage: quizzotic tag-operations reject <id> [flags]
+
+Reject a proposed tag operation
+
+Marks a proposed operation rejected and records the decider. Nothing
+else changes. An operation that is already decided is a 409.
+
+arguments:
+  <id>  Tag operation ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tag-operations revert --help ===
+usage: quizzotic tag-operations revert <id> [flags]
+
+Revert an applied tag operation
+
+Restores the operation's before-snapshot in one transaction: the tag
+rows, aliases and problem mappings it recorded come back, and tags the
+operation created are removed. The operation keeps status `applied`
+and gains `reverted_at` and `reverted_by`. A 409 means the operation is
+not applied, was already reverted, or a later applied operation
+touched the same tags (revert that one first).
+
+arguments:
+  <id>  Tag operation ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tags --help ===
+usage: quizzotic tags <action> [flags]
+actions:
+  create           Create a tag
+  get              Get a tag
+  list             List tags
+  list-problems    List the problems with a tag
+  set-tags         Replace a problem's tags
+  update           Update a tag
+
+=== quizzotic tags create --help ===
+usage: quizzotic tags create [flags]
+
+Create a tag
+
+Creates an active tag. When `slug` is omitted it is derived from
+`name`. The slug must be unique among the caller's active tags and
+must not be an alias of any of their tags (409 otherwise).
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --idempotency-key
+      Client-chosen key; replays within 24 h return the original response. [sent as the Idempotency-Key header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tags get --help ===
+usage: quizzotic tags get <tag> [flags]
+
+Get a tag
+
+The tag is addressed by ID, slug or alias.
+
+arguments:
+  <tag>  A tag ID, slug or alias.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tags list --help ===
+usage: quizzotic tags list [flags]
+
+List tags
+
+Lists the caller's tags ordered by ID. Without `status`, only active
+tags are listed.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --cursor
+      Opaque cursor from a previous page's `next_cursor`.
+  --limit
+      Page size.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --status
+      Only tags with this status. Defaults to `active`. (one of: active, merged, retired)
+
+table columns: slug, name, status
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tags list-problems --help ===
+usage: quizzotic tags list-problems <tag> [flags]
+
+List the problems with a tag
+
+Lists the caller's non-deleted problems carrying the tag, ordered by
+problem ID, with the prompt of their current version.
+
+arguments:
+  <tag>  A tag ID, slug or alias.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --cursor
+      Opaque cursor from a previous page's `next_cursor`.
+  --limit
+      Page size.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+
+table columns: id, status, type, prompt
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tags set-tags --help ===
+usage: quizzotic tags set-tags <id> [flags]
+
+Replace a problem's tags
+
+Replaces the set of tags on a problem. Each entry is a tag ID, slug or
+alias; duplicates are ignored. A merged tag resolves to the tag it was
+merged into. Unknown or retired tags are a 422. Tags attach to the
+problem, not to a version.
+
+arguments:
+  <id>  Problem ID.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic tags update --help ===
+usage: quizzotic tags update <tag> [flags]
+
+Update a tag
+
+Changes the name, description and/or slug. Changing the slug is a
+rename: the old slug becomes an alias of the tag, so it keeps
+resolving. Requires `If-Match` (412 when stale, 428 when missing).
+
+arguments:
+  <tag>  A tag ID, slug or alias.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --data
+      request body: @file.json, or - for stdin
+  --if-match
+      ETag of the resource version being updated. A stale value returns 412. [sent as the If-Match header]
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+  --set
+      set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+

@@ -66,7 +66,7 @@ func TestWriteErrorValidationFieldsAndNoMutation(t *testing.T) {
 
 func TestProblemTypesStableAndDistinct(t *testing.T) {
 	types := []string{TypeBadRequest, TypeValidation, TypeUnauthorized, TypeForbidden, TypeNotFound,
-		TypeMethodNotAllowed, TypeConflict, TypePreconditionFail, TypeTooLarge, TypeInternal}
+		TypeMethodNotAllowed, TypeConflict, TypePreconditionFail, TypePreconditionReq, TypeTooLarge, TypeInternal}
 	seen := map[string]bool{}
 	for _, ty := range types {
 		if !strings.HasPrefix(ty, "urn:quizzotic:problem:") || seen[ty] {

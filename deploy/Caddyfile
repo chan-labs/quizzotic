@@ -1,0 +1,7 @@
+{$URL_SCHEME}://{$POCKET_ID_HOST} {
+	reverse_proxy pocket-id:1411
+}
+
+{$URL_SCHEME}://{$QUIZZOTIC_HOST} {
+	reverse_proxy quizzotic:8080
+}

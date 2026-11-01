@@ -1,5 +1,5 @@
 {{define "content"}}<h1>{{.Title}}</h1>
-{{with .Settings}}
+{{with .Data}}
 {{if .Saved}}<p class="notice" role="status">Settings saved.</p>{{end}}
 {{if .Errors}}<p class="error" role="alert">Fix the highlighted fields.</p>{{end}}
 <form method="post" action="/settings" class="settings">

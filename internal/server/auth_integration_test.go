@@ -135,6 +135,16 @@ type itEnv struct {
 	logs *bytes.Buffer
 }
 
+// metricsText fetches /metrics, which newITEnv serves.
+func (e *itEnv) metricsText(t *testing.T) string {
+	t.Helper()
+	r := e.do(t, "GET", "/metrics", nil, "")
+	if r.code != http.StatusOK {
+		t.Fatalf("/metrics = %d", r.code)
+	}
+	return string(r.body)
+}
+
 // newITEnv wires the production auth (server.AuthOptions) over a real SQLite
 // store and a fake IdP, and mounts it behind the real router and scope guard
 // with test-only scoped operations registered beside the spec's.
@@ -162,6 +172,9 @@ func newITEnv(t *testing.T) *itEnv {
 			{ID: "quizzotic-cli", Kind: "human"},
 			{ID: "quizzotic-agent", Kind: "agent", AllowedScopes: []string{"problems:read", "problems:write"}},
 			{ID: "quizzotic-headless", Kind: "agent", ActsFor: "cli-sub", AllowedScopes: []string{"problems:read"}},
+			{ID: itAttemptReader, Kind: "agent", AllowedScopes: []string{"attempts:read"}},
+			{ID: itTagAgent, Kind: "agent", AllowedScopes: []string{"tags:read", "tags:write", "problems:read"}},
+			{ID: itTagApplier, Kind: "agent", AllowedScopes: []string{"tags:read", "tags:write", "tags:apply"}},
 		},
 	}}
 
@@ -200,7 +213,7 @@ func newITEnv(t *testing.T) *itEnv {
 		}
 	}
 	h := server.Handler(logger, st, auth.NewProvider(idp.srv.URL),
-		append(hopts, server.WithExtraOperations(ops, register))...)
+		append(hopts, server.WithExtraOperations(ops, register), server.WithMetrics(platform.NewMetrics()))...)
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return &itEnv{idp: idp, srv: srv, st: st, logs: logs}
@@ -272,7 +285,7 @@ func (r reply) wantChallenge(t *testing.T) {
 }
 
 // userFor returns the provisioned user ID for sub, or "" when none exists.
-func (e *itEnv) userFor(t *testing.T, sub string) (string, auth.User) {
+func (e *itEnv) userFor(t testing.TB, sub string) (string, auth.User) {
 	t.Helper()
 	id, err := e.st.Identities().GetByIssuerSubject(context.Background(), e.idp.srv.URL, sub)
 	if err != nil {
