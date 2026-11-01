@@ -46,7 +46,7 @@ type opJSON struct {
 	AppliedAt    *string         `json:"applied_at"`
 	RevertedAt   *string         `json:"reverted_at"`
 	RevertedBy   *actorJSON      `json:"reverted_by"`
-	Preview     *effectJSON     `json:"preview"`
+	Preview      *effectJSON     `json:"preview"`
 	PreviewError *string         `json:"preview_error"`
 	Result       *effectJSON     `json:"result"`
 }

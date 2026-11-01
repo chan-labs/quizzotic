@@ -77,7 +77,7 @@ type operationView struct {
 	AppliedAt    *time.Time      `json:"applied_at"`
 	RevertedBy   *actorView      `json:"reverted_by"`
 	RevertedAt   *time.Time      `json:"reverted_at"`
-	Preview     *effectView     `json:"preview"`
+	Preview      *effectView     `json:"preview"`
 	PreviewError *string         `json:"preview_error"`
 	Result       *effectView     `json:"result"`
 }
