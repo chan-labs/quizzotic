@@ -6,9 +6,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/chan-labs/quizzotic/internal/admin"
 )
 
 // version is overridden at build time via -ldflags "-X main.version=...".
@@ -27,7 +30,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "version":
 		fmt.Fprintf(stdout, "quizzotic %s\n", version)
 		return 0
-	case "serve", "mcp", "admin":
+	case "admin":
+		return admin.Run(context.Background(), args[1:], stdout, stderr)
+	case "serve", "mcp":
 		fmt.Fprintf(stderr, "quizzotic: %s is not implemented yet\n", args[0])
 		return 1
 	case "help", "-h", "--help":
