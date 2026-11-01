@@ -84,7 +84,7 @@ func runProblems(t *testing.T, newStore NewStore) {
 			t.Fatal(err)
 		}
 		if gv.ProblemID != p.ID || gv.Version != 1 || gv.Type != v.Type || gv.Prompt != v.Prompt ||
-			string(gv.Payload) != string(v.Payload) || gv.Explanation != v.Explanation ||
+			!sameJSON(gv.Payload, v.Payload) || gv.Explanation != v.Explanation ||
 			gv.Source != v.Source || gv.ChangeKind != problems.ChangeMajor || gv.CreatedBy != v.CreatedBy ||
 			!gv.CreatedAt.Equal(t0) {
 			t.Fatalf("version = %+v", gv)

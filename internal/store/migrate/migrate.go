@@ -63,14 +63,52 @@ func Load(fsys fs.FS, dir string) ([]Migration, error) {
 // versions applied; a second run applies nothing. A migration already
 // recorded under a different name is an error (the history was edited).
 func Up(ctx context.Context, db *sql.DB, fsys fs.FS, dir string) ([]int, error) {
+	return UpDialect(ctx, db, fsys, dir, Dialect{})
+}
+
+// Dialect adapts the bookkeeping SQL to a backend. The zero value is SQLite:
+// ? placeholders and applied_at as Unix milliseconds.
+type Dialect struct {
+	// Rebind rewrites ? placeholders; nil leaves them alone.
+	Rebind func(string) string
+	// AppliedAtType is the column type of schema_migrations.applied_at.
+	AppliedAtType string
+	// AppliedAt converts the apply time to a value of that type.
+	AppliedAt func(time.Time) any
+	// Lock, if set, runs before any migration and returns a release func.
+	// A backend uses it to serialize concurrent migrators.
+	Lock func(ctx context.Context) (release func(), err error)
+}
+
+// UpDialect is Up for a backend with its own bookkeeping dialect.
+func UpDialect(ctx context.Context, db *sql.DB, fsys fs.FS, dir string, d Dialect) ([]int, error) {
 	migs, err := Load(fsys, dir)
 	if err != nil {
 		return nil, err
 	}
+	rebind := d.Rebind
+	if rebind == nil {
+		rebind = func(q string) string { return q }
+	}
+	colType := d.AppliedAtType
+	if colType == "" {
+		colType = "INTEGER"
+	}
+	appliedAt := d.AppliedAt
+	if appliedAt == nil {
+		appliedAt = func(t time.Time) any { return t.UnixMilli() }
+	}
+	if d.Lock != nil {
+		release, err := d.Lock(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("lock migrations: %w", err)
+		}
+		defer release()
+	}
 	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version INTEGER PRIMARY KEY,
 		name TEXT NOT NULL,
-		applied_at INTEGER NOT NULL
+		applied_at `+colType+` NOT NULL
 	)`); err != nil {
 		return nil, fmt.Errorf("create schema_migrations: %w", err)
 	}
@@ -95,8 +133,8 @@ func Up(ctx context.Context, db *sql.DB, fsys fs.FS, dir string) ([]int, error) 
 			tx.Rollback()
 			return applied, fmt.Errorf("migration %04d_%s: %w", m.Version, m.Name, err)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`,
-			m.Version, m.Name, time.Now().UnixMilli()); err != nil {
+		if _, err := tx.ExecContext(ctx, rebind(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`),
+			m.Version, m.Name, appliedAt(time.Now())); err != nil {
 			tx.Rollback()
 			return applied, err
 		}

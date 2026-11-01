@@ -9,6 +9,7 @@ import (
 
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/store"
+	"github.com/chan-labs/quizzotic/internal/store/postgres"
 	"github.com/chan-labs/quizzotic/internal/store/sqlite"
 )
 
@@ -22,7 +23,7 @@ func Open(ctx context.Context, storageURL string) (store.Store, error) {
 	case config.DriverSQLite:
 		return sqlite.Open(ctx, target)
 	case config.DriverPostgres:
-		return nil, fmt.Errorf("postgres: %w (planned for M9.1)", store.ErrNotSupported)
+		return postgres.Open(ctx, target)
 	default:
 		return nil, fmt.Errorf("storage.url: unsupported driver %q", d)
 	}

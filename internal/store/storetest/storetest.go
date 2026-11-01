@@ -4,7 +4,9 @@ package storetest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/chan-labs/quizzotic/internal/store"
@@ -152,4 +154,15 @@ func runTx(t *testing.T, newStore NewStore) {
 			t.Fatalf("count after panic = %d, want 0", n)
 		}
 	})
+}
+
+// sameJSON reports whether a and b hold the same JSON value. Backends may
+// normalize whitespace and key order (Postgres jsonb does), so stored JSON is
+// compared by value, never by bytes.
+func sameJSON(a, b []byte) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	return reflect.DeepEqual(x, y)
 }

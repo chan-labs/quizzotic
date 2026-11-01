@@ -62,9 +62,9 @@ func TestMigrateFromConfigFile(t *testing.T) {
 	}
 }
 
-func TestMigratePostgresNotYetSupported(t *testing.T) {
-	code, _, errs := run(t, "migrate", "--storage-url", "postgres://u:p@db.example.com/q")
-	if code == 0 || !strings.Contains(errs, "not yet supported") {
+func TestMigratePostgresUnreachableDoesNotLeakCredentials(t *testing.T) {
+	code, _, errs := run(t, "migrate", "--storage-url", "postgres://u:p@127.0.0.1:1/q?connect_timeout=2")
+	if code == 0 || !strings.Contains(errs, "postgres") {
 		t.Fatalf("code=%d stderr=%q", code, errs)
 	}
 	if strings.Contains(errs, "u:p") {
