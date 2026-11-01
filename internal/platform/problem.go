@@ -25,6 +25,8 @@ const (
 	TypePreconditionReq  = "urn:quizzotic:problem:precondition-required"
 	TypeTooLarge         = "urn:quizzotic:problem:payload-too-large"
 	TypeInternal         = "urn:quizzotic:problem:internal"
+	// TypeStaleProblemVersion: an attempt answered a version that is no longer current.
+	TypeStaleProblemVersion = "urn:quizzotic:problem:stale-problem-version"
 )
 
 // Problem is an RFC 9457 problem detail. It implements error so services can

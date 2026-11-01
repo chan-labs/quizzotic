@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/domain"
@@ -246,10 +247,10 @@ func WithAPIAuth(a auth.Authenticator) HandlerOption {
 // operation of the pattern the router matched. It panics if the embedded spec
 // cannot be parsed (a build-time invariant covered by tests).
 func NewAPIRouter(a auth.Authenticator) (*platform.Router, *auth.ScopeGuard) {
-	return newAPIRouter(a, me.NewHandler(nil, nil), tags.NewHandler(nil, nil), problems.NewHandler(nil, nil), quizzes.NewHandler(nil, nil), nil, nil)
+	return newAPIRouter(a, me.NewHandler(nil, nil), tags.NewHandler(nil, nil), problems.NewHandler(nil, nil), quizzes.NewHandler(nil, nil), attempts.NewHandler(nil, nil), nil, nil)
 }
 
-func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, problemsH *problems.Handler, quizzesH *quizzes.Handler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
+func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, problemsH *problems.Handler, quizzesH *quizzes.Handler, attemptsH *attempts.Handler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
 	ops, err := openapi.SpecOperations()
 	if err != nil {
 		panic("server: embedded OpenAPI spec: " + err.Error())
@@ -262,6 +263,7 @@ func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, pro
 	tagH.Register(rt)
 	problemsH.Register(rt)
 	quizzesH.Register(rt)
+	attemptsH.Register(rt)
 	if extraRegister != nil {
 		extraRegister(rt)
 	}
@@ -314,7 +316,8 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	problemsSvc := problems.NewService(st.Problems(), store.ProblemsTx(st), clock, domain.NewIDGenerator(clock), popts...)
 	problemsH := problems.NewHandler(problemsSvc, logger)
 	quizzesH := quizzes.NewHandler(quizzes.NewService(store.QuizzesTx(st), problemsSvc, clock, domain.NewIDGenerator(clock)), logger)
-	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, quizzesH, ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
+	attemptsH := attempts.NewHandler(attempts.NewService(store.AttemptsTx(st), problemsSvc, clock, domain.NewIDGenerator(clock)), logger)
+	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, quizzesH, attemptsH, ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
 	// After the scope guard has authenticated the request: replays are per user.
 	rt.UseAfterAuth(platform.Idempotency(st.Idempotency(), clock, func(ctx context.Context) (domain.ID, bool) {
 		p, ok := auth.PrincipalFrom(ctx)

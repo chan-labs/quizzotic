@@ -71,6 +71,8 @@ tags:
     description: Problems and their versions.
   - name: quizzes
     description: Quizzes and their ordered items.
+  - name: attempts
+    description: Answers to problems and their grades.
 paths:
   /me:
     get:
@@ -563,6 +565,73 @@ paths:
           $ref: "#/components/responses/Problem"
         "404":
           $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /attempts:
+    post:
+      operationId: attempts.create
+      tags: [attempts]
+      summary: Answer a problem
+      description: |
+        Records one attempt. In a single transaction the server grades the
+        response, stores the attempt and updates the card, then returns the
+        grade, the full answer, the explanation and the card's next due date
+        (null until scheduling lands, and for an `open` attempt that has no
+        rating yet).
+
+        `problem_version` must be the problem's current version (409
+        otherwise, so the client refetches); the problem must be `live`.
+
+        `response` depends on the problem type: `mcq` takes the selected
+        choice ids, `cloze` a map of blank id to typed text, `open` the typed
+        text. `rating` is optional for `mcq` and `cloze` (a right answer
+        defaults to Good, a wrong one is always Again) and required for
+        `open` to be scheduled. Rating 1 (Again) is invalid when the answer
+        is right: it returns 422 with an error on the `rating` field. An
+        attempt is never edited afterwards, except that a missing rating may
+        be filled in once.
+
+        Humans only: agent clients never hold `attempts:write` and get 403.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:write]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAttemptRequest"
+      responses:
+        "201":
+          description: The graded attempt.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: >-
+            The problem is not live, or `problem_version` is not its current
+            version (`type` is `urn:quizzotic:problem:stale-problem-version`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
         default:
           $ref: "#/components/responses/Problem"
   /openapi.yaml:
@@ -2039,6 +2108,143 @@ components:
         next_cursor:
           type: [string, "null"]
           description: Null on the last page.
+    CreateAttemptRequest:
+      type: object
+      additionalProperties: false
+      required: [problem_id, problem_version, response, latency_ms]
+      properties:
+        problem_id:
+          type: string
+        problem_version:
+          type: integer
+          minimum: 1
+          description: The version the client showed. Must be the current version.
+        response:
+          $ref: "#/components/schemas/AttemptResponse"
+        latency_ms:
+          type: integer
+          minimum: 0
+          description: Milliseconds from showing the prompt to submitting.
+        session_id:
+          type: string
+          description: Review or quiz session the answer belongs to.
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: |
+            Again (1), Hard (2), Good (3), Easy (4). Rating 1 (Again) is
+            invalid when the answer is right: a right `mcq` or `cloze` answer
+            takes 2-4 and a bad value returns 422. A wrong answer is always
+            Again whatever is sent. `open` problems take 1-4 and are
+            unscheduled until rated.
+    AttemptResponse:
+      description: The answer given; the shape follows the problem's type.
+      oneOf:
+        - $ref: "#/components/schemas/MCQResponse"
+        - $ref: "#/components/schemas/ClozeResponse"
+        - $ref: "#/components/schemas/OpenResponse"
+    MCQResponse:
+      type: object
+      additionalProperties: false
+      required: [selected]
+      properties:
+        selected:
+          type: array
+          minItems: 1
+          description: Chosen choice ids; one id unless the problem is `multiple`.
+          items:
+            type: string
+    ClozeResponse:
+      type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        answers:
+          type: object
+          description: Typed text by blank id. A missing blank counts as wrong.
+          additionalProperties:
+            type: string
+    OpenResponse:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text:
+          type: string
+    Attempt:
+      type: object
+      description: One stored answer. Append-only.
+      required: [id, problem_id, problem_version, card_epoch, session_id, response, auto_correct, score, rating, latency_ms, answered_at, client]
+      properties:
+        id:
+          type: string
+        problem_id:
+          type: string
+        problem_version:
+          type: integer
+        card_epoch:
+          type: integer
+          description: Card epoch the version belongs to; a major edit starts a new one.
+        session_id:
+          type: [string, "null"]
+        response:
+          $ref: "#/components/schemas/AttemptResponse"
+        auto_correct:
+          type: [boolean, "null"]
+          description: Null for `open`, which is not auto-graded.
+        score:
+          type: [number, "null"]
+          description: 0-1. Null for an `open` attempt until it is rated.
+        rating:
+          type: [integer, "null"]
+          description: The rating the client sent; null when none was sent.
+        latency_ms:
+          type: integer
+        answered_at:
+          type: string
+          format: date-time
+        client:
+          $ref: "#/components/schemas/Actor"
+    AttemptGrade:
+      type: object
+      required: [correct, score, rating, scheduled]
+      properties:
+        correct:
+          type: [boolean, "null"]
+          description: Fully right; null for `open`.
+        score:
+          type: [number, "null"]
+          description: 0-1; null for an unrated `open` attempt.
+        rating:
+          type: [integer, "null"]
+          description: >-
+            The rating that applies now (a wrong answer is Again, a right one
+            without a chosen rating is Good); null for an unrated `open` attempt.
+        scheduled:
+          type: boolean
+          description: False while an `open` attempt waits for its rating.
+        blanks:
+          type: object
+          description: Cloze only. Whether each blank was right, by blank id.
+          additionalProperties:
+            type: boolean
+    AttemptResult:
+      type: object
+      required: [attempt, grade, answer, explanation, next_due]
+      properties:
+        attempt:
+          $ref: "#/components/schemas/Attempt"
+        grade:
+          $ref: "#/components/schemas/AttemptGrade"
+        answer:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        next_due:
+          type: [string, "null"]
+          format: date-time
+          description: The card's next due time; null until scheduling lands or while unrated.
     TagStatus:
       type: string
       enum: [active, merged, retired]
