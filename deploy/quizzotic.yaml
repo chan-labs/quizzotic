@@ -1,0 +1,27 @@
+# Sample Quizzotic config for deploy/docker-compose.yaml.
+# server.public_url, the issuer URL and the web client secret are overridden
+# by the compose file from .env; the values here are placeholders.
+server:
+  listen: ":8080"
+  public_url: "https://quizzotic.example.com"
+storage:
+  url: "sqlite:///data/quizzotic.db"
+  auto_migrate: true
+auth:
+  issuers:
+    - name: "pocketid"
+      issuer: "https://auth.example.com"
+      audience: "quizzotic"
+      scopes: ["openid", "profile", "email"]
+      clients:
+        - id: "quizzotic-web"
+          kind: "human"
+          secret: ""             # from QUIZZOTIC_WEB_CLIENT_SECRET in .env
+        - id: "quizzotic-cli"
+          kind: "human"
+        - id: "quizzotic-agent"
+          kind: "agent"
+          allowed_scopes: ["problems:read", "problems:write", "tags:read", "tags:write", "quizzes:read", "quizzes:write", "metrics:read"]
+logging:
+  level: "info"
+  format: "json"

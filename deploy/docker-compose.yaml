@@ -1,0 +1,91 @@
+# Quizzotic + Pocket ID example. See deploy/README.md.
+#
+#   cp .env.example .env     # then edit it
+#   docker compose up -d
+#
+# Caddy terminates TLS for both hosts. Inside the compose network the same
+# hostnames resolve to Caddy (see the aliases), so Quizzotic reaches the
+# issuer at exactly the URL browsers use, as OIDC requires.
+name: quizzotic
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      URL_SCHEME: ${URL_SCHEME:-https}
+      QUIZZOTIC_HOST: ${QUIZZOTIC_HOST:?set QUIZZOTIC_HOST in .env}
+      POCKET_ID_HOST: ${POCKET_ID_HOST:?set POCKET_ID_HOST in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    networks:
+      default:
+        aliases:
+          - ${QUIZZOTIC_HOST}
+          - ${POCKET_ID_HOST}
+
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:${POCKET_ID_TAG:-v1}
+    restart: unless-stopped
+    environment:
+      APP_URL: ${URL_SCHEME:-https}://${POCKET_ID_HOST}
+      ENCRYPTION_KEY: ${POCKET_ID_ENCRYPTION_KEY:?set POCKET_ID_ENCRYPTION_KEY in .env}
+      TRUST_PROXY: "true"
+    volumes:
+      - pocket-id-data:/app/data
+    healthcheck:
+      test: ["CMD", "/app/pocket-id", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Named volumes are created root-owned; the Quizzotic image runs as uid 65532.
+  quizzotic-data-init:
+    image: busybox:1.37
+    command: ["chown", "-R", "65532:65532", "/data"]
+    volumes:
+      - quizzotic-data:/data
+    restart: "no"
+
+  quizzotic:
+    image: ${QUIZZOTIC_IMAGE:-ghcr.io/chan-labs/quizzotic}:${QUIZZOTIC_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      quizzotic-data-init:
+        condition: service_completed_successfully
+      pocket-id:
+        condition: service_healthy
+    environment:
+      QUIZZOTIC_SERVER_PUBLIC_URL: ${URL_SCHEME:-https}://${QUIZZOTIC_HOST}
+      QUIZZOTIC_AUTH_ISSUERS_0_ISSUER: ${URL_SCHEME:-https}://${POCKET_ID_HOST}
+      QUIZZOTIC_AUTH_ISSUERS_0_CLIENTS_0_SECRET: ${QUIZZOTIC_WEB_CLIENT_SECRET:-}
+    volumes:
+      - ./quizzotic.yaml:/etc/quizzotic/quizzotic.yaml:ro
+      - quizzotic-data:/data
+
+  # The Quizzotic image is distroless (no shell, no curl), so it cannot run a
+  # healthcheck on itself. This probe shares its network namespace and polls
+  # /healthz, which makes `docker compose ps` report Quizzotic's health.
+  quizzotic-health:
+    image: curlimages/curl:8.11.1
+    restart: unless-stopped
+    network_mode: service:quizzotic
+    entrypoint: ["sleep", "infinity"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      - quizzotic
+
+volumes:
+  caddy-data:
+  pocket-id-data:
+  quizzotic-data:
