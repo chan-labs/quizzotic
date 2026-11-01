@@ -51,7 +51,7 @@ dockers_v2:
       - ghcr.io/chan-labs/quizzotic
     tags:
       - "{{ .Version }}"
-      - latest
+      - '{{ if not .Prerelease }}latest{{ end }}'
     platforms:
       - linux/amd64
       - linux/arm64
