@@ -84,17 +84,27 @@ func (scratch) CountIdentities(ctx context.Context, s store.Store) (int, error) 
 	return n, err
 }
 
+// newConformanceStore is a fresh, migrated store in its own schema.
+func newConformanceStore(t *testing.T) (store.Store, storetest.Scratch) {
+	s := newSchemaStore(t)
+	if _, err := s.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DB().Exec(`CREATE TABLE storetest_scratch (n INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	return s, scratch{}
+}
+
 // TestConformance runs the shared suite; every case gets its own schema.
 func TestConformance(t *testing.T) {
 	testURL(t)
-	storetest.Run(t, func(t *testing.T) (store.Store, storetest.Scratch) {
-		s := newSchemaStore(t)
-		if _, err := s.Migrate(context.Background()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := s.DB().Exec(`CREATE TABLE storetest_scratch (n INTEGER)`); err != nil {
-			t.Fatal(err)
-		}
-		return s, scratch{}
-	})
+	storetest.Run(t, newConformanceStore)
+}
+
+// TestConformanceRebuild10k is the M4.8 check at full size (the shared suite
+// scales it down under the race detector, where SQLite is slow).
+func TestConformanceRebuild10k(t *testing.T) {
+	testURL(t)
+	storetest.RunRebuild10k(t, newConformanceStore)
 }

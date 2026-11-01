@@ -75,8 +75,11 @@ func (c Cards) CardUpdater(tx Store) attempts.CardUpdater { return c.Projector(t
 func (c Cards) MajorEdit(tx Store) problems.MajorEditHandler { return c.Projector(tx) }
 
 // Service is the review service over s: RebuildUser and RecomputeCards, each
-// in one transaction.
-func (c Cards) Service(s Store) *review.Service { return review.NewService(reviewTx{s, c}) }
+// in one transaction, and RebuildAll / RebuildOne over s's users. opts are
+// applied after the store's own wiring (for example review.WithLogger).
+func (c Cards) Service(s Store, opts ...review.ServiceOption) *review.Service {
+	return review.NewService(reviewTx{s, c}, append([]review.ServiceOption{review.WithUsers(s.Users())}, opts...)...)
+}
 
 type reviewTx struct {
 	s Store

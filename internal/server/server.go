@@ -279,10 +279,10 @@ func WithAPIAuth(a auth.Authenticator) HandlerOption {
 // cannot be parsed (a build-time invariant covered by tests).
 func NewAPIRouter(a auth.Authenticator) (*platform.Router, *auth.ScopeGuard) {
 	return newAPIRouter(a, me.NewHandler(nil, nil), tags.NewHandler(nil, nil), problems.NewHandler(nil, nil), quizzes.NewHandler(nil, nil), attempts.NewHandler(nil, nil),
-		review.NewSessionHandler(nil, nil), review.NewCardHandler(nil, nil), nil, nil)
+		review.NewSessionHandler(nil, nil), review.NewCardHandler(nil, nil), review.NewAdminHandler(nil, nil), nil, nil)
 }
 
-func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, problemsH *problems.Handler, quizzesH *quizzes.Handler, attemptsH *attempts.Handler, sessionsH *review.SessionHandler, cardsH *review.CardHandler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
+func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, problemsH *problems.Handler, quizzesH *quizzes.Handler, attemptsH *attempts.Handler, sessionsH *review.SessionHandler, cardsH *review.CardHandler, adminH *review.AdminHandler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
 	ops, err := openapi.SpecOperations()
 	if err != nil {
 		panic("server: embedded OpenAPI spec: " + err.Error())
@@ -298,6 +298,7 @@ func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, pro
 	attemptsH.Register(rt)
 	sessionsH.Register(rt)
 	cardsH.Register(rt)
+	adminH.Register(rt)
 	if extraRegister != nil {
 		extraRegister(rt)
 	}
@@ -367,7 +368,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		cardTags = ho.tags
 	}
 	cardsH := review.NewCardHandler(review.NewCardService(st.Cards(), cardTags), logger)
-	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, quizzesH, attemptsH, sessionsH, cardsH, ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
+	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, quizzesH, attemptsH, sessionsH, cardsH, review.NewAdminHandler(cards.Service(st, review.WithLogger(logger)), logger), ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
 	// After the scope guard has authenticated the request: replays are per user.
 	rt.UseAfterAuth(platform.Idempotency(st.Idempotency(), clock, func(ctx context.Context) (domain.ID, bool) {
 		p, ok := auth.PrincipalFrom(ctx)

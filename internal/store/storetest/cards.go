@@ -233,6 +233,7 @@ type cardFixture struct {
 	svc   *review.Service
 	user  domain.ID
 	actor domain.Actor
+	ids   *domain.IDGenerator
 }
 
 func newCardFixture(t *testing.T, newStore NewStore) *cardFixture {
@@ -248,7 +249,7 @@ func newCardFixture(t *testing.T, newStore NewStore) *cardFixture {
 	probs := problems.NewService(s.Problems(), store.ProblemsEditTx(s, cards.MajorEdit), clock, ids)
 	return &cardFixture{t: t, ctx: context.Background(), s: s, clock: clock, cards: cards, probs: probs,
 		atts: attempts.NewService(store.AttemptsCardTx(s, cards.CardUpdater), probs, clock, ids),
-		svc:  cards.Service(s), user: u.ID, actor: domain.Actor{Kind: domain.ActorHuman, UserID: u.ID}}
+		svc:  cards.Service(s), user: u.ID, actor: domain.Actor{Kind: domain.ActorHuman, UserID: u.ID}, ids: ids}
 }
 
 type pkind struct {
@@ -485,7 +486,7 @@ func runCardProjection(t *testing.T, newStore NewStore) {
 		if _, err := f.probs.Archive(f.ctx, f.user, live.ID, v.ETag()); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
+		if _, err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
 			t.Fatal(err)
 		}
 		if l := f.list(); len(l) != 0 {
@@ -514,7 +515,7 @@ func runCardProjection(t *testing.T, newStore NewStore) {
 					t.Error("the other problem lost its card")
 				}
 				before := f.list()
-				if err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
+				if _, err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
 					t.Fatal(err)
 				}
 				if after := f.list(); !reflect.DeepEqual(before, after) {
@@ -587,7 +588,7 @@ func runCardProjection(t *testing.T, newStore NewStore) {
 		if !lo.Due.After(before.Due) || lo.Reps != before.Reps || lo.Stability != before.Stability {
 			t.Errorf("0.80 retention should only push the due date out: before %+v after %+v", before, lo)
 		}
-		if err := f.svc.RebuildUser(f.ctx, f.user); err != nil { // back to the stored (default) retention
+		if _, err := f.svc.RebuildUser(f.ctx, f.user); err != nil { // back to the stored (default) retention
 			t.Fatal(err)
 		}
 		if again, _ := f.card(p.ID); !reflect.DeepEqual(again, before) {
@@ -697,7 +698,7 @@ func runCardRebuildProperty(t *testing.T, newStore NewStore) {
 			if len(incremental) == 0 {
 				t.Fatal("the history produced no cards; the property is vacuous")
 			}
-			if err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
+			if _, err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
 				t.Fatal(err)
 			}
 			rebuilt := f.list()
@@ -706,7 +707,7 @@ func runCardRebuildProperty(t *testing.T, newStore NewStore) {
 					majors, incremental, rebuilt)
 			}
 			// Rebuilding is idempotent.
-			if err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
+			if _, err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
 				t.Fatal(err)
 			}
 			if again := f.list(); !reflect.DeepEqual(rebuilt, again) {

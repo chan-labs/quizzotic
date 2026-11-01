@@ -48,8 +48,8 @@ type Identity struct {
 	LastSeenAt time.Time
 }
 
-// UserRepo persists users. Every method is scoped to the user it names: there
-// is no listing and no cross-user read.
+// UserRepo persists users. Every method is scoped to the user it names, except
+// Sole and ListIDs, which exist for operator tooling.
 type UserRepo interface {
 	// Create inserts a new user row.
 	Create(ctx context.Context, u User) error
@@ -62,6 +62,12 @@ type UserRepo interface {
 	// defaults its owner to the sole user; it reads no user's data beyond the
 	// row it returns.
 	Sole(ctx context.Context) (User, error)
+	// ListIDs returns up to limit user IDs in ascending order, starting after
+	// the given ID (domain.Nil starts at the beginning). A short page means
+	// there are no more. It is a cross-user read for operator tooling that
+	// must visit every user (`admin rebuild`); it returns IDs only, never a
+	// user's data.
+	ListIDs(ctx context.Context, after domain.ID, limit int) ([]domain.ID, error)
 }
 
 // IdentityRepo persists identities.

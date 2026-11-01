@@ -89,6 +89,7 @@ func appRouter() *platform.Router {
 	attempts.NewHandler(nil, nil).Register(rt)
 	review.NewSessionHandler(nil, nil).Register(rt)
 	review.NewCardHandler(nil, nil).Register(rt)
+	review.NewAdminHandler(nil, nil).Register(rt)
 	return rt
 }
 
