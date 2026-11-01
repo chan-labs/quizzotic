@@ -362,7 +362,8 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	attemptsH := attempts.NewHandler(attempts.NewService(store.AttemptsCardTx(st, cards.CardUpdater), problemsSvc, clock,
 		domain.NewIDGenerator(clock), aopts...), logger)
 	// ho.metrics may be nil: Metrics methods tolerate a nil receiver.
-	sessionsH := review.NewSessionHandler(review.NewSessionService(cards.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock)), logger)
+	sessionsSvc := review.NewSessionService(cards.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock))
+	sessionsH := review.NewSessionHandler(sessionsSvc, logger)
 	var cardTags review.TagResolver
 	if ho.tags != nil {
 		cardTags = ho.tags
@@ -389,6 +390,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 			ho.site.UseProblems(problemsSvc, nil)
 		}
 		ho.site.UseDrafts(problemsSvc)
+		ho.site.UseToday(cards.Builder(st), sessionsSvc, clock.Now)
 		ho.site.Register(mux)
 	}
 
