@@ -1,0 +1,13 @@
+{{define "content"}}<h1>{{.Title}}</h1>
+{{with .Data}}
+<dl class="today">
+  <dt>Cards due</dt><dd id="due">{{.Due}}</dd>
+  <dt>Reviews left today</dt><dd id="reviews-left">{{.ReviewsLeft}} <span class="muted">of {{.MaxReviews}}</span></dd>
+  <dt>New cards left today</dt><dd id="new-left">{{.NewLeft}} <span class="muted">of {{.NewPerDay}}</span></dd>
+</dl>
+{{end}}
+<form method="post" action="/review/start">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <button type="submit">Start review</button>
+</form>
+{{end}}
