@@ -203,6 +203,7 @@ func do(h http.Handler, method, path string) *httptest.ResponseRecorder {
 func TestScopeGuard(t *testing.T) {
 	agent := Principal{Kind: KindAgent, Scopes: map[string]bool{"problems:read": true}}
 	human := Principal{Kind: KindHuman}
+	other := Principal{Kind: KindAgent, Scopes: map[string]bool{"tags:read": true}}
 	cases := []struct {
 		name   string
 		a      Authenticator
@@ -221,6 +222,15 @@ func TestScopeGuard(t *testing.T) {
 		{"any one of scopes", fakeAuth{p: agent}, "GET", "/problems/abc", 204},
 		{"agent never attempts:write", fakeAuth{p: agent}, "POST", "/attempts", 403},
 		{"human holds all", fakeAuth{p: human}, "POST", "/attempts", 204},
+		{"HEAD unauthenticated", fakeAuth{err: ErrNoCredentials}, "HEAD", "/problems", 401},
+		{"HEAD missing scope", fakeAuth{p: other}, "HEAD", "/problems", 403},
+		{"HEAD with scope", fakeAuth{p: agent}, "HEAD", "/problems", 204},
+		{"OPTIONS unauthenticated", fakeAuth{err: ErrNoCredentials}, "OPTIONS", "/problems", 401},
+		{"OPTIONS missing scope", fakeAuth{p: other}, "OPTIONS", "/problems", 403},
+		{"OPTIONS with scope", fakeAuth{p: agent}, "OPTIONS", "/problems", 204},
+		{"wrong method unauthenticated", fakeAuth{err: ErrNoCredentials}, "DELETE", "/problems/abc", 401},
+		{"wrong method missing scope", fakeAuth{p: other}, "DELETE", "/problems/abc", 403},
+		{"wrong method with scope", fakeAuth{p: agent}, "DELETE", "/problems/abc", 204},
 		{"unmatched passes to router", fakeAuth{err: ErrNoCredentials}, "GET", "/nope", 204},
 		{"root ops are not guarded here", fakeAuth{err: ErrNoCredentials}, "GET", "/healthz", 204},
 	}

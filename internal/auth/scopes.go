@@ -102,34 +102,66 @@ func literals(segs []string) int {
 	return n
 }
 
-func (g *ScopeGuard) match(method, path string) (openapi.Operation, bool) {
-	segs := split(path)
-next:
-	for _, rt := range g.routes {
-		if rt.op.Method != method || len(rt.segs) != len(segs) {
-			continue
+func (r route) matches(segs []string) bool {
+	if len(r.segs) != len(segs) {
+		return false
+	}
+	for i, s := range r.segs {
+		if !strings.HasPrefix(s, "{") && s != segs[i] {
+			return false
 		}
-		for i, s := range rt.segs {
-			if !strings.HasPrefix(s, "{") && s != segs[i] {
-				continue next
+	}
+	return true
+}
+
+// required reports the scopes (any one of) a request needs and whether the
+// request is guarded at all. HEAD is enforced as the GET operation, as the
+// ServeMux serves it. When the path belongs to operations but none has this
+// method (OPTIONS, wrong method), the request is still guarded by the union of
+// those operations' scopes, so authentication is required before the router
+// answers 405. A request is unguarded only when no operation matches the path
+// or some operation on it needs no scope.
+func (g *ScopeGuard) required(method, path string) ([]string, bool) {
+	segs := split(path)
+	methods := []string{method}
+	if method == http.MethodHead {
+		methods = append(methods, http.MethodGet)
+	}
+	for _, m := range methods {
+		for _, rt := range g.routes {
+			if rt.op.Method == m && rt.matches(segs) {
+				return rt.op.Scopes, len(rt.op.Scopes) > 0
 			}
 		}
-		return rt.op, true
 	}
-	return openapi.Operation{}, false
+	var union []string
+	found := false
+	for _, rt := range g.routes {
+		if !rt.matches(segs) {
+			continue
+		}
+		if len(rt.op.Scopes) == 0 {
+			return nil, false
+		}
+		found = true
+		union = append(union, rt.op.Scopes...)
+	}
+	return union, found
 }
 
 // Middleware wraps the API handler (paths relative to platform.APIPrefix are
 // matched after stripping the prefix). Operations with no required scopes pass
-// through unauthenticated; a request matching no operation passes through to
-// the router's own 404/405. Otherwise the caller must authenticate (401) and
+// through unauthenticated; a request whose path matches no operation passes
+// through to the router's own 404. HEAD is enforced as GET, and OPTIONS or a
+// wrong method on a guarded path must authenticate and hold one of the path's
+// scopes before the router answers 405. Otherwise the caller must authenticate (401) and
 // hold at least one required scope (403), and the Principal is placed in the
 // request context.
 func (g *ScopeGuard) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, platform.APIPrefix)
-		op, ok := g.match(r.Method, path)
-		if !ok || len(op.Scopes) == 0 {
+		scopes, guarded := g.required(r.Method, path)
+		if !guarded {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -147,8 +179,8 @@ func (g *ScopeGuard) Middleware(next http.Handler) http.Handler {
 			platform.WriteError(w, r, platform.Unauthorized(detail))
 			return
 		}
-		if !p.HasAny(op.Scopes) {
-			platform.WriteError(w, r, platform.Forbidden("missing required scope: one of "+strings.Join(op.Scopes, ", ")))
+		if !p.HasAny(scopes) {
+			platform.WriteError(w, r, platform.Forbidden("missing required scope: one of "+strings.Join(scopes, ", ")))
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
