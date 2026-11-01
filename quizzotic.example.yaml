@@ -43,3 +43,5 @@ scheduling:
 logging:
   level: "info"                  # debug, info, warn, error
   format: "json"                 # json or text
+observability:
+  metrics_enabled: false         # serve Prometheus metrics at GET /metrics (unauthenticated; restrict at the network)
