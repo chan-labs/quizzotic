@@ -18,6 +18,7 @@ import (
 func runSnapshots(t *testing.T, newStore NewStore) {
 	t.Run("repo", func(t *testing.T) { runSnapshotRepo(t, newStore) })
 	t.Run("scheduler", func(t *testing.T) { runSnapshotScheduler(t, newStore) })
+	t.Run("backfill", func(t *testing.T) { runBackfill(t, newStore) })
 }
 
 func runSnapshotRepo(t *testing.T, newStore NewStore) {
