@@ -266,6 +266,15 @@ components:
       schema:
         type: boolean
   responses:
+    IdempotencyKeyReuse:
+      description: >-
+        The `Idempotency-Key` was already used (within 24 h) with a different
+        method, path, query or body. `type` is
+        `urn:quizzotic:problem:idempotency-key-reuse`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
     Problem:
       description: An error, as RFC 9457 problem details.
       content:

@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/chan-labs/quizzotic/internal/auth"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 // ErrNotSupported is returned for a backend that is recognized but not built yet.
@@ -29,6 +30,9 @@ type Store interface {
 	// WebSessions and LoginStates back the browser login flow.
 	WebSessions() auth.WebSessionRepo
 	LoginStates() auth.LoginStateRepo
+
+	// Idempotency stores POST responses for Idempotency-Key replay.
+	Idempotency() platform.IdempotencyRepo
 
 	// Migrate applies pending embedded migrations and returns the versions applied.
 	Migrate(ctx context.Context) ([]int, error)
