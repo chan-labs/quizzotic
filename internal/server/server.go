@@ -177,7 +177,7 @@ func authOptions(cfg *config.Config, logger *slog.Logger, st store.Store, idp *a
 	if err != nil {
 		return nil, fmt.Errorf("spec scopes: %w", err)
 	}
-	hopts := []HandlerOption{WithTags(tags.NewService(store.TagsTx(st), clock, ids)), WithIdentity(me.NewService(authSvc, issuer.Issuer, cfg.Server.PublicURL, catalog)), WithAPIAuth(&auth.BearerAuthenticator{
+	hopts := []HandlerOption{WithMCP(cfg.Server.PublicURL), WithTags(tags.NewService(store.TagsTx(st), clock, ids)), WithIdentity(me.NewService(authSvc, issuer.Issuer, cfg.Server.PublicURL, catalog)), WithAPIAuth(&auth.BearerAuthenticator{
 		Verifier: auth.NewVerifier(issuer.Issuer, idp),
 		Audience: issuer.Audience,
 		Resolver: auth.NewResolver(clients, authSvc),
@@ -214,6 +214,8 @@ type handlerOptions struct {
 	site    *web.Web
 	auth    []auth.Authenticator
 	metrics *platform.Metrics
+	mcp     bool
+	mcpURL  string
 	// extra operations and routes registered beside the spec's; set only by
 	// tests, through the same router and guard as production routes.
 	extraOps      []openapi.Operation
@@ -349,5 +351,14 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		ho.metrics.Register(mux)
 	}
 
-	return platform.Tracing(nil)(platform.RequestID(logger)(ho.metrics.Middleware(platform.TraceRoute(mux))))
+	final := platform.Tracing(nil)(platform.RequestID(logger)(ho.metrics.Middleware(platform.TraceRoute(mux))))
+	if ho.mcp {
+		// Tool calls re-enter final, so they pass the same auth and scope checks.
+		mh, err := mcpHandler(auth.Chain(ho.auth), ho.mcpURL, func() http.Handler { return final })
+		if err != nil {
+			panic("server: " + err.Error()) // only a malformed embedded spec fails
+		}
+		mux.Handle("/mcp", mh)
+	}
+	return final
 }
