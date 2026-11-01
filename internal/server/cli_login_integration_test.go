@@ -305,8 +305,12 @@ func (e *loginEnv) run(t *testing.T, r *cliRun, args ...string) (int, string, st
 			}
 			return ""
 		},
-		Now:   func() time.Time { return e.now },
-		Sleep: func(_ context.Context, d time.Duration) error { r.sleeps++; r.pollGap = append(r.pollGap, d); return nil },
+		Now: func() time.Time { return e.now },
+		Sleep: func(_ context.Context, d time.Duration) error {
+			r.sleeps++
+			r.pollGap = append(r.pollGap, d)
+			return nil
+		},
 		OpenBrowser: func(u string) error {
 			if r.opener != nil {
 				return r.opener(u)

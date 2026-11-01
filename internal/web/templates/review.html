@@ -1,0 +1,81 @@
+{{define "content"}}<link rel="stylesheet" href="/static/review.css">
+{{with .Data}}{{$tok := $.CSRFToken}}
+{{if eq .Phase "done"}}
+<section class="review-done">
+  <h1>{{if .Quiz}}Quiz{{else}}Review{{end}} complete</h1>
+  <p id="answered">{{.Answered}} answered.</p>
+  <p><a href="/" data-key="Enter">Back to Today</a></p>
+</section>
+{{else if eq .Phase "prompt"}}
+{{with .Item}}
+<section class="review" data-review-phase="prompt">
+  <p class="muted review-progress">{{if $.Data.Quiz}}Quiz{{else}}Review{{end}} · <span id="remaining">{{$.Data.Remaining}}</span> left</p>
+  {{if $.Data.Error}}<p class="review-error" role="alert">{{$.Data.Error}}</p>{{end}}
+  <form method="post" action="/review/{{$.Data.SessionID}}/answer" id="answer-form" data-latency data-type="{{.Type}}">
+    <input type="hidden" name="csrf_token" value="{{$tok}}">
+    <input type="hidden" name="problem_id" value="{{.ProblemID}}">
+    <input type="hidden" name="problem_version" value="{{.Version}}">
+    <input type="hidden" name="latency_ms" value="0">
+    <div class="prose review-prompt">{{.Prompt}}</div>
+    {{if eq .Type "mcq"}}
+    <fieldset class="choices">
+      <legend class="muted">{{if .Multiple}}Select all that apply (keys 1-9){{else}}Select one (keys 1-9){{end}}</legend>
+      {{range .Choices}}
+      <label class="choice"><input type="{{if $.Data.Item.Multiple}}checkbox{{else}}radio{{end}}" name="selected" value="{{.ID}}"{{if .Key}} data-key="{{.Key}}"{{end}}>
+        {{if .Key}}<kbd>{{.Key}}</kbd>{{end}} <span>{{.Text}}</span></label>
+      {{end}}
+    </fieldset>
+    {{else if eq .Type "open"}}
+    <label class="open-answer">Your answer (optional)
+      <textarea name="text" rows="4" data-submit-enter></textarea></label>
+    {{end}}
+    {{if eq .Type "open"}}
+    <p><button type="submit" data-key="Space">Show answer <kbd>Space</kbd></button></p>
+    {{else}}
+    <p><button type="submit" data-key="Enter">Submit <kbd>Enter</kbd></button></p>
+    {{end}}
+  </form>
+</section>
+{{end}}
+{{else}}
+{{with .Result}}
+<section class="review" data-review-phase="result">
+  <div class="prose review-prompt">{{.Prompt}}</div>
+  {{if .Verdict}}<p class="verdict {{.Verdict}}" id="verdict">{{if eq .Verdict "right"}}Correct{{else}}Incorrect{{end}}</p>{{end}}
+  {{if .Choices}}
+  <ul class="choices result">
+    {{range .Choices}}<li class="{{if .Right}}right{{end}}{{if and .Picked (not .Right)}} wrong{{end}}">{{if .Picked}}<span class="sr-only">You picked: </span>{{end}}{{.Text}}{{if .Right}} <span class="muted">(correct)</span>{{end}}</li>
+    {{end}}
+  </ul>
+  {{end}}
+  {{if .Blanks}}
+  <ul class="blanks">
+    {{range .Blanks}}<li class="{{if .Right}}right{{else}}wrong{{end}}">{{.ID}}: {{.Accepted}}</li>
+    {{end}}
+  </ul>
+  {{end}}
+  {{if .Reference}}
+  <h2>Reference answer</h2>
+  <div class="prose reference">{{.Reference}}</div>
+  {{if .Rubric}}<h3>Key points</h3><ul>{{range .Rubric}}<li>{{.}}</li>{{end}}</ul>{{end}}
+  {{end}}
+  {{if .Explanation}}<div class="prose explanation">{{.Explanation}}</div>{{end}}
+  {{if .NextDue}}<p class="muted">Next due {{.NextDue}}</p>{{end}}
+
+  {{if .Ratings}}
+  <form method="post" action="/review/{{$.Data.SessionID}}/rate" id="rate-form" class="ratings">
+    <input type="hidden" name="csrf_token" value="{{$tok}}">
+    <input type="hidden" name="attempt_id" value="{{.AttemptID}}">
+    <p class="muted">{{if .NeedsRating}}How well did you know it?{{else}}Rate it, or continue to keep the default.{{end}}</p>
+    {{range .Ratings}}<button type="submit" name="rating" value="{{.Value}}" data-key="{{.Value}}"{{if .Default}} class="default"{{end}}>{{.Label}} <kbd>{{.Value}}</kbd></button>
+    {{end}}
+  </form>
+  {{end}}
+  {{if not .NeedsRating}}<p><a class="button" href="/review/{{$.Data.SessionID}}" data-key="Enter">Continue <kbd>Enter</kbd></a></p>
+  {{else}}<p><a href="/review/{{$.Data.SessionID}}">Skip rating</a></p>{{end}}
+</section>
+{{end}}
+{{end}}
+{{end}}
+<script src="/static/review.js" defer></script>
+{{end}}

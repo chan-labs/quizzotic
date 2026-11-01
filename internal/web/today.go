@@ -39,8 +39,7 @@ func (w *Web) UseToday(r TodayReader, s SessionStarter, now func() time.Time) {
 	w.todayPg = todayPages{reader: r, starter: s, now: now}
 }
 
-// reviewPath is where Start review lands. It is a placeholder target: the
-// Review page (M5.3) mounts it.
+// reviewPath is where Start review lands: the Review page.
 func reviewPath(id domain.ID) string { return "/review/" + id.String() }
 
 func (w *Web) registerToday(mux *http.ServeMux) {
