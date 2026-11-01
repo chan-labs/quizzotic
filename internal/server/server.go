@@ -393,6 +393,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		ho.site.UseDrafts(problemsSvc)
 		ho.site.UseQuizzes(quizzesSvc, problemsSvc, sessionsSvc)
 		ho.site.UseToday(cards.Builder(st), sessionsSvc, clock.Now)
+		ho.site.UseSettings(cards.SettingsService(st, review.WithLogger(logger)))
 		ho.site.Register(mux)
 	}
 

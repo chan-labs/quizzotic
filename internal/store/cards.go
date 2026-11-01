@@ -20,8 +20,7 @@ import (
 )
 
 // The review service is the card recompute hook settings.Service takes. It is
-// deliberately not installed here: the server wires the settings service with
-// the settings UI (M5.7).
+// installed by Cards.SettingsService.
 var _ settings.RetentionRecomputer = (*review.Service)(nil)
 
 // Cards wires the card projection (internal/review) into store transactions:
@@ -79,6 +78,13 @@ func (c Cards) MajorEdit(tx Store) problems.MajorEditHandler { return c.Projecto
 // applied after the store's own wiring (for example review.WithLogger).
 func (c Cards) Service(s Store, opts ...review.ServiceOption) *review.Service {
 	return review.NewService(reviewTx{s, c}, append([]review.ServiceOption{review.WithUsers(s.Users())}, opts...)...)
+}
+
+// SettingsService is the settings service over s, with the same defaults the
+// card projection resolves against and the review service installed as the
+// hook that recomputes a user's cards when their desired retention changes.
+func (c Cards) SettingsService(s Store, opts ...review.ServiceOption) *settings.Service {
+	return settings.NewService(SettingsTx(s), c.defaults, settings.WithRetentionRecomputer(c.Service(s, opts...)))
 }
 
 type reviewTx struct {

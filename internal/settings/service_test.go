@@ -201,3 +201,15 @@ func TestServiceStudyDayUsesUserZoneAndRollover(t *testing.T) {
 		t.Fatalf("tokyo: %+v err=%v", sd, err)
 	}
 }
+
+func TestOverridesReturnsStoredOverridesOnly(t *testing.T) {
+	svc, _, id := setup(t)
+	n := 3
+	if _, err := svc.Update(context.Background(), id, Overrides{NewPerDay: &n}); err != nil {
+		t.Fatal(err)
+	}
+	o, err := svc.Overrides(context.Background(), id)
+	if err != nil || o.NewPerDay == nil || *o.NewPerDay != 3 || o.Timezone != nil {
+		t.Fatalf("overrides = %+v, err %v", o, err)
+	}
+}
