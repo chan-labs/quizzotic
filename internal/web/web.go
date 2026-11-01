@@ -39,6 +39,7 @@ type Web struct {
 	tmpl    map[string]*template.Template
 	drafts  Drafts
 	prob    problemPages
+	quiz    quizPages
 	todayPg todayPages
 	sets    SettingsService
 }
@@ -46,7 +47,7 @@ type Web struct {
 type navItem struct{ Href, Label string }
 
 // nav lists the top-level pages. Entries are added as their pages land.
-var nav = []navItem{{"/", "Today"}, {"/drafts", "Drafts"}, {"/problems", "Problems"}, {"/settings", "Settings"}}
+var nav = []navItem{{"/", "Today"}, {"/drafts", "Drafts"}, {"/problems", "Problems"}, {"/quizzes", "Quizzes"}, {"/settings", "Settings"}}
 
 // page is the data every template receives.
 type page struct {
@@ -81,6 +82,9 @@ func New(cfg Config) (*Web, error) {
 	if err := w.parseProblemTemplates(layout); err != nil {
 		return nil, err
 	}
+	if err := w.parseQuizTemplates(layout); err != nil {
+		return nil, err
+	}
 	return w, nil
 }
 
@@ -103,6 +107,7 @@ func (w *Web) Register(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", w.gate(http.HandlerFunc(w.today)))
 	w.registerProblems(mux)
 	w.registerDrafts(mux)
+	w.registerQuizzes(mux)
 	w.registerToday(mux)
 	w.registerSettings(mux)
 }

@@ -1,0 +1,57 @@
+{{define "content"}}<link rel="stylesheet" href="/static/problems.css">
+<link rel="stylesheet" href="/static/quizzes.css">
+{{with .Data}}
+<h1>{{if .New}}New quiz{{else}}Edit quiz{{end}}</h1>
+{{with .Notice}}<p class="notice" role="status">{{.}}</p>{{end}}
+{{if .Conflict}}<p class="errors conflict" role="alert">This quiz changed since you opened it. <a href="/quizzes/{{.F.ID}}">Reload it</a> and make your edits again.</p>{{end}}
+{{if .Errors}}<ul class="errors" role="alert">{{range .Errors}}<li><strong>{{.Field}}</strong>: {{.Detail}}</li>{{end}}</ul>{{end}}
+{{if not .New}}
+<form method="post" action="/quizzes/{{.F.ID}}/start" class="start">
+  <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+  <button type="submit" name="order" value="ordered" class="primary">Start quiz</button>
+  <button type="submit" name="order" value="shuffled">Start shuffled</button>
+  {{if ne .F.Status "live"}}<span class="muted">Only a live quiz can be started.</span>{{end}}
+</form>
+{{end}}
+<form method="get" action="{{if .New}}/quizzes/new{{else}}/quizzes/{{.F.ID}}{{end}}" class="filters" aria-label="Find problems">
+  <label>Find problems to add <input type="search" name="q" value="{{.Q}}"></label>
+  <button type="submit">Search</button>
+</form>
+<form method="post" action="{{if .New}}/quizzes{{else}}/quizzes/{{.F.ID}}{{end}}" class="editor quiz">
+  <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+  <input type="hidden" name="etag" value="{{.F.ETag}}">
+  <label class="block">Title <input type="text" name="title" value="{{.F.Title}}" required maxlength="200"></label>
+  <label class="block">Description <textarea name="description" rows="3">{{.F.Description}}</textarea></label>
+  <label class="block">Status
+    <select name="status">
+      <option value="draft"{{if eq .F.Status "draft"}} selected{{end}}>draft</option>
+      <option value="live"{{if eq .F.Status "live"}} selected{{end}}>live</option>
+      <option value="archived"{{if eq .F.Status "archived"}} selected{{end}}>archived</option>
+    </select></label>
+  <fieldset>
+    <legend>Items, in quiz order</legend>
+    {{if .F.Items}}
+    <table class="quiz-items">
+      <thead><tr><th>Position</th><th>Problem</th><th>Remove</th></tr></thead>
+      <tbody>
+      {{range .F.Items}}<tr>
+        <td><input type="hidden" name="item" value="{{.ID}}"><input type="number" name="pos_{{.ID}}" value="{{.Pos}}" aria-label="Position"></td>
+        <td>{{.Snippet}}</td>
+        <td><input type="checkbox" name="remove_{{.ID}}" value="1"{{if .Remove}} checked{{end}} aria-label="Remove"></td>
+      </tr>
+      {{end}}
+      </tbody>
+    </table>
+    <p class="muted">Renumber positions to reorder; items sort by position when you save.</p>
+    {{else}}<p class="muted">No items yet.</p>{{end}}
+  </fieldset>
+  <fieldset>
+    <legend>Add live problems</legend>
+    {{range .Candidates}}<label><input type="checkbox" name="add" value="{{.ID}}"{{if $.Data.F.Adding .ID}} checked{{end}}> {{.Snippet}}</label>
+    {{else}}<p class="muted">No other live problems{{if .Q}} match{{end}}.</p>{{end}}
+  </fieldset>
+  <button type="submit" class="primary">{{if .New}}Create quiz{{else}}Save{{end}}</button>
+  <a href="/quizzes">Back to quizzes</a>
+</form>
+{{end}}
+{{end}}
