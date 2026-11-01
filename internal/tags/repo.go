@@ -53,6 +53,10 @@ type Repo interface {
 	// active slug or alias returns ErrSlugTaken.
 	Update(ctx context.Context, ownerID domain.ID, t Tag) error
 
+	// Retire sets the tag's status to retired and its updated_at to at. It
+	// returns ErrNotFound for a missing tag. Mappings and aliases are kept.
+	Retire(ctx context.Context, ownerID, id domain.ID, at time.Time) error
+
 	// ProblemIDs returns IDs of the owner's non-deleted problems carrying the
 	// tag, ascending, after the cursor.
 	ProblemIDs(ctx context.Context, ownerID, tagID domain.ID, after domain.ID, limit int) ([]domain.ID, error)
