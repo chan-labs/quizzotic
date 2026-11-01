@@ -304,3 +304,89 @@ func TestAttemptsIdempotencyKey(t *testing.T) {
 		t.Errorf("first = %d, replay = %d replayed=%q\n%s\n%s", first.code, replay.code, replay.header.Get("Idempotency-Replayed"), first.body, replay.body)
 	}
 }
+
+func init() {
+	// POST /attempts/{id}/rating names an attempt in its path. Another user's
+	// attempt must answer 404 and leak nothing.
+	ownerScope.Resource(ownerscope.Resource{
+		Name: "attempt rating",
+		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			prompt := "Rating owner-scope prompt " + domain.NewIDGenerator(domain.SystemClock{}).New().String()
+			body := openBody(prompt)
+			body["status"] = "live"
+			r := c.Do("POST", "/problems", body)
+			if r.Code != http.StatusCreated {
+				t.Fatalf("create problem = %d (%s)", r.Code, r.Body)
+			}
+			var v problems.View
+			if err := json.Unmarshal(r.Body, &v); err != nil {
+				t.Fatal(err)
+			}
+			// An open attempt with no rating, so it can still be rated.
+			r = c.Do("POST", "/attempts", map[string]any{"problem_id": v.ID.String(), "problem_version": 1,
+				"latency_ms": 10, "response": map[string]any{"text": "unrated"}})
+			if r.Code != http.StatusCreated {
+				t.Fatalf("create attempt = %d (%s)", r.Code, r.Body)
+			}
+			var res attemptResult
+			if err := json.Unmarshal(r.Body, &res); err != nil {
+				t.Fatal(err)
+			}
+			return ownerscope.Created{
+				Params:  ownerscope.Params{"id": res.Attempt.ID},
+				Secrets: []string{prompt, "secret reference answer", "unrated"},
+			}
+		},
+		Ops: []ownerscope.Op{{
+			Pattern: "POST /attempts/{id}/rating", WantOwner: http.StatusOK,
+			Body: func(ownerscope.Created) any { return map[string]any{"rating": 3} },
+		}},
+	})
+}
+
+func TestAttemptsLateRating(t *testing.T) {
+	e := newProbEnv(t)
+	live := openBody("Rate me later?")
+	live["status"] = "live"
+	p := e.create(t, e.human, live)
+	rate := func(tok, id string, body any) reply {
+		return e.req(t, "POST", "/attempts/"+id+"/rating", tok, body, nil)
+	}
+
+	unrated := decodeReply[attemptResult](t, e.answer(t, e.human, attemptBody(p, map[string]any{"text": "later"}, nil)))
+	if unrated.Grade.Scheduled || unrated.Attempt.Rating != nil {
+		t.Fatalf("unrated open = %+v", unrated)
+	}
+	id := unrated.Attempt.ID
+
+	if r := rate(e.agent, id, map[string]any{"rating": 3}); r.code != http.StatusForbidden {
+		t.Errorf("agent = %d (%s)", r.code, r.body)
+	}
+	if r := rate("", id, map[string]any{"rating": 3}); r.code != http.StatusUnauthorized {
+		t.Errorf("anonymous = %d", r.code)
+	}
+	if r := rate(e.other, id, map[string]any{"rating": 3}); r.code != http.StatusNotFound {
+		t.Errorf("other user = %d (%s)", r.code, r.body)
+	}
+	for _, body := range []any{map[string]any{}, map[string]any{"rating": 0}, map[string]any{"rating": 5}} {
+		if r := rate(e.human, id, body); r.code != http.StatusUnprocessableEntity {
+			t.Errorf("body %v = %d (%s)", body, r.code, r.body)
+		}
+	}
+	if r := rate(e.human, domain.NewIDGenerator(domain.SystemClock{}).New().String(), map[string]any{"rating": 3}); r.code != http.StatusNotFound {
+		t.Errorf("unknown attempt = %d", r.code)
+	}
+
+	r := rate(e.human, id, map[string]any{"rating": 2})
+	if r.code != http.StatusOK {
+		t.Fatalf("rate = %d (%s)", r.code, r.body)
+	}
+	res := decodeReply[attemptResult](t, r)
+	if !res.Grade.Scheduled || *res.Grade.Rating != 2 || *res.Grade.Score != 0.33 || *res.Attempt.Rating != 2 || *res.Attempt.Score != 0.33 {
+		t.Errorf("rated = %+v", res)
+	}
+	if r := rate(e.human, id, map[string]any{"rating": 4}); r.code != http.StatusConflict ||
+		r.header.Get("Content-Type") != "application/problem+json" {
+		t.Errorf("second rating = %d (%s)", r.code, r.body)
+	}
+}

@@ -634,6 +634,67 @@ paths:
           $ref: "#/components/responses/IdempotencyKeyReuse"
         default:
           $ref: "#/components/responses/Problem"
+  /attempts/{id}/rating:
+    post:
+      operationId: attempts.rate
+      tags: [attempts]
+      summary: Rate an attempt late
+      description: |
+        Sets the rating of an attempt that has none. The rating can be set
+        once, and only within 15 minutes of the attempt (`answered_at`); after
+        that the default rating stands. An `open` attempt submitted without a
+        rating stays unscheduled and unscored until it is rated here.
+
+        The same rules as `POST /attempts` apply: rating 1 (Again) is invalid
+        for a right `mcq` or `cloze` answer (422 on the `rating` field), and a
+        wrong one is always Again. A successful rating recomputes the card, and
+        the response is the same grade, answer and next due date that answering
+        returns, with the rated attempt.
+
+        Returns 409 when the attempt already has a rating (including one sent
+        with the answer) or when the 15 minutes have passed. Humans only:
+        agent clients never hold `attempts:write` and get 403.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [attempts:write]
+      parameters:
+        - $ref: "#/components/parameters/AttemptId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RateAttemptRequest"
+      responses:
+        "200":
+          description: The rated attempt, its grade and the card's next due time.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: The attempt already has a rating, or its 15-minute rating window has closed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
   /openapi.yaml:
     get:
       operationId: meta.openapi
@@ -1596,6 +1657,13 @@ components:
       description: Quiz ID.
       schema:
         type: string
+    AttemptId:
+      name: id
+      in: path
+      required: true
+      description: Attempt ID.
+      schema:
+        type: string
     TagOperationId:
       name: id
       in: path
@@ -2138,6 +2206,18 @@ components:
             takes 2-4 and a bad value returns 422. A wrong answer is always
             Again whatever is sent. `open` problems take 1-4 and are
             unscheduled until rated.
+    RateAttemptRequest:
+      type: object
+      additionalProperties: false
+      required: [rating]
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: >-
+            Again (1), Hard (2), Good (3), Easy (4). Rating 1 (Again) is invalid
+            for a right `mcq` or `cloze` answer and returns 422.
     AttemptResponse:
       description: The answer given; the shape follows the problem's type.
       oneOf:

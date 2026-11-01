@@ -44,6 +44,22 @@ func (m *memRepo) Get(_ context.Context, owner, id domain.ID) (Attempt, error) {
 	return a, nil
 }
 
+func (m *memRepo) SetRating(_ context.Context, owner, id domain.ID, rating int, score *float64) error {
+	a, ok := m.rows[id]
+	if !ok || a.UserID != owner {
+		return ErrNotFound
+	}
+	if a.Rating != nil {
+		return ErrAlreadyRated
+	}
+	a.Rating = &rating
+	if a.Score == nil {
+		a.Score = score
+	}
+	m.rows[id] = a
+	return nil
+}
+
 func (m *memRepo) InTx(_ context.Context, fn func(Repo) error) error {
 	snapshot := map[domain.ID]Attempt{}
 	for k, v := range m.rows {

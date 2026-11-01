@@ -5,6 +5,7 @@ package attempts
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -238,6 +239,104 @@ func validateInput(in AnswerInput, session *domain.ID) []platform.FieldError {
 		*session = id
 	}
 	return fields
+}
+
+// RatingWindow is how long after an attempt its missing rating may still be
+// set. After it, the default rating stands.
+const RatingWindow = 15 * time.Minute
+
+// Rate sets the missing rating of the actor's attempt, once, within
+// RatingWindow of the attempt. It applies the same rating rules as Answer,
+// fills the score of an open attempt, and runs the card hook in the same
+// transaction. An attempt that is already rated, or whose window has closed,
+// is a 409; a rating that does not fit the outcome is a 422 on the rating
+// field (rendered by the handler from the grading error).
+func (s *Service) Rate(ctx context.Context, actor domain.Actor, id domain.ID, rating int) (Result, error) {
+	if actor.Kind != domain.ActorHuman || actor.UserID.IsNil() {
+		return Result{}, platform.Forbidden("only a human can rate attempts")
+	}
+	if rating < grading.RatingAgain || rating > grading.RatingEasy {
+		return Result{}, platform.Validation("the rating is invalid",
+			platform.FieldError{Field: "rating", Detail: "must be between 1 and 4"})
+	}
+
+	// Look the attempt up first to find its problem; the rules run again,
+	// authoritatively, inside the transaction below.
+	var first Attempt
+	if err := s.tx.InTx(ctx, func(r Repo) (err error) { first, err = r.Get(ctx, actor.UserID, id); return err }); err != nil {
+		return Result{}, notFoundAttempt(err)
+	}
+	subj, err := s.problems.ForAnswer(ctx, actor.UserID, first.ProblemID)
+	if err != nil {
+		return Result{}, err
+	}
+
+	var (
+		a       Attempt
+		score   *float64
+		nextDue *time.Time
+		applied int
+	)
+	err = s.tx.InTx(ctx, func(r Repo) error {
+		var err error
+		if a, err = r.Get(ctx, actor.UserID, id); err != nil {
+			return err
+		}
+		if a.Rating != nil {
+			return platform.Conflict("the attempt already has a rating")
+		}
+		if s.clock.Now().Sub(a.AnsweredAt) > RatingWindow {
+			return platform.Conflict("the rating window has closed; it is open for 15 minutes after the attempt")
+		}
+		// An attempt with no auto_correct is an open one: its rating is required
+		// and gives its score. Any other type follows the mcq/cloze rules.
+		typ, correct := problems.TypeMCQ, false
+		if a.AutoCorrect == nil {
+			typ = problems.TypeOpen
+		} else {
+			correct = *a.AutoCorrect
+		}
+		if applied, err = grading.ResolveRating(typ, correct, &rating); err != nil {
+			return err
+		}
+		if a.AutoCorrect == nil {
+			sc, err := grading.OpenScore(applied)
+			if err != nil {
+				return err
+			}
+			score = &sc
+		}
+		if err := r.SetRating(ctx, actor.UserID, id, rating, score); err != nil {
+			return err
+		}
+		a.Rating = &rating
+		if score != nil {
+			a.Score = score
+		}
+		nextDue, err = s.cards.Apply(ctx, a, applied)
+		return err
+	})
+	if err != nil {
+		if errors.Is(err, ErrAlreadyRated) {
+			return Result{}, platform.Conflict("the attempt already has a rating")
+		}
+		return Result{}, notFoundAttempt(err)
+	}
+
+	gv := GradeView{Score: a.Score, Rating: &applied, Scheduled: true}
+	if a.AutoCorrect != nil {
+		c := *a.AutoCorrect
+		gv.Correct = &c
+	}
+	return Result{Attempt: newView(a), Grade: gv, Answer: subj.Payload, Explanation: subj.Explanation, NextDue: nextDue}, nil
+}
+
+// notFoundAttempt turns the repo's ErrNotFound into a 404 problem.
+func notFoundAttempt(err error) error {
+	if errors.Is(err, ErrNotFound) {
+		return platform.NotFound("no such attempt")
+	}
+	return err
 }
 
 func newView(a Attempt) View {
