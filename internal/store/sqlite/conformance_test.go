@@ -25,6 +25,18 @@ func (scratch) Count(ctx context.Context, s store.Store) (int, error) {
 	return n, err
 }
 
+func (scratch) CountUsers(ctx context.Context, s store.Store) (int, error) {
+	var n int
+	err := s.(*Store).q.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&n)
+	return n, err
+}
+
+func (scratch) CountIdentities(ctx context.Context, s store.Store) (int, error) {
+	var n int
+	err := s.(*Store).q.QueryRowContext(ctx, `SELECT count(*) FROM identities`).Scan(&n)
+	return n, err
+}
+
 func TestConformance(t *testing.T) {
 	storetest.Run(t, func(t *testing.T) (store.Store, storetest.Scratch) {
 		s, err := Open(context.Background(), filepath.Join(t.TempDir(), "c.db"))

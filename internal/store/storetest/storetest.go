@@ -18,6 +18,10 @@ type Scratch interface {
 	Insert(ctx context.Context, s store.Store, n int) error
 	// Count returns the number of rows.
 	Count(ctx context.Context, s store.Store) (int, error)
+	// CountUsers and CountIdentities return the total rows in those tables,
+	// across all owners, so tests can detect orphans and duplicates.
+	CountUsers(ctx context.Context, s store.Store) (int, error)
+	CountIdentities(ctx context.Context, s store.Store) (int, error)
 }
 
 // NewStore returns a fresh, migrated, empty store plus its Scratch helper.
@@ -28,6 +32,9 @@ type NewStore func(t *testing.T) (store.Store, Scratch)
 func Run(t *testing.T, newStore NewStore) {
 	t.Helper()
 	t.Run("Tx", func(t *testing.T) { runTx(t, newStore) })
+	t.Run("Users", func(t *testing.T) { runUsers(t, newStore) })
+	t.Run("Identities", func(t *testing.T) { runIdentities(t, newStore) })
+	t.Run("Provision", func(t *testing.T) { runProvision(t, newStore) })
 }
 
 func runTx(t *testing.T, newStore NewStore) {
