@@ -15,9 +15,6 @@ import (
 	"github.com/chan-labs/quizzotic/internal/problems"
 )
 
-// TypePreconditionRequired identifies a missing If-Match header (428).
-const TypePreconditionRequired = "urn:quizzotic:problem:precondition-required"
-
 // Handler serves the tag endpoints. HTTP concerns only; rules live in Service.
 type Handler struct {
 	svc    *Service
@@ -118,7 +115,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func writeTag(w http.ResponseWriter, status int, t Tag) {
-	w.Header().Set("ETag", ETag(t))
+	platform.SetETag(w, ETag(t))
 	writeJSON(w, status, viewOf(t))
 }
 
@@ -193,10 +190,9 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ifMatch := r.Header.Get("If-Match")
-	if ifMatch == "" {
-		platform.WriteError(w, r, platform.NewProblem(TypePreconditionRequired, http.StatusPreconditionRequired,
-			"If-Match header is required"))
+	ifMatch, err := platform.RequireIfMatch(r)
+	if err != nil {
+		platform.WriteError(w, r, err)
 		return
 	}
 	var body updateBody
