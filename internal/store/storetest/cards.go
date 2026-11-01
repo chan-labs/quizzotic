@@ -299,6 +299,28 @@ func (f *cardFixture) edit(id domain.ID, kind problems.ChangeKind) {
 	}
 }
 
+func (f *cardFixture) archive(id domain.ID) {
+	f.t.Helper()
+	v, err := f.probs.Get(f.ctx, f.user, id)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if _, err := f.probs.Archive(f.ctx, f.user, id, v.ETag()); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+func (f *cardFixture) remove(id domain.ID) {
+	f.t.Helper()
+	v, err := f.probs.Get(f.ctx, f.user, id)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if err := f.probs.Delete(f.ctx, f.user, id, v.ETag()); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
 func (f *cardFixture) list() []review.Card {
 	f.t.Helper()
 	l, err := f.s.Cards().List(f.ctx, f.user)
@@ -468,6 +490,83 @@ func runCardProjection(t *testing.T, newStore NewStore) {
 		}
 	})
 
+	t.Run("archiving or deleting a problem drops its card", func(t *testing.T) {
+		for name, retire := range map[string]func(f *cardFixture, id domain.ID){
+			"archive": (*cardFixture).archive, "delete": (*cardFixture).remove,
+		} {
+			t.Run(name, func(t *testing.T) {
+				f := newCardFixture(t, newStore)
+				p := f.newProblem(pkinds[0], problems.StatusLive)
+				keep := f.newProblem(pkinds[0], problems.StatusLive)
+				for _, id := range []domain.ID{p.ID, keep.ID} {
+					if _, err := f.answer(id, pkinds[0].right, nil); err != nil {
+						t.Fatal(err)
+					}
+				}
+				retire(f, p.ID)
+				if _, ok := f.card(p.ID); ok {
+					t.Error("the retired problem still has a card")
+				}
+				if _, ok := f.card(keep.ID); !ok {
+					t.Error("the other problem lost its card")
+				}
+				before := f.list()
+				if err := f.svc.RebuildUser(f.ctx, f.user); err != nil {
+					t.Fatal(err)
+				}
+				if after := f.list(); !reflect.DeepEqual(before, after) {
+					t.Errorf("rebuild differs after retiring: %+v vs %+v", before, after)
+				}
+			})
+		}
+	})
+
+	t.Run("a late rating on an archived problem does not create a card", func(t *testing.T) {
+		f := newCardFixture(t, newStore)
+		p := f.newProblem(pkinds[2], problems.StatusLive)
+		res, err := f.answer(p.ID, pkinds[2].right, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.archive(p.ID)
+		f.clock.Advance(time.Minute)
+		if _, err := f.atts.Rate(f.ctx, f.actor, res.Attempt.ID, 4); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := f.card(p.ID); ok {
+			t.Error("rating an attempt of an archived problem created a card")
+		}
+		if got, err := f.s.Attempts().Get(f.ctx, f.user, res.Attempt.ID); err != nil || got.Rating == nil || *got.Rating != 4 {
+			t.Errorf("the rating itself must still be stored: %+v, %v", got, err)
+		}
+	})
+
+	t.Run("an empty fold removes a stale card", func(t *testing.T) {
+		f := newCardFixture(t, newStore)
+		p := f.newProblem(pkinds[2], problems.StatusLive)
+		if _, err := f.answer(p.ID, pkinds[2].right, nil); err != nil { // unrated: nothing scheduled
+			t.Fatal(err)
+		}
+		stale := review.Card{UserID: f.user, ProblemID: p.ID, Epoch: 1,
+			Card: fsrs.Card{State: fsrs.Review, Stability: 3, Difficulty: 5, Due: t0, LastReview: t0}, Reps: 1}
+		if err := f.s.Cards().Put(f.ctx, f.user, stale); err != nil {
+			t.Fatal(err)
+		}
+		err := f.s.WithTx(f.ctx, func(tx store.Store) error {
+			c, err := f.cards.Projector(tx).Recompute(f.ctx, f.user, p.ID, 1, nil)
+			if c != nil {
+				t.Errorf("recompute returned a card %+v for an empty fold", c)
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := f.card(p.ID); ok {
+			t.Error("the stale card survived an empty fold")
+		}
+	})
+
 	t.Run("recompute with a new retention changes the schedule", func(t *testing.T) {
 		f := newCardFixture(t, newStore)
 		p := f.newProblem(pkinds[0], problems.StatusLive)
@@ -544,8 +643,8 @@ func runCardRebuildProperty(t *testing.T, newStore NewStore) {
 
 			for step := 0; step < 80; step++ {
 				p := probs[rng.Intn(len(probs))]
-				switch n := rng.Intn(10); {
-				case n < 6: // answer
+				switch n := rng.Intn(13); {
+				case n < 7: // answer
 					k := kindOf(p)
 					response := k.right
 					if rng.Intn(3) == 0 {
@@ -558,17 +657,28 @@ func runCardRebuildProperty(t *testing.T, newStore NewStore) {
 					if res, err := f.answer(p.ID, response, rating); err == nil && !res.Grade.Scheduled {
 						unrated = append(unrated, res.Attempt.ID)
 					}
-				case n < 8: // late rating, sometimes outside the window
+				case n < 9: // late rating, sometimes outside the window
 					if len(unrated) > 0 {
 						i := rng.Intn(len(unrated))
 						_, _ = f.atts.Rate(f.ctx, f.actor, unrated[i], 1+rng.Intn(4))
 						unrated = append(unrated[:i], unrated[i+1:]...)
 					}
-				case n < 9:
+				case n < 10:
 					f.edit(p.ID, problems.ChangeMinor)
-				default:
+				case n < 11:
 					f.edit(p.ID, problems.ChangeMajor)
 					majors++
+				default: // the problem leaves review; a new one takes its place
+					i := 0
+					for probs[i].ID != p.ID {
+						i++
+					}
+					if rng.Intn(2) == 0 {
+						f.archive(p.ID)
+					} else {
+						f.remove(p.ID)
+					}
+					probs[i] = f.newProblem(pkinds[rng.Intn(len(pkinds))], problems.StatusLive)
 				}
 				switch rng.Intn(4) {
 				case 0:

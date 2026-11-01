@@ -5,6 +5,7 @@ package attempts
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
 )
@@ -16,6 +17,20 @@ var ErrNotFound = errors.New("attempts: not found")
 // ErrAlreadyRated is returned by SetRating when the attempt already has a
 // rating: a rating is filled in once.
 var ErrAlreadyRated = errors.New("attempts: already rated")
+
+// ListFilter narrows List. The zero value lists all of the owner's attempts.
+type ListFilter struct {
+	// ProblemID, when set, keeps attempts at that problem.
+	ProblemID domain.ID
+	// TagID, when set, keeps attempts at problems carrying this tag. The
+	// caller has resolved it for the same owner.
+	TagID domain.ID
+	// Since keeps attempts answered at or after it; Until keeps those answered
+	// strictly before it. Zero means unbounded.
+	Since, Until time.Time
+	After        domain.ID // keyset cursor: only IDs greater than this
+	Limit        int       // <= 0: no limit
+}
 
 // Repo persists attempts. Every method is scoped to the owner it names;
 // another owner's rows are indistinguishable from missing ones. There is
@@ -40,4 +55,7 @@ type Repo interface {
 	// answered_at order (ties by ID). It is the input of the card fold; an
 	// unknown problem or foreign owner yields an empty list.
 	ForCard(ctx context.Context, ownerID, problemID domain.ID, epoch int) ([]Attempt, error)
+
+	// List returns the owner's attempts ordered by ID, which is answer order.
+	List(ctx context.Context, ownerID domain.ID, f ListFilter) ([]Attempt, error)
 }

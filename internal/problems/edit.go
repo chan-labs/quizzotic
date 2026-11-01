@@ -32,6 +32,21 @@ type MajorEditHandler interface {
 	ProblemMajorEdit(ctx context.Context, e MajorEdit) error
 }
 
+// RetiredHandler is optionally implemented by a MajorEditHandler to be told,
+// inside the same transaction, that a problem left review: it was archived or
+// soft-deleted. Only live problems have cards, so the review feature drops the
+// card.
+type RetiredHandler interface {
+	ProblemRetired(ctx context.Context, ownerID, problemID domain.ID) error
+}
+
+func retired(ctx context.Context, h MajorEditHandler, ownerID, id domain.ID) error {
+	if rh, ok := h.(RetiredHandler); ok {
+		return rh.ProblemRetired(ctx, ownerID, id)
+	}
+	return nil
+}
+
 type noopMajorEdit struct{}
 
 func (noopMajorEdit) ProblemMajorEdit(context.Context, MajorEdit) error { return nil }

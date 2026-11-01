@@ -117,6 +117,8 @@ type Service struct {
 	problems ProblemSource
 	cards    CardUpdater
 	rec      AttemptRecorder
+	reads    Repo
+	tags     TagResolver
 	clock    domain.Clock
 	ids      *domain.IDGenerator
 }

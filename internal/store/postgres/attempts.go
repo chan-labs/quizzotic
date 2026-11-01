@@ -151,6 +151,51 @@ func (r attemptRepo) Get(ctx context.Context, ownerID, id domain.ID) (attempts.A
 	return a, err
 }
 
+// List returns the owner's attempts ordered by ID (oldest first).
+func (r attemptRepo) List(ctx context.Context, ownerID domain.ID, f attempts.ListFilter) ([]attempts.Attempt, error) {
+	q := `SELECT ` + attemptCols + ` FROM attempts WHERE user_id = ?`
+	args := []any{ownerID.String()}
+	if !f.ProblemID.IsNil() {
+		q += ` AND problem_id = ?`
+		args = append(args, f.ProblemID.String())
+	}
+	if !f.TagID.IsNil() {
+		q += ` AND problem_id IN (SELECT pt.problem_id FROM problem_tags pt WHERE pt.tag_id = ?)`
+		args = append(args, f.TagID.String())
+	}
+	if !f.Since.IsZero() {
+		q += ` AND answered_at >= ?`
+		args = append(args, ts(f.Since))
+	}
+	if !f.Until.IsZero() {
+		q += ` AND answered_at < ?`
+		args = append(args, ts(f.Until))
+	}
+	if !f.After.IsNil() {
+		q += ` AND id > ?`
+		args = append(args, f.After.String())
+	}
+	q += ` ORDER BY id`
+	if f.Limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, f.Limit)
+	}
+	rows, err := r.q.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []attempts.Attempt
+	for rows.Next() {
+		a, err := scanAttempt(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // ForCard lists the owner's attempts at one problem and card epoch, oldest
 // answer first (ties broken by ID, which is time-ordered).
 func (r attemptRepo) ForCard(ctx context.Context, ownerID, problemID domain.ID, epoch int) ([]attempts.Attempt, error) {

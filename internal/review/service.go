@@ -22,6 +22,7 @@ type Projector struct{ sc Scope }
 var (
 	_ attempts.CardUpdater      = (*Projector)(nil)
 	_ problems.MajorEditHandler = (*Projector)(nil)
+	_ problems.RetiredHandler   = (*Projector)(nil)
 )
 
 // NewProjector builds a Projector over sc.
@@ -47,6 +48,12 @@ func (p *Projector) Apply(ctx context.Context, a attempts.Attempt, _ int) (*time
 // in the log, attached to the old epoch.
 func (p *Projector) ProblemMajorEdit(ctx context.Context, e problems.MajorEdit) error {
 	return p.sc.Cards.Delete(ctx, e.OwnerID, e.ProblemID)
+}
+
+// ProblemRetired implements problems.RetiredHandler: a card exists only for a
+// live problem, so archiving or deleting one drops its card.
+func (p *Projector) ProblemRetired(ctx context.Context, ownerID, problemID domain.ID) error {
+	return p.sc.Cards.Delete(ctx, ownerID, problemID)
 }
 
 // Recompute refolds the card for (user, problem) at epoch from the attempt log

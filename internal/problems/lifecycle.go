@@ -46,7 +46,7 @@ func (s *Service) Archive(ctx context.Context, ownerID, id domain.ID, ifMatch st
 
 func (s *Service) transition(ctx context.Context, ownerID, id domain.ID, ifMatch string, to Status) (View, error) {
 	var out View
-	err := s.tx.InTx(ctx, func(r Repo) error {
+	err := s.inEditTx(ctx, func(r Repo, h MajorEditHandler) error {
 		p, v, err := currentIn(ctx, r, ownerID, id)
 		if err != nil {
 			return err
@@ -60,6 +60,11 @@ func (s *Service) transition(ctx context.Context, ownerID, id domain.ID, ifMatch
 		if err := r.SetStatus(ctx, ownerID, id, to, s.clock.Now()); err != nil {
 			return notFound(err)
 		}
+		if to == StatusArchived {
+			if err := retired(ctx, h, ownerID, id); err != nil {
+				return err
+			}
+		}
 		p, v, err = currentIn(ctx, r, ownerID, id)
 		if err != nil {
 			return err
@@ -72,7 +77,7 @@ func (s *Service) transition(ctx context.Context, ownerID, id domain.ID, ifMatch
 
 // Delete soft-deletes the problem from any status. Versions are kept.
 func (s *Service) Delete(ctx context.Context, ownerID, id domain.ID, ifMatch string) error {
-	return s.tx.InTx(ctx, func(r Repo) error {
+	return s.inEditTx(ctx, func(r Repo, h MajorEditHandler) error {
 		p, v, err := currentIn(ctx, r, ownerID, id)
 		if err != nil {
 			return err
@@ -80,7 +85,10 @@ func (s *Service) Delete(ctx context.Context, ownerID, id domain.ID, ifMatch str
 		if err := platform.CheckIfMatch(ifMatch, newView(p, v).ETag()); err != nil {
 			return err
 		}
-		return notFound(r.SoftDelete(ctx, ownerID, id, s.clock.Now()))
+		if err := r.SoftDelete(ctx, ownerID, id, s.clock.Now()); err != nil {
+			return notFound(err)
+		}
+		return retired(ctx, h, ownerID, id)
 	})
 }
 

@@ -25,6 +25,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/chan-labs/quizzotic/internal/openapi"
@@ -46,6 +47,13 @@ type Env struct {
 	HTTP *http.Client
 	// Ops defaults to the embedded spec's operations.
 	Ops []openapi.Operation
+	// Now defaults to time.Now; tests replace it to expire tokens.
+	Now func() time.Time
+	// OpenBrowser starts the user's browser on a URL (login). Defaults to the
+	// platform opener.
+	OpenBrowser func(url string) error
+	// Sleep waits between device-flow polls. Defaults to a timer.
+	Sleep func(context.Context, time.Duration) error
 }
 
 // command is one generated "<resource> <action>".
@@ -115,6 +123,9 @@ func Resources() []string {
 
 // IsResource reports whether name is a generated resource.
 func IsResource(name string) bool {
+	if name == "me" {
+		return true
+	}
 	for _, r := range Resources() {
 		if r == name {
 			return true
@@ -127,14 +138,10 @@ func IsResource(name string) bool {
 // returns the process exit code: 0 on a 2xx response, 1 on a request or API
 // error, 2 on a usage error.
 func Run(ctx context.Context, args []string, env Env) int {
-	if env.Getenv == nil {
-		env.Getenv = os.Getenv
-	}
-	if env.HTTP == nil {
-		env.HTTP = http.DefaultClient
-	}
-	if env.Stdin == nil {
-		env.Stdin = os.Stdin
+	env.applyDefaults()
+	if len(args) > 0 && args[0] == "me" {
+		// "quizzotic me" is shorthand for the spec's meta.me operation.
+		args = append([]string{"meta", "me"}, args[1:]...)
 	}
 	ops := env.Ops
 	if ops == nil {
@@ -188,7 +195,7 @@ func (r *repeated) String() string     { return strings.Join(*r, ",") }
 func (r *repeated) Set(v string) error { *r = append(*r, v); return nil }
 
 // reserved flag names are never generated from a parameter.
-var reserved = map[string]bool{"data": true, "set": true, "output": true, "server": true, "h": true, "help": true}
+var reserved = map[string]bool{"agent": true, "data": true, "set": true, "output": true, "server": true, "h": true, "help": true}
 
 func flagName(param string) string { return strings.ToLower(param) }
 
@@ -204,6 +211,7 @@ func (c command) run(ctx context.Context, args []string, env Env) int {
 
 	server := fs.String("server", "", "server base URL (default $QUIZZOTIC_SERVER or "+DefaultServer+")")
 	output := fs.String("output", "json", "output format: json or table")
+	agent := fs.Bool("agent", false, "authenticate with the stored agent login (see quizzotic login --agent)")
 	var data string
 	var sets repeated
 	if op.Body != nil {
@@ -284,14 +292,8 @@ func (c command) run(ctx context.Context, args []string, env Env) int {
 		}
 	}
 
-	base := *server
-	if base == "" {
-		base = env.Getenv("QUIZZOTIC_SERVER")
-	}
-	if base == "" {
-		base = DefaultServer
-	}
-	target := strings.TrimRight(base, "/")
+	base := serverBase(*server, env)
+	target := base
 	if !op.Root {
 		target += "/api/v1"
 	}
@@ -316,7 +318,12 @@ func (c command) run(ctx context.Context, args []string, env Env) int {
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if tok := env.Getenv("QUIZZOTIC_TOKEN"); tok != "" {
+	tok, err := AccessToken(ctx, env, base, wantAgent(*agent, env))
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "quizzotic: %v\n", err)
+		return 1
+	}
+	if tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 	resp, err := env.HTTP.Do(req)
@@ -420,7 +427,8 @@ func (c command) usage(w io.Writer, fs *flag.FlagSet) {
 	if len(op.CLIColumns) > 0 {
 		fmt.Fprintf(w, "\ntable columns: %s\n", strings.Join(op.CLIColumns, ", "))
 	}
-	fmt.Fprintln(w, "\nAuthentication: set QUIZZOTIC_TOKEN to an access token.")
+	fmt.Fprintln(w, "\nAuthentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),")
+	fmt.Fprintln(w, "or the stored login from \"quizzotic login\" (--agent for the agent login).")
 }
 
 // buildBody assembles the request body from --data and --set. It returns nil

@@ -70,6 +70,16 @@ func (m *memRepo) ForCard(_ context.Context, owner, problem domain.ID, epoch int
 	return out, nil
 }
 
+func (m *memRepo) List(_ context.Context, owner domain.ID, _ ListFilter) ([]Attempt, error) {
+	var out []Attempt
+	for _, a := range m.rows {
+		if a.UserID == owner {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
 func (m *memRepo) InTx(_ context.Context, fn func(Repo) error) error {
 	snapshot := map[domain.ID]Attempt{}
 	for k, v := range m.rows {
