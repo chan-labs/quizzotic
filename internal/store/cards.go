@@ -182,18 +182,40 @@ func (c Cards) QuizBuilder(s Store) *review.QuizBuilder {
 	return review.NewQuizBuilder(quizProblems{s.Quizzes()}, problemEpochs{s.Problems()})
 }
 
+// SessionTx adapts s to review.SessionTransactor: each InTx call is one store
+// transaction whose session repo, attempt log, builders and problem source are
+// all bound to it, so a session is built, stored and extended consistently.
+func (c Cards) SessionTx(s Store) review.SessionTransactor { return sessionTx{s, c} }
+
+type sessionTx struct {
+	s Store
+	c Cards
+}
+
+func (a sessionTx) InTx(ctx context.Context, fn func(review.SessionScope) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error {
+		return fn(review.SessionScope{
+			Sessions: tx.Sessions(),
+			Attempts: tx.Attempts(),
+			Review:   a.c.Builder(tx),
+			Quiz:     a.c.QuizBuilder(tx),
+			Problems: problemEpochs{tx.Problems()},
+		})
+	})
+}
+
 // quizProblems adapts quizzes.Repo to review.QuizSource.
 type quizProblems struct{ r quizzes.Repo }
 
-func (q quizProblems) QuizProblems(ctx context.Context, ownerID, quizID domain.ID) ([]domain.ID, error) {
+func (q quizProblems) QuizProblems(ctx context.Context, ownerID, quizID domain.ID) (review.QuizContents, error) {
 	quiz, err := q.r.Get(ctx, ownerID, quizID)
 	if errors.Is(err, quizzes.ErrNotFound) {
-		return nil, review.ErrNotFound
+		return review.QuizContents{}, review.ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return review.QuizContents{}, err
 	}
-	return quiz.Items, nil
+	return review.QuizContents{Live: quiz.Status == quizzes.StatusLive, Problems: quiz.Items}, nil
 }
 
 // effectiveSettings resolves a user's overrides against the defaults.

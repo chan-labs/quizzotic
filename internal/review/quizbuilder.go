@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"math/rand/v2"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
@@ -15,13 +16,24 @@ import (
 // a card for it yet.
 const ItemQuiz ItemKind = "quiz"
 
+// ErrQuizNotLive is returned when a quiz session is asked for a quiz that is
+// still a draft or has been archived: only a live quiz is served.
+var ErrQuizNotLive = errors.New("review: quiz is not live")
+
+// QuizContents is what a quiz session needs to know about a quiz.
+type QuizContents struct {
+	// Live is whether the quiz's status is live.
+	Live bool
+	// Problems are the quiz's problem IDs in authored order.
+	Problems []domain.ID
+}
+
 // QuizSource reads a quiz's problems. The store adapts quizzes.Repo to it, so
 // this package never imports the quizzes feature.
 type QuizSource interface {
-	// QuizProblems returns the problem IDs of the owner's quiz in authored
-	// order, or ErrNotFound when the quiz is missing, deleted or not the
-	// owner's.
-	QuizProblems(ctx context.Context, ownerID, quizID domain.ID) ([]domain.ID, error)
+	// QuizProblems returns the owner's quiz, or ErrNotFound when the quiz is
+	// missing, deleted or not the owner's.
+	QuizProblems(ctx context.Context, ownerID, quizID domain.ID) (QuizContents, error)
 }
 
 // QuizBuilder builds quiz sessions (spec: Quiz sessions). Like Builder it only
@@ -41,12 +53,17 @@ func NewQuizBuilder(q QuizSource, p ProblemSource) *QuizBuilder {
 // problems in authored order, or, when shuffle is set, in an order that is a
 // pure function of sessionID and the quiz's contents. Draft, archived and
 // deleted problems are skipped. Plan.Day and Plan.Used are zero: daily limits
-// do not apply to a quiz.
+// do not apply to a quiz. A quiz that is not live (draft or archived) is
+// refused with ErrQuizNotLive, so unpublished content never reaches a client.
 func (b *QuizBuilder) Build(ctx context.Context, userID, sessionID, quizID domain.ID, shuffle bool) (Plan, error) {
-	ids, err := b.quizzes.QuizProblems(ctx, userID, quizID)
+	quiz, err := b.quizzes.QuizProblems(ctx, userID, quizID)
 	if err != nil {
 		return Plan{}, err
 	}
+	if !quiz.Live {
+		return Plan{}, ErrQuizNotLive
+	}
+	ids := quiz.Problems
 	live, err := b.problems.LiveEpochs(ctx, userID)
 	if err != nil {
 		return Plan{}, err

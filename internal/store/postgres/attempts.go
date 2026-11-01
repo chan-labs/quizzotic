@@ -163,6 +163,10 @@ func (r attemptRepo) List(ctx context.Context, ownerID domain.ID, f attempts.Lis
 		q += ` AND problem_id IN (SELECT pt.problem_id FROM problem_tags pt WHERE pt.tag_id = ?)`
 		args = append(args, f.TagID.String())
 	}
+	if !f.SessionID.IsNil() {
+		q += ` AND session_id = ?`
+		args = append(args, f.SessionID.String())
+	}
 	if !f.Since.IsZero() {
 		q += ` AND answered_at >= ?`
 		args = append(args, ts(f.Since))

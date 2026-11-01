@@ -18,6 +18,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/quizzes"
+	"github.com/chan-labs/quizzotic/internal/review"
 	"github.com/chan-labs/quizzotic/internal/tags"
 )
 
@@ -86,6 +87,8 @@ func appRouter() *platform.Router {
 	problems.NewHandler(nil, nil).Register(rt)
 	quizzes.NewHandler(nil, nil).Register(rt)
 	attempts.NewHandler(nil, nil).Register(rt)
+	review.NewSessionHandler(nil, nil).Register(rt)
+	review.NewCardHandler(nil, nil).Register(rt)
 	return rt
 }
 
