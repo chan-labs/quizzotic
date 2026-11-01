@@ -22,6 +22,59 @@ type Operation struct {
 	Authenticated bool
 	// Root operations live at the host root (servers: "/"), not under /api/v1.
 	Root bool
+
+	// Tag is the operation's first OpenAPI tag (the CLI resource); empty when
+	// the operation has none.
+	Tag         string
+	Summary     string
+	Description string
+	// Params are the path-level and operation-level parameters, with $refs
+	// resolved. An operation-level parameter overrides a path-level one with
+	// the same name and location.
+	Params []Parameter
+	// Body is the JSON request body, or nil when the operation has none or
+	// only a non-JSON one.
+	Body *Body
+	// CLIColumns is x-quizzotic-cli-columns.
+	CLIColumns []string
+	// MCP is x-quizzotic-mcp: the operation is exposed as an MCP tool.
+	MCP bool
+	// MCPHint is x-quizzotic-mcp-hint.
+	MCPHint string
+}
+
+// Parameter is a resolved path, query, header or cookie parameter.
+type Parameter struct {
+	Name        string
+	In          string // "path", "query", "header" or "cookie"
+	Required    bool
+	Description string
+	// Schema is the parameter schema with every $ref inlined.
+	Schema map[string]any
+}
+
+// Body is a resolved application/json request body.
+type Body struct {
+	Required bool
+	// Schema is the body schema with every $ref inlined. A schema that refers
+	// back to itself keeps the inner $ref (e.g. "#/components/schemas/Node").
+	Schema map[string]any
+}
+
+// PathParams returns the operation's path parameters in declaration order.
+func (o Operation) PathParams() []Parameter { return o.paramsIn("path") }
+
+// QueryParams returns the operation's query parameters in declaration order.
+func (o Operation) QueryParams() []Parameter { return o.paramsIn("query") }
+
+func (o Operation) paramsIn(in string) []Parameter {
+	var out []Parameter
+	for _, p := range o.Params {
+		if p.In == in {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 var methods = map[string]bool{
@@ -38,6 +91,11 @@ func Operations(spec []byte) ([]Operation, error) {
 	if err := yaml.Unmarshal(spec, &doc); err != nil {
 		return nil, fmt.Errorf("openapi: parse: %w", err)
 	}
+	var tree any
+	if err := yaml.Unmarshal(spec, &tree); err != nil {
+		return nil, fmt.Errorf("openapi: parse: %w", err)
+	}
+	r := &resolver{root: tree}
 	var out []Operation
 	for path, item := range doc.Paths {
 		root := false
@@ -50,14 +108,28 @@ func Operations(spec []byte) ([]Operation, error) {
 			}
 			root = len(servers) == 1 && servers[0].URL == "/"
 		}
+		var pathParams []any
+		if n, ok := item["parameters"]; ok {
+			if err := n.Decode(&pathParams); err != nil {
+				return nil, fmt.Errorf("openapi: %s parameters: %w", path, err)
+			}
+		}
 		for key, n := range item {
 			if !methods[key] {
 				continue
 			}
 			var op struct {
-				ID       string           `yaml:"operationId"`
-				Scopes   *[]string        `yaml:"x-quizzotic-scopes"`
-				Security []map[string]any `yaml:"security"`
+				ID          string           `yaml:"operationId"`
+				Tags        []string         `yaml:"tags"`
+				Summary     string           `yaml:"summary"`
+				Description string           `yaml:"description"`
+				Scopes      *[]string        `yaml:"x-quizzotic-scopes"`
+				Security    []map[string]any `yaml:"security"`
+				Parameters  []any            `yaml:"parameters"`
+				RequestBody any              `yaml:"requestBody"`
+				CLIColumns  []string         `yaml:"x-quizzotic-cli-columns"`
+				MCP         bool             `yaml:"x-quizzotic-mcp"`
+				MCPHint     string           `yaml:"x-quizzotic-mcp-hint"`
 			}
 			if err := n.Decode(&op); err != nil {
 				return nil, fmt.Errorf("openapi: %s %s: %w", key, path, err)
@@ -65,7 +137,26 @@ func Operations(spec []byte) ([]Operation, error) {
 			if op.Scopes == nil {
 				return nil, fmt.Errorf("openapi: %s %s: missing x-quizzotic-scopes", strings.ToUpper(key), path)
 			}
-			out = append(out, Operation{ID: op.ID, Method: strings.ToUpper(key), Path: path, Scopes: *op.Scopes, Authenticated: len(op.Security) > 0, Root: root})
+			where := strings.ToUpper(key) + " " + path
+			params, err := r.parameters(pathParams, op.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("openapi: %s: %w", where, err)
+			}
+			body, err := r.body(op.RequestBody)
+			if err != nil {
+				return nil, fmt.Errorf("openapi: %s: %w", where, err)
+			}
+			o := Operation{
+				ID: op.ID, Method: strings.ToUpper(key), Path: path, Scopes: *op.Scopes,
+				Authenticated: len(op.Security) > 0, Root: root,
+				Summary: strings.TrimSpace(op.Summary), Description: strings.TrimSpace(op.Description),
+				Params: params, Body: body, CLIColumns: op.CLIColumns, MCP: op.MCP,
+				MCPHint: strings.TrimSpace(op.MCPHint),
+			}
+			if len(op.Tags) > 0 {
+				o.Tag = op.Tags[0]
+			}
+			out = append(out, o)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
