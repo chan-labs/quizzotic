@@ -60,6 +60,16 @@ func (m *memRepo) SetRating(_ context.Context, owner, id domain.ID, rating int, 
 	return nil
 }
 
+func (m *memRepo) List(_ context.Context, owner domain.ID, _ ListFilter) ([]Attempt, error) {
+	var out []Attempt
+	for _, a := range m.rows {
+		if a.UserID == owner {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
 func (m *memRepo) InTx(_ context.Context, fn func(Repo) error) error {
 	snapshot := map[domain.ID]Attempt{}
 	for k, v := range m.rows {
