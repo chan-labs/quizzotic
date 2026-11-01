@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ type quizEnv struct {
 	*probEnv
 	quizzes  *quizzes.Service
 	sessions *review.SessionService
+	other    domain.ID
 }
 
 func newQuizEnv(t *testing.T) *quizEnv {
@@ -44,6 +46,10 @@ func newQuizEnv(t *testing.T) *quizEnv {
 	ids := domain.NewIDGenerator(clock)
 	u := auth.User{ID: ids.New(), DisplayName: "A", Email: "a@example.com", CreatedAt: clock.Now()}
 	if err := st.Users().Create(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	u2 := auth.User{ID: ids.New(), DisplayName: "B", Email: "b@example.com", CreatedAt: clock.Now()}
+	if err := st.Users().Create(ctx, u2); err != nil {
 		t.Fatal(err)
 	}
 	probs := problems.NewService(st.Problems(), store.ProblemsTx(st), clock, ids)
@@ -66,7 +72,7 @@ func newQuizEnv(t *testing.T) *quizEnv {
 	site.UseQuizzes(qsvc, probs, ssvc)
 	mux := http.NewServeMux()
 	site.Register(mux)
-	return &quizEnv{probEnv: &probEnv{t: t, mux: mux, svc: probs, owner: u.ID}, quizzes: qsvc, sessions: ssvc}
+	return &quizEnv{probEnv: &probEnv{t: t, mux: mux, svc: probs, owner: u.ID}, quizzes: qsvc, sessions: ssvc, other: u2.ID}
 }
 
 func (e *quizEnv) problem(prompt string) domain.ID {
@@ -109,15 +115,16 @@ func (e *quizEnv) items(id domain.ID) []string {
 
 func TestQuizPagesRequireLoginAndCSRF(t *testing.T) {
 	e := newQuizEnv(t)
-	for _, path := range []string{"/quizzes", "/quizzes/new"} {
-		req, _ := http.NewRequest("GET", path, nil)
+	id := e.createQuiz(url.Values{"title": {"Q"}, "status": {"live"}})
+	for _, rt := range [][2]string{{"GET", "/quizzes"}, {"GET", "/quizzes/new"}, {"GET", "/quizzes/" + id.String()},
+		{"POST", "/quizzes"}, {"POST", "/quizzes/" + id.String()}, {"POST", "/quizzes/" + id.String() + "/start"}} {
+		req := httptest.NewRequest(rt[0], rt[1], nil)
 		rec := httptest.NewRecorder()
 		e.mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("Location"), "/auth/login") {
-			t.Fatalf("%s anonymous = %d %q", path, rec.Code, rec.Header().Get("Location"))
+			t.Fatalf("%s %s anonymous = %d %q", rt[0], rt[1], rec.Code, rec.Header().Get("Location"))
 		}
 	}
-	id := e.createQuiz(url.Values{"title": {"Q"}, "status": {"live"}})
 	for _, path := range []string{"/quizzes", "/quizzes/" + id.String(), "/quizzes/" + id.String() + "/start"} {
 		if rec := e.do("POST", path, url.Values{"title": {"x"}, "order": {"ordered"}}, false); rec.Code != http.StatusForbidden {
 			t.Fatalf("POST %s without CSRF = %d, want 403", path, rec.Code)
@@ -197,14 +204,6 @@ func TestQuizCreateOrderAndStartEndToEnd(t *testing.T) {
 		t.Fatalf("session not frozen: %+v", sv2)
 	}
 
-	// Start shuffled: same items, session built with the shuffle flag, and the
-	// same shuffled order as the API would give for that session ID.
-	rec = e.do("POST", "/quizzes/"+id.String()+"/start", url.Values{"order": {"shuffled"}}, true)
-	sid2 := e.sessionFrom(rec)
-	sv3, err := e.sessions.Get(context.Background(), e.owner, sid2)
-	if err != nil || sid2 == sid || len(sv3.Items) != 1 {
-		t.Fatalf("shuffled session = %+v err %v", sv3, err)
-	}
 }
 
 func (e *quizEnv) sessionFrom(rec *httptest.ResponseRecorder) domain.ID {
@@ -221,26 +220,105 @@ func (e *quizEnv) sessionFrom(rec *httptest.ResponseRecorder) domain.ID {
 	return id
 }
 
-func TestQuizShuffledStartKeepsAllItems(t *testing.T) {
+func TestQuizShuffledStartMatchesBuilderShuffle(t *testing.T) {
 	e := newQuizEnv(t)
 	var adds []string
-	for _, p := range []string{"P1", "P2", "P3", "P4", "P5", "P6"} {
-		adds = append(adds, e.problem(p).String())
+	var authored []domain.ID
+	for i := 0; i < 8; i++ {
+		id := e.problem("P" + strconv.Itoa(i))
+		adds = append(adds, id.String())
+		authored = append(authored, id)
 	}
-	id := e.createQuiz(url.Values{"title": {"Six"}, "status": {"live"}, "add": adds})
+	id := e.createQuiz(url.Values{"title": {"Eight"}, "status": {"live"}, "add": adds})
 	sid := e.sessionFrom(e.do("POST", "/quizzes/"+id.String()+"/start", url.Values{"order": {"shuffled"}}, true))
 	sv, err := e.sessions.Get(context.Background(), e.owner, sid)
-	if err != nil || len(sv.Items) != 6 {
-		t.Fatalf("session = %+v err %v", sv, err)
+	if err != nil {
+		t.Fatal(err)
 	}
-	seen := map[string]bool{}
-	for _, it := range sv.Items {
-		seen[it.ProblemID.String()] = true
+	// The expected plan comes from the same builder, seeded by the session ID.
+	want, err := review.NewQuizBuilder(fakeQuizSource{authored}, fakeProblems{authored}).Build(context.Background(), e.owner, sid, id, true)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, a := range adds {
-		if !seen[a] {
-			t.Fatalf("shuffled session lost %s", a)
+	if len(sv.Items) != len(want.Items) || len(want.Items) != 8 {
+		t.Fatalf("got %d items, want %d", len(sv.Items), len(want.Items))
+	}
+	same := true
+	for i := range sv.Items {
+		if sv.Items[i].ProblemID != want.Items[i].ProblemID {
+			t.Fatalf("item %d = %s, want %s (shuffle ignored)", i, sv.Items[i].ProblemID, want.Items[i].ProblemID)
 		}
+		if sv.Items[i].ProblemID != authored[i] {
+			same = false
+		}
+	}
+	if same {
+		t.Fatal("shuffled session equals authored order; the shuffle did not run")
+	}
+}
+
+type fakeQuizSource struct{ items []domain.ID }
+
+func (f fakeQuizSource) QuizProblems(context.Context, domain.ID, domain.ID) (review.QuizContents, error) {
+	return review.QuizContents{Live: true, Problems: f.items}, nil
+}
+
+type fakeProblems struct{ ids []domain.ID }
+
+func (f fakeProblems) Epoch(context.Context, domain.ID, domain.ID) (review.ProblemEpoch, error) {
+	return review.ProblemEpoch{}, review.ErrNotFound
+}
+
+func (f fakeProblems) LiveEpochs(context.Context, domain.ID) ([]review.ProblemEpoch, error) {
+	var out []review.ProblemEpoch
+	for _, id := range f.ids {
+		out = append(out, review.ProblemEpoch{ID: id, Live: true, Epoch: 1})
+	}
+	return out, nil
+}
+
+func TestQuizCrossOwner(t *testing.T) {
+	e := newQuizEnv(t)
+	ctx := context.Background()
+	mine := e.problem("Mine")
+	qid := e.createQuiz(url.Values{"title": {"Mine"}, "status": {"live"}, "add": {mine.String()}})
+	// A second owner with a quiz and a problem of their own.
+	actor := domain.Actor{Kind: domain.ActorHuman, UserID: e.other, ClientID: "t"}
+	theirP, err := e.svc.Create(ctx, actor, problems.CreateInput{Type: "open", Prompt: "Theirs",
+		Payload: []byte(`{"reference_answer":"x","rubric":["y"]}`), Status: problems.StatusLive})
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirQ, err := e.quizzes.Create(ctx, actor, quizzes.CreateInput{Title: "Theirs", Status: quizzes.StatusLive, ProblemIDs: []string{theirP.ID.String()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tq := theirQ.ID.String()
+	if rec := e.do("GET", "/quizzes/"+tq, nil, false); rec.Code != http.StatusNotFound {
+		t.Fatalf("GET other's quiz = %d", rec.Code)
+	}
+	if rec := e.do("POST", "/quizzes/"+tq, url.Values{"etag": {quizzes.ETag(theirQ)}, "title": {"hijack"}, "status": {"live"}}, true); rec.Code != http.StatusNotFound {
+		t.Fatalf("POST other's quiz = %d", rec.Code)
+	}
+	if rec := e.do("POST", "/quizzes/"+tq+"/start", url.Values{"order": {"ordered"}}, true); rec.Code != http.StatusNotFound {
+		t.Fatalf("start other's quiz = %d", rec.Code)
+	}
+	got, err := e.quizzes.Get(ctx, e.other, theirQ.ID)
+	if err != nil || got.Title != "Theirs" {
+		t.Fatalf("other's quiz changed: %+v %v", got, err)
+	}
+	// Another owner's problem cannot be added to my quiz.
+	body := e.do("GET", "/quizzes/"+qid.String(), nil, false).Body.String()
+	rec := e.do("POST", "/quizzes/"+qid.String(), url.Values{"etag": {etagOf(t, body)}, "title": {"Mine"}, "status": {"live"},
+		"item": {mine.String()}, "add": {theirP.ID.String()}}, true)
+	if rec.Code != http.StatusNotFound && rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("add other's problem = %d", rec.Code)
+	}
+	if items := e.items(qid); len(items) != 1 || items[0] != mine.String() {
+		t.Fatalf("items = %v", items)
+	}
+	if rec := e.do("POST", "/quizzes", url.Values{"title": {"X"}, "add": {theirP.ID.String()}}, true); rec.Code != http.StatusNotFound && rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("create with other's problem = %d", rec.Code)
 	}
 }
 

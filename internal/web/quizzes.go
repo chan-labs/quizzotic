@@ -317,7 +317,7 @@ func (w *Web) quizSave(rw http.ResponseWriter, r *http.Request) {
 
 func (w *Web) quizError(rw http.ResponseWriter, r *http.Request, owner domain.ID, f quizForm, err error, what string) {
 	var pe *platform.Problem
-	if !errors.As(err, &pe) || pe.Status >= 500 {
+	if !errors.As(err, &pe) || pe.Status >= 500 || errors.Is(err, quizzes.ErrNotFound) {
 		w.failQuiz(rw, r, what, err)
 		return
 	}
@@ -379,7 +379,7 @@ func (w *Web) quizStart(rw http.ResponseWriter, r *http.Request) {
 
 func (w *Web) failQuiz(rw http.ResponseWriter, r *http.Request, what string, err error) {
 	var pe *platform.Problem
-	if errors.As(err, &pe) && pe.Status == http.StatusNotFound {
+	if errors.Is(err, quizzes.ErrNotFound) || (errors.As(err, &pe) && pe.Status == http.StatusNotFound) {
 		http.NotFound(rw, r)
 		return
 	}
