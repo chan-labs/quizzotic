@@ -1,0 +1,47 @@
+{{define "content"}}<link rel="stylesheet" href="/static/drafts.css">
+<h1>{{.Title}}</h1>
+{{with .Data.Notice}}<p class="notice" role="status">{{.}}</p>{{end}}
+<form method="get" action="/drafts" class="filters">
+  <label>Author
+    <select name="kind">
+      <option value="">All</option>
+      {{range .Data.Authors}}<option value="{{.}}"{{if eq . $.Data.Kind}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+  </label>
+  <button type="submit">Filter</button>
+</form>
+{{if .Data.Rows}}
+<form id="bulk" method="post" action="/drafts/bulk" class="bulk">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <label><input type="checkbox" id="select-all"> Select all</label>
+  <button type="submit" name="action" value="publish">Publish selected</button>
+  <button type="submit" name="action" value="discard">Discard selected</button>
+</form>
+<ul class="drafts">
+{{range .Data.Rows}}
+  <li class="draft" id="draft-{{.ID}}">
+    <div class="draft-head">
+      <input type="checkbox" name="id" value="{{.ID}}" form="bulk" aria-label="Select draft">
+      <span class="badge author-{{.Kind}}">{{.Kind}}</span>
+      <span class="muted">{{.Type}}</span>
+    </div>
+    <p class="draft-prompt">{{.Prompt}}</p>
+    <details{{if .Err}} open{{end}}>
+      <summary>Edit</summary>
+      <form method="post" action="/drafts/{{.ID}}/edit" class="edit">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        {{with .Err}}<p class="error" role="alert">{{.}}</p>{{end}}
+        <label>Prompt <textarea name="prompt" rows="3">{{.Prompt}}</textarea></label>
+        <label>Answers (JSON) <textarea name="payload" rows="6" spellcheck="false">{{.Payload}}</textarea></label>
+        <label>Explanation <textarea name="explanation" rows="2">{{.Explanation}}</textarea></label>
+        <label>Source <input type="text" name="source" value="{{.Source}}"></label>
+        <button type="submit">Save</button>
+      </form>
+    </details>
+  </li>
+{{end}}
+</ul>
+{{if .Data.Next}}<p><a href="/drafts?cursor={{.Data.Next}}{{if .Data.Kind}}&amp;kind={{.Data.Kind}}{{end}}">Next page</a></p>{{end}}
+<script src="/static/drafts.js"></script>
+{{else}}<p class="muted">No drafts waiting.</p>{{end}}
+{{end}}
