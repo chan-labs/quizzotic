@@ -280,17 +280,20 @@ func (w *Web) reviewAnswer(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "the session is completed", http.StatusConflict)
 		return
 	}
-	inSession, answered := false, false
+	// A problem can be in the list more than once (a learning-step card comes
+	// back); it is a replay only when every one of its items is answered, which
+	// is exactly when Next would not serve it again.
+	inSession, pending := false, false
 	for _, it := range sess.Items {
 		if it.ProblemID == pid {
-			inSession, answered = true, answered || it.Answered
+			inSession, pending = true, pending || !it.Answered
 		}
 	}
 	if !inSession {
 		http.Error(rw, "that problem is not part of this session", http.StatusBadRequest)
 		return
 	}
-	if answered {
+	if !pending {
 		// A replayed post (refresh, double submit) must not append a second
 		// attempt: attempts are append-only and a duplicate skews the card.
 		http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther)
