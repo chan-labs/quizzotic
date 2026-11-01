@@ -26,6 +26,10 @@ type Store interface {
 	Users() auth.UserRepo
 	Identities() auth.IdentityRepo
 
+	// WebSessions and LoginStates back the browser login flow.
+	WebSessions() auth.WebSessionRepo
+	LoginStates() auth.LoginStateRepo
+
 	// Migrate applies pending embedded migrations and returns the versions applied.
 	Migrate(ctx context.Context) ([]int, error)
 
