@@ -10,3 +10,4 @@ SETUP.md
 .mcp.json
 /bin/
 /dist/
+/deploy/.env
