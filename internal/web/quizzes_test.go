@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/problems"
@@ -28,6 +29,7 @@ type quizEnv struct {
 	*probEnv
 	quizzes  *quizzes.Service
 	sessions *review.SessionService
+	answers  *attempts.Service
 	other    domain.ID
 }
 
@@ -69,10 +71,12 @@ func newQuizEnv(t *testing.T) *quizEnv {
 		t.Fatal(err)
 	}
 	site.UseProblems(probs, nil)
+	answers := attempts.NewService(store.AttemptsCardTx(st, store.DefaultCards().CardUpdater), probs, clock, ids, attempts.WithReader(st.Attempts()))
 	site.UseQuizzes(qsvc, probs, ssvc)
+	site.UseReview(ssvc, answers, probs)
 	mux := http.NewServeMux()
 	site.Register(mux)
-	return &quizEnv{probEnv: &probEnv{t: t, mux: mux, svc: probs, owner: u.ID}, quizzes: qsvc, sessions: ssvc, other: u2.ID}
+	return &quizEnv{probEnv: &probEnv{t: t, mux: mux, svc: probs, owner: u.ID}, quizzes: qsvc, sessions: ssvc, answers: answers, other: u2.ID}
 }
 
 func (e *quizEnv) problem(prompt string) domain.ID {
@@ -338,5 +342,46 @@ func TestQuizStartRefusesDraftAndBadInput(t *testing.T) {
 	}
 	if rec := e.do("POST", "/quizzes", url.Values{"title": {""}}, true); rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("empty title = %d", rec.Code)
+	}
+}
+
+// M5.6 end to end: create a quiz, Start it, follow the redirect, answer every
+// item through the review handlers, and the quiz session completes.
+func TestQuizStartThroughReviewToCompletion(t *testing.T) {
+	e := newQuizEnv(t)
+	a, b := e.problem("First?"), e.problem("Second?")
+	id := e.createQuiz(url.Values{"title": {"Geo"}, "status": {"live"}, "item": {a.String(), b.String()}})
+	sid := e.sessionFrom(e.do("POST", "/quizzes/"+id.String()+"/start", url.Values{"order": {"ordered"}}, true))
+	hidden := regexp.MustCompile(`name="(problem_id|problem_version)" value="([^"]*)"`)
+	choice := regexp.MustCompile(`name="selected" value="([^"]+)"`)
+	var order []string
+	for i := 0; i < 2; i++ {
+		page := e.do("GET", "/review/"+sid.String(), nil, true)
+		body := page.Body.String()
+		if page.Code != http.StatusOK || !strings.Contains(body, "Quiz") || !strings.Contains(body, `data-review-phase="prompt"`) {
+			t.Fatalf("item %d: %d\n%s", i, page.Code, body)
+		}
+		form := url.Values{"selected": {choice.FindStringSubmatch(body)[1]}, "latency_ms": {"900"}}
+		for _, m := range hidden.FindAllStringSubmatch(body, -1) {
+			form.Set(m[1], m[2])
+		}
+		order = append(order, form.Get("problem_id"))
+		if rec := e.do("POST", "/review/"+sid.String()+"/answer", form, true); rec.Code != http.StatusOK {
+			t.Fatalf("answer %d: %d\n%s", i, rec.Code, rec.Body)
+		}
+	}
+	if order[0] != a.String() || order[1] != b.String() {
+		t.Errorf("served %v, want authored order %s, %s", order, a, b)
+	}
+	done := e.do("GET", "/review/"+sid.String(), nil, true).Body.String()
+	if !strings.Contains(done, "Quiz complete") || !strings.Contains(done, "2 answered") {
+		t.Fatalf("not complete:\n%s", done)
+	}
+	if sv, err := e.sessions.Get(context.Background(), e.owner, sid); err != nil || sv.CompletedAt == nil || sv.Answered != 2 {
+		t.Errorf("session = %+v, err %v", sv, err)
+	}
+	res, _ := e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 10})
+	if len(res.Items) != 2 || res.Items[0].LatencyMS != 900 {
+		t.Errorf("attempts = %+v", res.Items)
 	}
 }

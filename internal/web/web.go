@@ -35,13 +35,14 @@ type Config struct {
 // Web is the website adapter. Pages call feature services only; it holds no
 // rules of its own.
 type Web struct {
-	cfg     Config
-	tmpl    map[string]*template.Template
-	drafts  Drafts
-	prob    problemPages
-	quiz    quizPages
-	todayPg todayPages
-	sets    SettingsService
+	cfg      Config
+	tmpl     map[string]*template.Template
+	drafts   Drafts
+	prob     problemPages
+	quiz     quizPages
+	todayPg  todayPages
+	reviewPg reviewPages
+	sets     SettingsService
 }
 
 type navItem struct{ Href, Label string }
@@ -69,7 +70,7 @@ func New(cfg Config) (*Web, error) {
 		return nil, err
 	}
 	w := &Web{cfg: cfg, tmpl: map[string]*template.Template{}}
-	for _, name := range []string{"shell", "drafts", "today", "settings"} {
+	for _, name := range []string{"shell", "drafts", "today", "review", "settings"} {
 		t, err := layout.Clone()
 		if err != nil {
 			return nil, err
@@ -109,6 +110,7 @@ func (w *Web) Register(mux *http.ServeMux) {
 	w.registerDrafts(mux)
 	w.registerQuizzes(mux)
 	w.registerToday(mux)
+	w.registerReview(mux)
 	w.registerSettings(mux)
 }
 

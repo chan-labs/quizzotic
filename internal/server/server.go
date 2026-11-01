@@ -360,8 +360,9 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	if ho.tags != nil {
 		aopts = append(aopts, attempts.WithTagResolver(ho.tags))
 	}
-	attemptsH := attempts.NewHandler(attempts.NewService(store.AttemptsCardTx(st, cards.CardUpdater), problemsSvc, clock,
-		domain.NewIDGenerator(clock), aopts...), logger)
+	attemptsSvc := attempts.NewService(store.AttemptsCardTx(st, cards.CardUpdater), problemsSvc, clock,
+		domain.NewIDGenerator(clock), aopts...)
+	attemptsH := attempts.NewHandler(attemptsSvc, logger)
 	// ho.metrics may be nil: Metrics methods tolerate a nil receiver.
 	sessionsSvc := review.NewSessionService(cards.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock))
 	sessionsH := review.NewSessionHandler(sessionsSvc, logger)
@@ -393,6 +394,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		ho.site.UseDrafts(problemsSvc)
 		ho.site.UseQuizzes(quizzesSvc, problemsSvc, sessionsSvc)
 		ho.site.UseToday(cards.Builder(st), sessionsSvc, clock.Now)
+		ho.site.UseReview(sessionsSvc, attemptsSvc, problemsSvc)
 		ho.site.UseSettings(cards.SettingsService(st, review.WithLogger(logger)))
 		ho.site.Register(mux)
 	}

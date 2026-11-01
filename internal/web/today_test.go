@@ -72,6 +72,7 @@ func newTodayEnv(t *testing.T) todayEnv {
 		t.Fatal(err)
 	}
 	site.UseToday(cards.Builder(st), sessions, clock.Now)
+	site.UseReview(sessions, answers, probs)
 	mux := http.NewServeMux()
 	site.Register(mux)
 	return todayEnv{mux: mux, clock: clock, owner: u.ID, problems: probs, answers: answers,
