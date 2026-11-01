@@ -176,8 +176,9 @@ func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput
 }
 
 func checkCreateActor(actor domain.Actor) error {
-	if err := actor.Validate(); err != nil || actor.Kind == domain.ActorSystem {
-		return errors.New("problems: create needs a human or agent actor")
+	// A system actor (seeding) is accepted when it acts for an owner.
+	if err := actor.Validate(); err != nil || actor.UserID.IsNil() {
+		return errors.New("problems: create needs an actor with a user")
 	}
 	return nil
 }

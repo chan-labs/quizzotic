@@ -21,6 +21,8 @@ import (
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/quizzes"
+	"github.com/chan-labs/quizzotic/internal/seed"
+	"github.com/chan-labs/quizzotic/internal/seedrun"
 	"github.com/chan-labs/quizzotic/internal/store"
 	"github.com/chan-labs/quizzotic/internal/store/driver"
 	"github.com/chan-labs/quizzotic/internal/tags"
@@ -73,6 +75,20 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 			return fmt.Errorf("migrate: %w", err)
 		}
 		logger.Info("migrations checked", slog.Int("applied", len(applied)))
+	}
+
+	// storage.seed is keyed, so applying it on every start is safe.
+	skipped, err := seedrun.Startup(ctx, st, cfg.Storage.Seed, func(spec string, r seed.Report) {
+		logger.Info("seed applied", slog.String("source", spec),
+			slog.Int("created", r.Tags.Created+r.Problems.Created+r.Quizzes.Created),
+			slog.Int("updated", r.Tags.Updated+r.Problems.Updated+r.Quizzes.Updated))
+	})
+	if err != nil {
+		return fmt.Errorf("seed: %w", err)
+	}
+	if skipped != nil {
+		logger.Warn("seed skipped; run `quizzotic admin seed` or restart once it can pick an owner",
+			slog.String("reason", skipped.Error()))
 	}
 
 	// Expired idempotency records are ignored on read; the sweep reclaims them.
