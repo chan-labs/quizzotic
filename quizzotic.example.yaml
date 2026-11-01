@@ -1,0 +1,41 @@
+# Example Quizzotic configuration. Copy to quizzotic.yaml and edit.
+# Any key can be overridden by an environment variable named QUIZZOTIC_ plus
+# the key path in upper snake case, e.g. QUIZZOTIC_SERVER_PUBLIC_URL.
+# Unknown keys and invalid values are refused at start-up. Tracing is
+# configured only by the standard OTEL_* environment variables.
+# All hosts below are placeholders; use your own.
+server:
+  listen: ":8080"
+  public_url: "https://quizzotic.example.com"   # required for serve
+  session_ttl: "720h"
+storage:
+  url: "sqlite://quizzotic.db"   # sqlite://<path> or postgres://user:pass@host/db
+  seed: ["builtin:fsrs-basics"]  # loaded on start (not wired up yet)
+  auto_migrate: true             # apply pending migrations on start
+auth:
+  issuers:                       # v1: exactly one
+    - name: "example-idp"
+      issuer: "https://auth.example.com"
+      audience: "quizzotic"
+      scopes: ["openid", "profile", "email"]
+      clients:
+        - id: "quizzotic-web"
+          kind: "human"
+          secret: ""             # set via QUIZZOTIC_AUTH_ISSUERS_0_CLIENTS_0_SECRET
+        - id: "quizzotic-cli"
+          kind: "human"
+        - id: "quizzotic-agent"
+          kind: "agent"
+          allowed_scopes: ["problems:read", "problems:write", "tags:read", "tags:write", "quizzes:read", "quizzes:write", "metrics:read"]
+scheduling:
+  desired_retention: 0.90
+  learning_steps: ["1m", "10m"]
+  new_per_day: 20
+  max_reviews_per_day: 200
+  new_interval: 4
+  weak_tag_boost: 1.0
+  rollover_hour: 4
+  default_timezone: "America/New_York"
+logging:
+  level: "info"                  # debug, info, warn, error
+  format: "json"                 # json or text
