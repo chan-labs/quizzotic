@@ -53,6 +53,10 @@ type Store interface {
 	// can be dropped and rebuilt at any time.
 	Cards() review.Repo
 
+	// Sessions stores review and quiz sessions: the frozen lists served to a
+	// client. Whether an item is answered is derived from Attempts.
+	Sessions() review.SessionRepo
+
 	// Mastery stores the tag mastery projection, which is derived from Cards
 	// and can be dropped and rebuilt at any time.
 	Mastery() metrics.Repo

@@ -14,12 +14,12 @@ import (
 
 type quizList map[domain.ID][]domain.ID
 
-func (q quizList) QuizProblems(_ context.Context, _, quiz domain.ID) ([]domain.ID, error) {
+func (q quizList) QuizProblems(_ context.Context, _, quiz domain.ID) (review.QuizContents, error) {
 	items, ok := q[quiz]
 	if !ok {
-		return nil, review.ErrNotFound
+		return review.QuizContents{}, review.ErrNotFound
 	}
-	return items, nil
+	return review.QuizContents{Live: true, Problems: items}, nil
 }
 
 func quizBuild(t *testing.T, w *world, q quizList, session, quiz domain.ID, shuffle bool) []review.Item {

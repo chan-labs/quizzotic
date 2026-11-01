@@ -74,7 +74,30 @@ func (r cardRepo) DeleteAll(ctx context.Context, ownerID domain.ID) error {
 }
 
 func (r cardRepo) List(ctx context.Context, ownerID domain.ID) ([]review.Card, error) {
-	rows, err := r.q.QueryContext(ctx, `SELECT `+cardCols+` FROM cards WHERE user_id = ? ORDER BY problem_id`, ownerID.String())
+	return r.Query(ctx, ownerID, review.CardFilter{})
+}
+
+func (r cardRepo) Query(ctx context.Context, ownerID domain.ID, f review.CardFilter) ([]review.Card, error) {
+	q := `SELECT ` + cardCols + ` FROM cards WHERE user_id = ?`
+	args := []any{ownerID.String()}
+	if !f.DueBefore.IsZero() {
+		q += ` AND due < ?`
+		args = append(args, Millis(f.DueBefore))
+	}
+	if !f.TagID.IsNil() {
+		q += ` AND problem_id IN (SELECT pt.problem_id FROM problem_tags pt WHERE pt.tag_id = ?)`
+		args = append(args, f.TagID.String())
+	}
+	if !f.After.IsNil() {
+		q += ` AND problem_id > ?`
+		args = append(args, f.After.String())
+	}
+	q += ` ORDER BY problem_id`
+	if f.Limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, f.Limit)
+	}
+	rows, err := r.q.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}

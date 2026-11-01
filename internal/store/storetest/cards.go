@@ -35,6 +35,7 @@ func runCards(t *testing.T, newStore NewStore) {
 	t.Run("rebuild equals incremental", func(t *testing.T) { runCardRebuildProperty(t, newStore) })
 	t.Run("builder", func(t *testing.T) { runCardBuilder(t, newStore) })
 	t.Run("quiz builder", func(t *testing.T) { runQuizBuilder(t, newStore) })
+	t.Run("sessions", func(t *testing.T) { runSessions(t, newStore) })
 }
 
 func runCardRepo(t *testing.T, newStore NewStore) {

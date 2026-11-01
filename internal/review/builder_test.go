@@ -87,6 +87,9 @@ func (cardList) Delete(context.Context, domain.ID, domain.ID) error {
 	panic("unused")
 }
 func (cardList) DeleteAll(context.Context, domain.ID) error { panic("unused") }
+func (cardList) Query(context.Context, domain.ID, review.CardFilter) ([]review.Card, error) {
+	panic("unused")
+}
 func (c cardList) List(context.Context, domain.ID) ([]review.Card, error) {
 	var out []review.Card
 	for _, card := range c.w.cards {

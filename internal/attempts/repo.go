@@ -25,6 +25,8 @@ type ListFilter struct {
 	// TagID, when set, keeps attempts at problems carrying this tag. The
 	// caller has resolved it for the same owner.
 	TagID domain.ID
+	// SessionID, when set, keeps attempts answered within that session.
+	SessionID domain.ID
 	// Since keeps attempts answered at or after it; Until keeps those answered
 	// strictly before it. Zero means unbounded.
 	Since, Until time.Time
