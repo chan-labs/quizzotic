@@ -10,6 +10,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/metrics"
+	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/review"
 )
 
@@ -47,6 +48,13 @@ func (m Mastery) CardUpdater(tx Store) attempts.CardUpdater {
 	return cardAndMastery{cards: m.cards.Projector(tx), mastery: m.Projector(tx)}
 }
 
+// MajorEdit is the problems major-edit and retirement hook bound to tx: the
+// card projection first, then the mastery rows of the problem's tags, in the
+// edit's own transaction.
+func (m Mastery) MajorEdit(tx Store) problems.MajorEditHandler {
+	return problemHooks{cards: m.cards.Projector(tx), mastery: m.Projector(tx)}
+}
+
 // Snapshotter is the daily snapshot writer over s: each user is snapshotted in
 // one transaction, using the user's effective settings (the configured defaults
 // with the user's overrides) for the time zone and rollover hour.
@@ -77,6 +85,12 @@ func (m Mastery) Builder(s Store) *review.Builder {
 	return m.cards.builder(s, metrics.NewRecallReader(m.Scope(s), m.clock))
 }
 
+// SessionTx is Cards.SessionTx with the mastery builder: sessions weight new
+// problems by real tag recall.
+func (m Mastery) SessionTx(s Store) review.SessionTransactor {
+	return sessionTx{s: s, c: m.cards, m: &m}
+}
+
 type masteryTx struct {
 	s Store
 	m Mastery
@@ -100,4 +114,24 @@ func (u cardAndMastery) Apply(ctx context.Context, a attempts.Attempt, rating in
 		return nil, err
 	}
 	return due, nil
+}
+
+type problemHooks struct {
+	cards   *review.Projector
+	mastery *metrics.Projector
+}
+
+func (h problemHooks) ProblemMajorEdit(ctx context.Context, e problems.MajorEdit) error {
+	if err := h.cards.ProblemMajorEdit(ctx, e); err != nil {
+		return err
+	}
+	return h.mastery.UpdateProblem(ctx, e.OwnerID, e.ProblemID)
+}
+
+// ProblemRetired implements problems.RetiredHandler.
+func (h problemHooks) ProblemRetired(ctx context.Context, ownerID, problemID domain.ID) error {
+	if err := h.cards.ProblemRetired(ctx, ownerID, problemID); err != nil {
+		return err
+	}
+	return h.mastery.UpdateProblem(ctx, ownerID, problemID)
 }
