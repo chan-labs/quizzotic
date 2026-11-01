@@ -39,13 +39,13 @@ func mcpSession(t *testing.T, e *probEnv, token string) *sdk.ClientSession {
 
 func resultText(t *testing.T, r *sdk.CallToolResult) string {
 	t.Helper()
-	var b strings.Builder
+	// The first text item is the response body; a second one may carry the ETag.
 	for _, c := range r.Content {
 		if tc, ok := c.(*sdk.TextContent); ok {
-			b.WriteString(tc.Text)
+			return tc.Text
 		}
 	}
-	return b.String()
+	return ""
 }
 
 // TestMCPAgainstRealServer drives the generated MCP server over an in-memory

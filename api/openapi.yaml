@@ -36,7 +36,11 @@ info:
       exposed as an MCP tool named after its `operationId` with dots replaced
       by underscores.
     - `x-quizzotic-mcp-hint` (optional, string): authoring guidance appended
-      to the MCP tool description.
+      to the MCP tool description. Write operations as dotted `operationId`s
+      (`problems.similar`); the MCP server rewrites them to tool names
+      (`problems_similar`). Only reference operations that are MCP-exposed,
+      and only arguments a tool has: tools take path, query and body
+      arguments plus `if_match` (the `If-Match` header); no other header.
 
     ## Server-relative paths
 
@@ -291,8 +295,7 @@ paths:
         Prefer this over many problems.create calls when adding a set of
         problems. Call problems.similar for each item first to avoid
         duplicates. Default each item to status draft, tag every item with
-        existing tags (call tags.list first; aliases resolve), and send an
-        Idempotency-Key so a retry cannot duplicate the batch.
+        existing tags (call tags.list first; aliases resolve).
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -391,7 +394,8 @@ paths:
       x-quizzotic-scopes: [problems:write]
       x-quizzotic-mcp: true
       x-quizzotic-mcp-hint: >-
-        Read the problem first and send its ETag as If-Match. Use major only
+        Read the problem first (problems.get) and pass the ETag it returns as
+        if_match. Use major only
         when the correct answer or the question itself changes.
       parameters:
         - name: id
@@ -1756,7 +1760,10 @@ paths:
         - sessionCookie: []
       x-quizzotic-scopes: [quizzes:write]
       x-quizzotic-mcp: true
-      x-quizzotic-mcp-hint: Send the complete desired problem list in order; omitted problems are removed.
+      x-quizzotic-mcp-hint: >-
+        Read the quiz first (quizzes.get) and pass the ETag it returns as
+        if_match. Send the complete desired problem list in order; omitted
+        problems are removed.
       parameters:
         - $ref: "#/components/parameters/IfMatch"
       requestBody:
