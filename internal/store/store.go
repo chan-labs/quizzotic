@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/chan-labs/quizzotic/internal/auth"
+	"github.com/chan-labs/quizzotic/internal/settings"
 )
 
 // ErrNotSupported is returned for a backend that is recognized but not built yet.
@@ -30,6 +31,9 @@ type Store interface {
 	WebSessions() auth.WebSessionRepo
 	LoginStates() auth.LoginStateRepo
 
+	// Settings reads and writes a user's scheduling overrides.
+	Settings() settings.Repo
+
 	// Migrate applies pending embedded migrations and returns the versions applied.
 	Migrate(ctx context.Context) ([]int, error)
 
@@ -46,5 +50,16 @@ type authTx struct{ s Store }
 func (a authTx) InTx(ctx context.Context, fn func(auth.Repos) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
 		return fn(auth.Repos{Users: tx.Users(), Identities: tx.Identities()})
+	})
+}
+
+// SettingsTx adapts a Store to settings.Transactor.
+func SettingsTx(s Store) settings.Transactor { return settingsTx{s} }
+
+type settingsTx struct{ s Store }
+
+func (a settingsTx) InTx(ctx context.Context, fn func(settings.Repos) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error {
+		return fn(settings.Repos{Settings: tx.Settings()})
 	})
 }
