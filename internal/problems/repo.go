@@ -23,6 +23,9 @@ type ListFilter struct {
 	Type string
 	// CreatedByKind, when set, keeps problems created by this kind of actor.
 	CreatedByKind domain.ActorKind
+	// TagID, when set, keeps problems carrying this tag. The caller has
+	// resolved it for the same owner.
+	TagID domain.ID
 	// Query, when set, keeps problems whose current version's prompt contains
 	// it as a case-insensitive substring. Matching is literal: wildcard
 	// characters in Query have no special meaning.

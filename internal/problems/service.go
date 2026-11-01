@@ -23,6 +23,14 @@ type Transactor interface {
 	InTx(ctx context.Context, fn func(Repo) error) error
 }
 
+// TagResolver resolves a tag reference for list filtering. The tags service
+// implements it; problems cannot import tags (tags imports problems).
+type TagResolver interface {
+	// ResolveTagFilter returns the ID of the owner's tag that ref (ID, slug or
+	// alias) names, following a merge. found is false for an unknown tag.
+	ResolveTagFilter(ctx context.Context, ownerID domain.ID, ref string) (id domain.ID, found bool, err error)
+}
+
 // Views accepted by Service.Get callers.
 const (
 	ViewFull   = "full"
@@ -120,6 +128,7 @@ type Service struct {
 	clock   domain.Clock
 	ids     *domain.IDGenerator
 	shuffle func(n int, swap func(i, j int))
+	tags    TagResolver
 }
 
 // Option tunes a Service.
@@ -129,6 +138,10 @@ type Option func(*Service)
 func WithShuffle(f func(n int, swap func(i, j int))) Option {
 	return func(s *Service) { s.shuffle = f }
 }
+
+// WithTagResolver enables the tag filter of List. Without it a request that
+// sets a tag is answered 422.
+func WithTagResolver(r TagResolver) Option { return func(s *Service) { s.tags = r } }
 
 // NewService builds a Service. repo serves reads; tx runs writes atomically.
 func NewService(repo Repo, tx Transactor, clock domain.Clock, ids *domain.IDGenerator, opts ...Option) *Service {
@@ -273,11 +286,19 @@ func (s *Service) List(ctx context.Context, ownerID domain.ID, q ListQuery) (pla
 		}
 	}
 	if q.Tag != "" {
-		// TODO(M2.8): resolve the slug or ID through the tags service, add the
-		// resulting tag IDs to ListFilter, and implement the join in each
-		// backend. Until the tags schema exists the filter cannot be honoured,
-		// and silently ignoring it would return the wrong problems.
-		fields = append(fields, platform.FieldError{Field: "tag", Detail: "filtering by tag is not available yet"})
+		if s.tags == nil {
+			fields = append(fields, platform.FieldError{Field: "tag", Detail: "filtering by tag is not enabled"})
+		} else {
+			id, found, err := s.tags.ResolveTagFilter(ctx, ownerID, q.Tag)
+			switch {
+			case err != nil:
+				return platform.PageResult[View]{}, err
+			case !found:
+				fields = append(fields, platform.FieldError{Field: "tag", Detail: "no such tag"})
+			default:
+				f.TagID = id
+			}
+		}
 	}
 	if q.Cursor != "" {
 		after, err := decodeCursor(q.Cursor)

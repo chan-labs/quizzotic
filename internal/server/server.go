@@ -289,8 +289,12 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 
 	clock := domain.SystemClock{}
 	meH := me.NewHandler(ho.me, logger)
+	var popts []problems.Option
+	if ho.tags != nil {
+		popts = append(popts, problems.WithTagResolver(ho.tags))
+	}
 	problemsH := problems.NewHandler(
-		problems.NewService(st.Problems(), store.ProblemsTx(st), clock, domain.NewIDGenerator(clock)), logger)
+		problems.NewService(st.Problems(), store.ProblemsTx(st), clock, domain.NewIDGenerator(clock), popts...), logger)
 	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
 	// After the scope guard has authenticated the request: replays are per user.
 	rt.UseAfterAuth(platform.Idempotency(st.Idempotency(), clock, func(ctx context.Context) (domain.ID, bool) {

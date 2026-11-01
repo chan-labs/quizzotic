@@ -137,8 +137,9 @@ paths:
         - name: tag
           in: query
           description: |
-            Only problems carrying this tag (slug or ID). Not yet served: until
-            tags land, a request that sets it is answered 422.
+            Only problems carrying this tag, named by ID, slug or alias (a
+            merged tag stands for the tag it was merged into). An unknown tag
+            is answered 422.
           schema:
             type: string
       responses:

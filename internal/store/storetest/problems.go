@@ -14,6 +14,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/store"
+	"github.com/chan-labs/quizzotic/internal/tags"
 )
 
 func runProblems(t *testing.T, newStore NewStore) {
@@ -325,6 +326,67 @@ func runProblems(t *testing.T, newStore NewStore) {
 				t.Errorf("%s: List = %d rows (err %v), ListCurrent = %d", c.name, len(plain), err, len(got))
 			}
 		}
+	})
+
+	t.Run("list current filters by tag", func(t *testing.T) {
+		s, a, b := setup(t)
+		mkTag := func(owner auth.User, slug string) tags.Tag {
+			t.Helper()
+			tg := tags.Tag{ID: ids.New(), OwnerID: owner.ID, Slug: slug, Name: slug, Status: tags.StatusActive,
+				CreatedAt: t0, UpdatedAt: t0}
+			if err := s.Tags().Create(ctx, owner.ID, tg); err != nil {
+				t.Fatal(err)
+			}
+			return tg
+		}
+		tagA, tagA2, tagB := mkTag(a, "x"), mkTag(a, "y"), mkTag(b, "x")
+		p1 := create(t, s, a, problems.StatusLive)
+		p2 := create(t, s, a, problems.StatusLive)
+		p3 := create(t, s, a, problems.StatusLive)
+		pb := create(t, s, b, problems.StatusLive)
+		for _, c := range []struct {
+			owner auth.User
+			p     problems.Problem
+			tags  []domain.ID
+		}{{a, p1, []domain.ID{tagA.ID}}, {a, p2, []domain.ID{tagA.ID, tagA2.ID}}, {a, p3, []domain.ID{tagA2.ID}}, {b, pb, []domain.ID{tagB.ID}}} {
+			if err := s.Tags().SetProblemTags(ctx, c.owner.ID, c.p.ID, c.tags); err != nil {
+				t.Fatal(err)
+			}
+		}
+		list := func(owner auth.User, f problems.ListFilter) []domain.ID {
+			t.Helper()
+			cur, err := s.Problems().ListCurrent(ctx, owner.ID, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := []domain.ID{}
+			for _, c := range cur {
+				out = append(out, c.Problem.ID)
+			}
+			return out
+		}
+		eq := func(name string, got []domain.ID, want ...problems.Problem) {
+			t.Helper()
+			w := []domain.ID{}
+			for _, p := range want {
+				w = append(w, p.ID)
+			}
+			if !slices.Equal(got, w) {
+				t.Errorf("%s: got %v, want %v", name, got, w)
+			}
+		}
+		eq("tag x", list(a, problems.ListFilter{TagID: tagA.ID}), p1, p2)
+		eq("tag y", list(a, problems.ListFilter{TagID: tagA2.ID}), p2, p3)
+		eq("tag paged", list(a, problems.ListFilter{TagID: tagA2.ID, After: p2.ID}), p3)
+		eq("tag and status", list(a, problems.ListFilter{TagID: tagA.ID, Status: problems.StatusDraft}))
+		// A tag ID of another owner matches nothing, even for that owner's problem.
+		eq("foreign tag", list(a, problems.ListFilter{TagID: tagB.ID}))
+		eq("owner b", list(b, problems.ListFilter{TagID: tagB.ID}), pb)
+		// Soft-deleted problems stay hidden.
+		if err := s.Problems().SoftDelete(ctx, a.ID, p1.ID, t0); err != nil {
+			t.Fatal(err)
+		}
+		eq("deleted hidden", list(a, problems.ListFilter{TagID: tagA.ID}), p2)
 	})
 
 	t.Run("owner filtering", func(t *testing.T) {

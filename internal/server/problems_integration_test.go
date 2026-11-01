@@ -37,7 +37,7 @@ func init() {
 				t.Fatal(err)
 			}
 			return ownerscope.Created{
-				Params:  ownerscope.Params{"id": v.ID.String()},
+				Params: ownerscope.Params{"id": v.ID.String()},
 				// The ID is not a secret here: problem details echo the
 				// requested path as `instance`.
 				Secrets: []string{prompt, "secret reference answer"},
@@ -115,10 +115,10 @@ func (e *probEnv) create(t *testing.T, tok string, body map[string]any) problems
 	if r.code != http.StatusCreated {
 		t.Fatalf("create = %d (%s)", r.code, r.body)
 	}
-	return decode[problems.View](t, r)
+	return decodeReply[problems.View](t, r)
 }
 
-func decode[T any](t *testing.T, r reply) T {
+func decodeReply[T any](t *testing.T, r reply) T {
 	t.Helper()
 	var v T
 	if err := json.Unmarshal(r.body, &v); err != nil {
@@ -138,7 +138,7 @@ func (e *probEnv) list(t *testing.T, tok string, q url.Values) problemPage {
 	if r.code != 200 {
 		t.Fatalf("list %v = %d (%s)", q, r.code, r.body)
 	}
-	return decode[problemPage](t, r)
+	return decodeReply[problemPage](t, r)
 }
 
 func prompts(items []problems.View) []string {
@@ -179,7 +179,7 @@ func TestCreateProblem(t *testing.T) {
 		if r.code != http.StatusCreated {
 			t.Fatalf("status = %d (%s)", r.code, r.body)
 		}
-		v := decode[problems.View](t, r)
+		v := decodeReply[problems.View](t, r)
 		uid, _ := e.userFor(t, "author-sub")
 		if v.Status != problems.StatusDraft || v.Version != 1 || v.Type != "mcq" ||
 			v.CreatedBy.Kind != domain.ActorAgent || v.CreatedBy.UserID != uid || v.CreatedBy.ClientID != "quizzotic-agent" {
@@ -270,7 +270,7 @@ func TestGetProblemViews(t *testing.T) {
 		if r.code != 200 {
 			t.Fatalf("prompt view = %d (%s)", r.code, r.body)
 		}
-		return decode[promptView](t, r), r.body
+		return decodeReply[promptView](t, r), r.body
 	}
 
 	t.Run("full view has the answers", func(t *testing.T) {
@@ -279,13 +279,13 @@ func TestGetProblemViews(t *testing.T) {
 			if r.code != 200 {
 				t.Fatalf("status = %d (%s)", r.code, r.body)
 			}
-			v := decode[problems.View](t, r)
+			v := decodeReply[problems.View](t, r)
 			if v.ID != open.ID || v.Explanation != "Because." || !strings.Contains(string(v.Payload), "secret reference answer") ||
 				!strings.Contains(string(v.Payload), "secret rubric point") {
 				t.Errorf("view%s = %s", q, r.body)
 			}
 		}
-		v := decode[problems.View](t, e.req(t, "GET", "/problems/"+mcq.ID.String(), e.human, nil, nil))
+		v := decodeReply[problems.View](t, e.req(t, "GET", "/problems/"+mcq.ID.String(), e.human, nil, nil))
 		if !strings.Contains(string(v.Payload), `"correct":["c"]`) {
 			t.Errorf("mcq full view lacks correct: %s", v.Payload)
 		}
@@ -322,7 +322,7 @@ func TestGetProblemViews(t *testing.T) {
 	}
 	order := func(id domain.ID) (string, []byte) {
 		pv, raw := prompt(id)
-		m := decode[mcqPrompt](t, reply{body: pv.Payload})
+		m := decodeReply[mcqPrompt](t, reply{body: pv.Payload})
 		var ids []string
 		for _, c := range m.Choices {
 			ids = append(ids, c.ID)
@@ -360,7 +360,7 @@ func TestGetProblemViews(t *testing.T) {
 			t.Errorf("40 requests produced one order: %v", seen)
 		}
 		// The stored problem is untouched by shuffling.
-		v := decode[problems.View](t, e.req(t, "GET", "/problems/"+shuf.ID.String(), e.human, nil, nil))
+		v := decodeReply[problems.View](t, e.req(t, "GET", "/problems/"+shuf.ID.String(), e.human, nil, nil))
 		if !strings.Contains(string(v.Payload), `"id":"a","text":"Alpha"},{"id":"b"`) {
 			t.Errorf("stored order changed: %s", v.Payload)
 		}
@@ -464,11 +464,80 @@ func TestListProblems(t *testing.T) {
 		}
 	})
 
-	t.Run("tag filter is defined but not served yet", func(t *testing.T) {
-		p := e.req(t, "GET", "/problems?tag=biology", e.human, nil, nil).wantProblem(t, 422, "validation")
-		if len(p.Errors) != 1 || p.Errors[0].Field != "tag" {
-			t.Errorf("errors = %+v", p.Errors)
+	t.Run("tag filter", func(t *testing.T) {
+		mkTag := func(tok, slug string) string {
+			r := e.req(t, "POST", "/tags", tok, map[string]string{"slug": slug, "name": slug}, nil)
+			if r.code != http.StatusCreated {
+				t.Fatalf("create tag = %d (%s)", r.code, r.body)
+			}
+			return decodeReply[struct {
+				ID string `json:"id"`
+			}](t, r).ID
 		}
+		tagProblems := func(tok string, p problems.View, refs ...string) {
+			r := e.req(t, "PUT", "/problems/"+p.ID.String()+"/tags", tok, map[string]any{"tags": refs}, nil)
+			if r.code != http.StatusOK {
+				t.Fatalf("tag problem = %d (%s)", r.code, r.body)
+			}
+		}
+		bioID := mkTag(e.human, "biology")
+		mkTag(e.human, "chemistry")
+		tagProblems(e.human, byHuman, "biology")
+		tagProblems(e.human, liveAgent, "biology", "chemistry")
+		tagProblems(e.human, archived, "chemistry")
+		// Another user's tag with the same slug, on their own problem.
+		otherBio := mkTag(e.other, "biology")
+		otherPage := e.list(t, e.other, nil)
+		tagProblems(e.other, otherPage.Items[0], "biology")
+
+		check := func(name, tag string, tok string, want ...problems.View) {
+			t.Run(name, func(t *testing.T) {
+				page := e.list(t, tok, url.Values{"tag": {tag}})
+				if got := ids(page.Items); !slices.Equal(got, ids(want)) {
+					t.Errorf("tag %q: got %v, want %v", tag, prompts(page.Items), prompts(want))
+				}
+			})
+		}
+		check("by slug", "biology", e.human, byHuman, liveAgent)
+		check("by slug is case-insensitive", "BIOLOGY", e.human, byHuman, liveAgent)
+		check("by ID", bioID, e.human, byHuman, liveAgent)
+		check("other slug", "chemistry", e.human, liveAgent, archived)
+		check("owner isolation: same slug, other user", "biology", e.other, otherPage.Items[0])
+
+		t.Run("another user's tag ID is unknown", func(t *testing.T) {
+			e.req(t, "GET", "/problems?tag="+otherBio, e.human, nil, nil).wantProblem(t, 422, "validation")
+		})
+
+		// Renaming leaves the old slug as an alias that still filters.
+		g := e.req(t, "GET", "/tags/biology", e.human, nil, nil)
+		r := e.req(t, "PATCH", "/tags/biology", e.human, map[string]string{"slug": "bio"}, map[string]string{"If-Match": g.header.Get("ETag")})
+		if r.code != http.StatusOK {
+			t.Fatalf("rename = %d (%s)", r.code, r.body)
+		}
+		check("by new slug", "bio", e.human, byHuman, liveAgent)
+		check("by alias", "biology", e.human, byHuman, liveAgent)
+
+		t.Run("combines with other filters and paging", func(t *testing.T) {
+			page := e.list(t, e.human, url.Values{"tag": {"chemistry"}, "type": {"mcq"}})
+			if !slices.Equal(ids(page.Items), ids([]problems.View{liveAgent})) {
+				t.Errorf("got %v", prompts(page.Items))
+			}
+			p1 := e.list(t, e.human, url.Values{"tag": {"chemistry"}, "limit": {"1"}})
+			if len(p1.Items) != 1 || p1.NextCursor == nil {
+				t.Fatalf("page 1 = %v next %v", prompts(p1.Items), p1.NextCursor)
+			}
+			p2 := e.list(t, e.human, url.Values{"tag": {"chemistry"}, "limit": {"1"}, "cursor": {*p1.NextCursor}})
+			if !slices.Equal(append(ids(p1.Items), ids(p2.Items)...), ids([]problems.View{liveAgent, archived})) || p2.NextCursor != nil {
+				t.Errorf("page 2 = %v", prompts(p2.Items))
+			}
+		})
+
+		t.Run("unknown tag is a validation error", func(t *testing.T) {
+			p := e.req(t, "GET", "/problems?tag=nonexistent", e.human, nil, nil).wantProblem(t, 422, "validation")
+			if len(p.Errors) != 1 || p.Errors[0].Field != "tag" {
+				t.Errorf("errors = %+v", p.Errors)
+			}
+		})
 	})
 
 	t.Run("invalid filters are rejected together", func(t *testing.T) {
@@ -598,7 +667,7 @@ func TestCreateProblemIdempotencyReplay(t *testing.T) {
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("rows = %d, err %v; want exactly 1", len(rows), err)
 	}
-	if want := decode[problems.View](t, first).ID; rows[0].ID != want {
+	if want := decodeReply[problems.View](t, first).ID; rows[0].ID != want {
 		t.Errorf("stored id %s, response id %s", rows[0].ID, want)
 	}
 
@@ -625,7 +694,7 @@ func TestCreateProblemIdempotencyReplay(t *testing.T) {
 		if r.code != http.StatusCreated || r.header.Get("Idempotency-Replayed") != "" {
 			t.Fatalf("other user with the same key = %d replayed %q", r.code, r.header.Get("Idempotency-Replayed"))
 		}
-		if id := decode[problems.View](t, r).ID; id == decode[problems.View](t, first).ID {
+		if id := decodeReply[problems.View](t, r).ID; id == decodeReply[problems.View](t, first).ID {
 			t.Error("another user's request replayed the first user's response")
 		}
 	})

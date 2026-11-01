@@ -238,6 +238,10 @@ func (r problemRepo) ListCurrent(ctx context.Context, ownerID domain.ID, f probl
 		q += ` AND p.created_by_kind = ?`
 		args = append(args, string(f.CreatedByKind))
 	}
+	if !f.TagID.IsNil() {
+		q += ` AND EXISTS (SELECT 1 FROM problem_tags pt WHERE pt.problem_id = p.id AND pt.tag_id = ?)`
+		args = append(args, f.TagID.String())
+	}
 	if f.Query != "" {
 		q += ` AND v.prompt LIKE ? ESCAPE '\'`
 		args = append(args, "%"+likeEscaper.Replace(f.Query)+"%")
