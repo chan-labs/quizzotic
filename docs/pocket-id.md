@@ -90,6 +90,10 @@ Decode the access token (the payload is the second dot-separated segment, base64
 
 Success for every client: `aud` is `quizzotic` (as a string or a one-element array), and `iss` equals your configured issuer.
 
+## Using the CLI logins
+
+`quizzotic login` finds the issuer from `$QUIZZOTIC_SERVER`'s `/.well-known/oauth-protected-resource` (override with `--issuer` or `QUIZZOTIC_ISSUER`) and requests the scopes `openid profile email offline_access`, so the clients must be allowed to receive refresh tokens. Without one the CLI still works but you log in again when the access token expires. `--device` (or an automatic fallback when no browser opens) uses device flow when the issuer advertises it. Unattended scripts set `QUIZZOTIC_CLIENT_ID=quizzotic-headless` and `QUIZZOTIC_CLIENT_SECRET`; the CLI exchanges them by client credentials on each run and stores nothing. Logins live in `~/.config/quizzotic/credentials.json` (mode 0600); `quizzotic me` (shorthand for `quizzotic meta me`) shows who the server thinks you are, and `--agent` or `QUIZZOTIC_AGENT=1` selects the agent login.
+
 ## Remote MCP clients
 
 Pocket ID supports [Client ID Metadata Documents](https://pocket-id.org/docs/guides/client-id-metadata-documents) for public clients, which lets remote MCP clients register without manual setup. Such clients must be declared `agent` in `auth.issuers[0].clients` before Quizzotic accepts their tokens.
