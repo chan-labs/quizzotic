@@ -65,6 +65,8 @@ tags:
     description: Browser login and web sessions (host root, not under /api/v1).
   - name: tags
     description: Tags and aliases.
+  - name: problems
+    description: Problems and their versions.
 paths:
   /me:
     get:
@@ -88,6 +90,171 @@ paths:
               schema:
                 $ref: "#/components/schemas/Me"
         "401":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems:
+    get:
+      operationId: problems.list
+      tags: [problems]
+      summary: List problems
+      description: |
+        Lists the caller's non-deleted problems, oldest first, with cursor
+        pagination. Filters combine with AND. `type` and `q` apply to the
+        problem's current version, `created_by_kind` to its creator. `q` is a
+        case-insensitive substring match over the prompt. `tag` accepts a tag
+        slug or ID.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, status, type, version, prompt]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          description: Only problems in this status.
+          schema:
+            $ref: "#/components/schemas/ProblemStatus"
+        - name: type
+          in: query
+          description: Only problems of this type.
+          schema:
+            $ref: "#/components/schemas/ProblemType"
+        - name: created_by_kind
+          in: query
+          description: Only problems created by this kind of actor.
+          schema:
+            type: string
+            enum: [human, agent, system]
+        - name: q
+          in: query
+          description: Case-insensitive substring of the prompt.
+          schema:
+            type: string
+        - name: tag
+          in: query
+          description: |
+            Only problems carrying this tag (slug or ID). Not yet served: until
+            tags land, a request that sets it is answered 422.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: One page of problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemPage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: problems.create
+      tags: [problems]
+      summary: Create a problem
+      description: |
+        Creates a problem and its first version. `status` is `draft` (the
+        default) or `live`. The payload is validated against the type; every
+        failure is listed in `errors` of a 422 response.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: >-
+        Check for duplicates first (problems.similar once it exists, else
+        problems.list with q), default to status draft so a human can review,
+        and always tag the problem.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProblemRequest"
+      responses:
+        "201":
+          description: The created problem.
+          headers:
+            Location:
+              description: URL of the new problem.
+              schema:
+                type: string
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemView"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /problems/{id}:
+    get:
+      operationId: problems.get
+      tags: [problems]
+      summary: Get a problem
+      description: |
+        Returns the problem's current version. The default `full` view
+        includes correct answers, reference answer and rubric. `view=prompt`
+        is what a client shows while answering: no correct answers, reference
+        answer, rubric or explanation, and MCQ choices shuffled when the
+        payload says `shuffle`.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [problems:read]
+      x-quizzotic-mcp: true
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: view
+          in: query
+          description: Which view to return. Defaults to `full`.
+          schema:
+            type: string
+            enum: [full, prompt]
+            default: full
+      responses:
+        "200":
+          description: The problem, as `ProblemView` for `full` or `ProblemPromptView` for `prompt`.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ProblemView"
+                  - $ref: "#/components/schemas/ProblemPromptView"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
@@ -602,9 +769,11 @@ components:
   responses:
     IdempotencyKeyReuse:
       description: >-
-        The `Idempotency-Key` was already used (within 24 h) with a different
-        method, path, query or body. `type` is
-        `urn:quizzotic:problem:idempotency-key-reuse`.
+        The request is unprocessable. Either it failed validation (`type` is
+        `urn:quizzotic:problem:validation`, with per-field `errors`), or the
+        `Idempotency-Key` was already used (within 24 h) with a different
+        method, path, query or body (`type` is
+        `urn:quizzotic:problem:idempotency-key-reuse`).
       content:
         application/problem+json:
           schema:
@@ -784,6 +953,142 @@ components:
           items:
             type: string
             minLength: 1
+    ProblemStatus:
+      type: string
+      enum: [draft, live, archived]
+    ProblemType:
+      type: string
+      enum: [mcq, cloze, open]
+    Actor:
+      type: object
+      description: Who performed a write.
+      required: [kind, user_id, client_id]
+      properties:
+        kind:
+          type: string
+          enum: [human, agent, system]
+        user_id:
+          type: string
+          description: Empty for a system actor.
+        client_id:
+          type: string
+    ProblemPayload:
+      description: Type-specific payload; the shape follows `type`.
+      oneOf:
+        - $ref: "#/components/schemas/MCQPayload"
+        - $ref: "#/components/schemas/ClozePayload"
+        - $ref: "#/components/schemas/OpenPayload"
+    CreateProblemRequest:
+      type: object
+      additionalProperties: false
+      required: [type, prompt, payload]
+      properties:
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+          minLength: 1
+          description: Markdown. For `cloze`, carries the `{{blank_id}}` markers.
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+          description: Markdown, shown after the answer.
+        source:
+          type: string
+        status:
+          type: string
+          enum: [draft, live]
+          default: draft
+    ProblemView:
+      type: object
+      description: A problem's current version, with answers.
+      required: [id, status, version, type, prompt, payload, explanation, source, created_by, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        status:
+          $ref: "#/components/schemas/ProblemStatus"
+        version:
+          type: integer
+          description: The current version number.
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+        payload:
+          $ref: "#/components/schemas/ProblemPayload"
+        explanation:
+          type: string
+        source:
+          type: string
+        created_by:
+          $ref: "#/components/schemas/Actor"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProblemPromptView:
+      type: object
+      description: |
+        What a client shows while answering. Carries no correct answers,
+        reference answer, rubric or explanation.
+      required: [id, status, version, type, prompt, payload]
+      properties:
+        id:
+          type: string
+        status:
+          $ref: "#/components/schemas/ProblemStatus"
+        version:
+          type: integer
+        type:
+          $ref: "#/components/schemas/ProblemType"
+        prompt:
+          type: string
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/MCQPromptPayload"
+            - $ref: "#/components/schemas/ClozePromptPayload"
+            - $ref: "#/components/schemas/OpenPromptPayload"
+    MCQPromptPayload:
+      type: object
+      required: [choices, multiple, shuffle]
+      properties:
+        choices:
+          type: array
+          description: Shuffled on each request when `shuffle` is true.
+          items:
+            $ref: "#/components/schemas/MCQChoice"
+        multiple:
+          type: boolean
+        shuffle:
+          type: boolean
+    ClozePromptPayload:
+      type: object
+      required: [blanks]
+      properties:
+        blanks:
+          type: array
+          items:
+            type: object
+            required: [id]
+            properties:
+              id:
+                type: string
+    OpenPromptPayload:
+      type: object
+      description: Empty; the reference answer and rubric are withheld.
+    ProblemPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProblemView"
     PageResult:
       type: object
       description: |
