@@ -112,9 +112,20 @@ func TestNoForbiddenOperationExposed(t *testing.T) {
 		if slices.ContainsFunc(op.Scopes, func(s string) bool { return slices.Contains(forbiddenScopes, s) }) {
 			t.Errorf("%s needs a forbidden scope %v", op.ID, op.Scopes)
 		}
-		if strings.HasPrefix(op.ID, "attempts.") || strings.HasPrefix(op.ID, "sessions.") ||
+		if op.ID == "attempts.create" || op.ID == "attempts.rate" || strings.HasPrefix(op.ID, "sessions.") ||
 			strings.HasPrefix(op.ID, "admin.") || strings.HasPrefix(op.Path, "/admin") {
 			t.Errorf("%s must not be exposed", op.ID)
+		}
+	}
+	// Attempt reads are allowed and exposed.
+	for _, name := range []string{"attempts_list", "attempts_get"} {
+		if !exposed[name] {
+			t.Errorf("tool %s is not exposed", name)
+		}
+	}
+	for _, name := range []string{"attempts_create", "attempts_rate"} {
+		if exposed[name] {
+			t.Errorf("write tool %s is exposed", name)
 		}
 	}
 }
