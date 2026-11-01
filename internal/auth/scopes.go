@@ -5,7 +5,6 @@ package auth
 import (
 	"errors"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 
@@ -13,9 +12,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
-// Authenticator establishes the Principal of a request. Bearer tokens are
-// handled by BearerAuthenticator; the web session authenticator (cookie)
-// implements the same interface.
+// Authenticator establishes the Principal of a request.
 type Authenticator interface {
 	// Authenticate returns ErrNoCredentials when the request carries none,
 	// and any other error when credentials are present but unacceptable.
@@ -24,6 +21,10 @@ type Authenticator interface {
 
 // ErrNoCredentials means the request carried no credentials.
 var ErrNoCredentials = errors.New("auth: no credentials")
+
+// ErrCSRF means a cookie-authenticated, state-changing request lacked a valid
+// CSRF token.
+var ErrCSRF = errors.New("auth: csrf token missing or invalid")
 
 // BearerAuthenticator verifies an IdP access token and resolves its principal.
 type BearerAuthenticator struct {
@@ -65,154 +66,102 @@ func (c Chain) Authenticate(r *http.Request) (Principal, error) {
 	return Principal{}, ErrNoCredentials
 }
 
-type route struct {
-	op   openapi.Operation
-	segs []string
+// SessionAuthenticator authenticates the web session cookie. Sessions belong
+// to humans, so the principal holds every scope. State-changing methods must
+// also carry the session's CSRF token.
+type SessionAuthenticator struct{ Login *LoginHandler }
+
+// Authenticate implements Authenticator.
+func (s SessionAuthenticator) Authenticate(r *http.Request) (Principal, error) {
+	ws, _, err := s.Login.authenticate(r)
+	if errors.Is(err, ErrNoSession) {
+		if _, cerr := r.Cookie(SessionCookieName); cerr != nil {
+			return Principal{}, ErrNoCredentials
+		}
+		return Principal{}, invalid("session expired or unknown")
+	}
+	if err != nil {
+		return Principal{}, err
+	}
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+	default:
+		if !CheckCSRF(r, ws) {
+			return Principal{}, ErrCSRF
+		}
+	}
+	return Principal{UserID: ws.UserID, Kind: KindHuman, ClientID: "web-session"}, nil
 }
 
-// ScopeGuard enforces each operation's x-quizzotic-scopes.
+// ScopeGuard enforces each operation's x-quizzotic-scopes. It does no route
+// matching of its own: the router reports the mux pattern it matched, and the
+// guard looks that exact pattern up among the spec's operations. A pattern
+// with no spec operation is denied (fail closed).
 type ScopeGuard struct {
-	auth   Authenticator
-	routes []route
+	auth Authenticator
+	ops  map[string][]string // "METHOD /path" -> scopes
 }
 
 // NewScopeGuard indexes the API operations in ops (root operations such as
-// health probes are not under the guarded prefix and are skipped).
+// health probes are served outside the router and are skipped).
 func NewScopeGuard(a Authenticator, ops []openapi.Operation) *ScopeGuard {
-	g := &ScopeGuard{auth: a}
+	g := &ScopeGuard{auth: a, ops: map[string][]string{}}
 	for _, op := range ops {
-		if op.Root {
-			continue
+		if !op.Root {
+			g.ops[op.Method+" "+op.Path] = op.Scopes
 		}
-		g.routes = append(g.routes, route{op: op, segs: split(op.Path)})
 	}
-	// Most specific first: more literal segments win, as in net/http.
-	sort.SliceStable(g.routes, func(i, j int) bool { return literals(g.routes[i].segs) > literals(g.routes[j].segs) })
 	return g
 }
 
-// requestSegments splits the request path the way the router and ServeMux do:
-// on the escaped path, after the API prefix, so an escaped slash stays inside
-// its segment. Each segment is then unescaped for comparison with the spec's
-// literals. Encoded slashes and backslashes are refused outright so the guard
-// and the router can never disagree about segment boundaries (fail closed).
-// A path outside the prefix yields no segments; the router answers 404.
-func requestSegments(r *http.Request) ([]string, error) {
-	esc := r.URL.EscapedPath()
-	if !strings.HasPrefix(esc, platform.APIPrefix+"/") {
-		return nil, nil
+// Patterns returns the mux patterns the guard knows, sorted.
+func (g *ScopeGuard) Patterns() []string {
+	out := make([]string, 0, len(g.ops))
+	for p := range g.ops {
+		out = append(out, p)
 	}
-	rest := strings.TrimPrefix(esc, platform.APIPrefix)
-	if l := strings.ToLower(rest); strings.Contains(l, "%2f") || strings.Contains(l, "%5c") {
-		return nil, errors.New("encoded slashes are not allowed in the path")
-	}
-	segs := split(rest)
-	for i, s := range segs {
-		u, err := url.PathUnescape(s)
-		if err != nil {
-			return nil, errors.New("malformed path encoding")
-		}
-		segs[i] = u
-	}
-	return segs, nil
+	sort.Strings(out)
+	return out
 }
 
-func split(p string) []string { return strings.Split(strings.Trim(p, "/"), "/") }
-
-func literals(segs []string) int {
-	n := 0
-	for _, s := range segs {
-		if !strings.HasPrefix(s, "{") {
-			n++
-		}
+// Authorize implements platform.Authorizer. HEAD requests arrive here with
+// the GET pattern, because that is what the mux matched. An operation with no
+// required scopes needs no authentication. Otherwise the caller must
+// authenticate (401) and hold at least one required scope (403), and the
+// Principal is placed in the request context. A pattern with no spec
+// operation is a 404. Requests the router could not match (unknown paths,
+// wrong methods, OPTIONS) never get here: the router rejects them with 404 or
+// 405 without running any handler.
+func (g *ScopeGuard) Authorize(pattern string, w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
+	scopes, ok := g.ops[pattern]
+	if !ok {
+		platform.WriteError(w, r, platform.NotFound("no such resource"))
+		return nil, false
 	}
-	return n
-}
-
-func (r route) matches(segs []string) bool {
-	if len(r.segs) != len(segs) {
-		return false
+	if len(scopes) == 0 {
+		return r, true
 	}
-	for i, s := range r.segs {
-		if !strings.HasPrefix(s, "{") && s != segs[i] {
-			return false
+	p, err := g.auth.Authenticate(r)
+	switch {
+	case err == nil:
+	case errors.Is(err, ErrCSRF):
+		platform.WriteError(w, r, platform.Forbidden("csrf token missing or invalid"))
+		return nil, false
+	case errors.Is(err, ErrNoCredentials), errors.Is(err, ErrInvalidToken), errors.Is(err, ErrUnknownClient):
+		w.Header().Set("WWW-Authenticate", `Bearer realm="quizzotic"`)
+		detail := "authentication required"
+		if !errors.Is(err, ErrNoCredentials) {
+			detail = "invalid credentials"
 		}
+		platform.WriteError(w, r, platform.Unauthorized(detail))
+		return nil, false
+	default:
+		platform.WriteError(w, r, err) // infrastructure failure: opaque 500
+		return nil, false
 	}
-	return true
-}
-
-// required reports the scopes (any one of) a request needs and whether the
-// request is guarded at all. HEAD is enforced as the GET operation, as the
-// ServeMux serves it. When the path belongs to operations but none has this
-// method (OPTIONS, wrong method), the request is still guarded by the union of
-// those operations' scopes, so authentication is required before the router
-// answers 405. A request is unguarded only when no operation matches the path
-// or some operation on it needs no scope.
-func (g *ScopeGuard) required(method string, segs []string) ([]string, bool) {
-	methods := []string{method}
-	if method == http.MethodHead {
-		methods = append(methods, http.MethodGet)
+	if !p.HasAny(scopes) {
+		platform.WriteError(w, r, platform.Forbidden("missing required scope: one of "+strings.Join(scopes, ", ")))
+		return nil, false
 	}
-	for _, m := range methods {
-		for _, rt := range g.routes {
-			if rt.op.Method == m && rt.matches(segs) {
-				return rt.op.Scopes, len(rt.op.Scopes) > 0
-			}
-		}
-	}
-	var union []string
-	found := false
-	for _, rt := range g.routes {
-		if !rt.matches(segs) {
-			continue
-		}
-		if len(rt.op.Scopes) == 0 {
-			return nil, false
-		}
-		found = true
-		union = append(union, rt.op.Scopes...)
-	}
-	return union, found
-}
-
-// Middleware wraps the API handler (paths relative to platform.APIPrefix are
-// matched after stripping the prefix). Operations with no required scopes pass
-// through unauthenticated; a request whose path matches no operation passes
-// through to the router's own 404. HEAD is enforced as GET, and OPTIONS or a
-// wrong method on a guarded path must authenticate and hold one of the path's
-// scopes before the router answers 405. Otherwise the caller must authenticate (401) and
-// hold at least one required scope (403), and the Principal is placed in the
-// request context.
-func (g *ScopeGuard) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		segs, err := requestSegments(r)
-		if err != nil {
-			platform.WriteError(w, r, platform.BadRequest(err.Error()))
-			return
-		}
-		scopes, guarded := g.required(r.Method, segs)
-		if !guarded {
-			next.ServeHTTP(w, r)
-			return
-		}
-		p, err := g.auth.Authenticate(r)
-		if err != nil && !errors.Is(err, ErrNoCredentials) && !errors.Is(err, ErrInvalidToken) && !errors.Is(err, ErrUnknownClient) {
-			platform.WriteError(w, r, err) // infrastructure failure: opaque 500
-			return
-		}
-		if err != nil {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="quizzotic"`)
-			detail := "authentication required"
-			if !errors.Is(err, ErrNoCredentials) {
-				detail = "invalid credentials"
-			}
-			platform.WriteError(w, r, platform.Unauthorized(detail))
-			return
-		}
-		if !p.HasAny(scopes) {
-			platform.WriteError(w, r, platform.Forbidden("missing required scope: one of "+strings.Join(scopes, ", ")))
-			return
-		}
-		next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
-	})
+	return r.WithContext(WithPrincipal(r.Context(), p)), true
 }
