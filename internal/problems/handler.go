@@ -35,6 +35,33 @@ func (h *Handler) Register(rt *platform.Router) {
 	rt.HandleFunc("POST /problems", h.Create)
 	rt.HandleFunc("GET /problems", h.List)
 	rt.HandleFunc("GET /problems/{id}", h.Get)
+	rt.HandleFunc("POST /problems/similar", h.Similar)
+}
+
+type similarRequest struct {
+	Prompt   string   `json:"prompt"`
+	Answers  []string `json:"answers"`
+	Limit    int      `json:"limit"`
+	MinScore float64  `json:"min_score"`
+}
+
+// Similar answers POST /problems/similar.
+func (h *Handler) Similar(w http.ResponseWriter, r *http.Request) {
+	p, ok := h.principal(w, r)
+	if !ok {
+		return
+	}
+	var req similarRequest
+	if err := platform.DecodeJSON(w, r, &req); err != nil {
+		platform.WriteError(w, r, err)
+		return
+	}
+	res, err := h.svc.Similar(r.Context(), p.UserID, SimilarInput(req))
+	if err != nil {
+		h.fail(w, r, "similar", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 type createRequest struct {
