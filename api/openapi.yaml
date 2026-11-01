@@ -67,6 +67,8 @@ tags:
     description: Tags and aliases.
   - name: problems
     description: Problems and their versions.
+  - name: quizzes
+    description: Quizzes and their ordered items.
 paths:
   /me:
     get:
@@ -710,6 +712,239 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /quizzes:
+    get:
+      operationId: quizzes.list
+      tags: [quizzes]
+      summary: List quizzes
+      description: |
+        Lists the caller's non-deleted quizzes ordered by ID, each with its
+        ordered items. Without `status`, quizzes of every status are listed.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, title, status]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          description: Only quizzes with this status.
+          schema:
+            $ref: "#/components/schemas/QuizStatus"
+      responses:
+        "200":
+          description: A page of quizzes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: quizzes.create
+      tags: [quizzes]
+      summary: Create a quiz
+      description: |
+        Creates a quiz, `draft` unless `status` says otherwise. `problem_ids`
+        optionally sets the initial items in order; each must be a distinct,
+        non-deleted problem of the caller (422 otherwise).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, title, status]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizCreate"
+      responses:
+        "201":
+          description: The created quiz.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Location:
+              description: URL of the new quiz.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /quizzes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/QuizId"
+    get:
+      operationId: quizzes.get
+      tags: [quizzes]
+      summary: Get a quiz
+      description: Returns the quiz with its items in order.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:read]
+      x-quizzotic-mcp: true
+      responses:
+        "200":
+          description: The quiz.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: quizzes.update
+      tags: [quizzes]
+      summary: Update a quiz
+      description: |
+        Changes the title, description and/or status. Items are replaced
+        through `PUT /quizzes/{id}/items`. Requires `If-Match` (412 when
+        stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:write]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizUpdate"
+      responses:
+        "200":
+          description: The updated quiz.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: quizzes.delete
+      tags: [quizzes]
+      summary: Delete a quiz
+      description: |
+        Soft-deletes the quiz; it no longer appears in reads or lists.
+        Requires `If-Match` (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:write]
+      x-quizzotic-mcp: true
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: The quiz was deleted.
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /quizzes/{id}/items:
+    parameters:
+      - $ref: "#/components/parameters/QuizId"
+    put:
+      operationId: quizzes.setItems
+      tags: [quizzes]
+      summary: Replace a quiz's items
+      description: |
+        Replaces the quiz's ordered problem list; position follows the order
+        of `problem_ids`. Each ID must be a distinct, non-deleted problem of
+        the caller: an unknown ID, another user's problem or a duplicate is a
+        422 naming the entry, and nothing changes. Requires `If-Match`
+        (412 when stale, 428 when missing).
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [quizzes:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: Send the complete desired problem list in order; omitted problems are removed.
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizSetItems"
+      responses:
+        "200":
+          description: The quiz with its new items.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "412":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     sessionCookie:
@@ -742,6 +977,13 @@ components:
       in: path
       required: true
       description: A tag ID, slug or alias.
+      schema:
+        type: string
+    QuizId:
+      name: id
+      in: path
+      required: true
+      description: Quiz ID.
       schema:
         type: string
     IfMatch:
@@ -1228,6 +1470,98 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/TaggedProblem"
+    QuizStatus:
+      type: string
+      enum: [draft, live, archived]
+    QuizItem:
+      type: object
+      required: [problem_id, position]
+      properties:
+        problem_id:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+          description: Zero-based position in the quiz.
+    Quiz:
+      type: object
+      required: [id, title, description, status, created_by, items, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/QuizStatus"
+        created_by:
+          $ref: "#/components/schemas/Actor"
+        items:
+          type: array
+          description: The quiz's problems in order.
+          items:
+            $ref: "#/components/schemas/QuizItem"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    QuizCreate:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        status:
+          $ref: "#/components/schemas/QuizStatus"
+        problem_ids:
+          type: array
+          maxItems: 500
+          description: Initial items in order.
+          items:
+            type: string
+    QuizUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        status:
+          $ref: "#/components/schemas/QuizStatus"
+    QuizSetItems:
+      type: object
+      additionalProperties: false
+      required: [problem_ids]
+      properties:
+        problem_ids:
+          type: array
+          maxItems: 500
+          description: Problem IDs in the desired order; no duplicates.
+          items:
+            type: string
+    QuizPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Quiz"
     Health:
       type: object
       required: [status]

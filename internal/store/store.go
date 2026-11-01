@@ -9,6 +9,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
+	"github.com/chan-labs/quizzotic/internal/quizzes"
 	"github.com/chan-labs/quizzotic/internal/settings"
 	"github.com/chan-labs/quizzotic/internal/tags"
 )
@@ -42,6 +43,9 @@ type Store interface {
 
 	// Tags stores tags, aliases and problem-to-tag mappings.
 	Tags() tags.Repo
+
+	// Quizzes stores quizzes and their ordered items.
+	Quizzes() quizzes.Repo
 
 	// Idempotency stores POST responses for Idempotency-Key replay.
 	Idempotency() platform.IdempotencyRepo
@@ -94,4 +98,13 @@ func (a tagsTx) InTx(ctx context.Context, fn func(tags.Repos) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
 		return fn(tags.Repos{Tags: tx.Tags(), Problems: tx.Problems()})
 	})
+}
+
+// QuizzesTx adapts a Store to quizzes.Transactor.
+func QuizzesTx(s Store) quizzes.Transactor { return quizzesTx{s} }
+
+type quizzesTx struct{ s Store }
+
+func (a quizzesTx) InTx(ctx context.Context, fn func(quizzes.Repo) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Quizzes()) })
 }
