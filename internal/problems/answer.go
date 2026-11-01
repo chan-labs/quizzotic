@@ -35,13 +35,20 @@ func (s *Service) ForAnswer(ctx context.Context, ownerID, id domain.ID) (AnswerS
 	if err != nil {
 		return AnswerSubject{}, notFound(err)
 	}
+	epoch := CardEpoch(versions, p.CurrentVersion)
+	return AnswerSubject{ID: p.ID, Status: p.Status, Version: p.CurrentVersion, Type: v.Type,
+		Payload: v.Payload, Explanation: v.Explanation, CardEpoch: epoch}, nil
+}
+
+// CardEpoch is the card epoch of a problem whose current version is current:
+// the number of major versions up to it, at least 1. A major edit starts a new
+// epoch; a minor edit keeps it.
+func CardEpoch(versions []Version, current int) int {
 	epoch := 0
-	for _, ver := range versions {
-		if ver.Version <= p.CurrentVersion && ver.ChangeKind == ChangeMajor {
+	for _, v := range versions {
+		if v.Version <= current && v.ChangeKind == ChangeMajor {
 			epoch++
 		}
 	}
-	epoch = max(epoch, 1)
-	return AnswerSubject{ID: p.ID, Status: p.Status, Version: p.CurrentVersion, Type: v.Type,
-		Payload: v.Payload, Explanation: v.Explanation, CardEpoch: epoch}, nil
+	return max(epoch, 1)
 }

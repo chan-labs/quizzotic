@@ -2424,7 +2424,7 @@ components:
         next_due:
           type: [string, "null"]
           format: date-time
-          description: The card's next due time; null until scheduling lands or while unrated.
+          description: The card's next due time; null while the attempt is unscheduled (an open attempt still waiting for its rating).
     TagStatus:
       type: string
       enum: [active, merged, retired]
