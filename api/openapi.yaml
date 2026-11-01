@@ -65,6 +65,8 @@ tags:
     description: Browser login and web sessions (host root, not under /api/v1).
   - name: tags
     description: Tags and aliases.
+  - name: tag-operations
+    description: Tag rename, merge and split proposals and their decisions.
   - name: problems
     description: Problems and their versions.
   - name: quizzes
@@ -1247,6 +1249,199 @@ paths:
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
+  /tag-operations:
+    get:
+      operationId: tagOperations.list
+      tags: [tag-operations]
+      summary: List tag operations
+      description: |
+        Lists the caller's tag operations ordered by ID, optionally only those
+        with one status.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [id, kind, status]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          description: Only operations with this status.
+          schema:
+            $ref: "#/components/schemas/TagOperationStatus"
+      responses:
+        "200":
+          description: A page of operations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperationPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: tagOperations.propose
+      tags: [tag-operations]
+      summary: Propose a tag operation
+      description: |
+        Validates a rename, merge or split and stores it as `proposed`, with a
+        preview of the problems it would move and the resulting tag counts.
+        Nothing changes until a human applies it. With `apply: true` the
+        operation is applied at once in the same request, which needs the
+        `tags:apply` scope (403 otherwise). Tags in the payload may be given
+        by ID, slug or alias.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:write]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: |
+        Propose, never apply: leave `apply` unset so the human can review the
+        preview and approve it. For a split, read tags.listProblems first and
+        assign every problem; set `retire_source` only when every problem has
+        an assignment.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagOperationCreate"
+      responses:
+        "201":
+          description: The proposed (or, with `apply`, applied) operation.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tag-operations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/TagOperationId"
+    get:
+      operationId: tagOperations.get
+      tags: [tag-operations]
+      summary: Get a tag operation
+      description: |
+        Returns the operation. A proposed operation carries a live `preview`:
+        the problems affected and the resulting tag counts if it were applied
+        now.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:read]
+      x-quizzotic-mcp: true
+      responses:
+        "200":
+          description: The operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tag-operations/{id}/apply:
+    parameters:
+      - $ref: "#/components/parameters/TagOperationId"
+    post:
+      operationId: tagOperations.apply
+      tags: [tag-operations]
+      summary: Apply a proposed tag operation
+      description: |
+        Applies a proposed operation in one transaction: captures the
+        before-snapshot, rewrites the tag rows, aliases and problem mappings,
+        and records the decider. The payload is validated again against the
+        current state (422 or 409 when it no longer holds). An operation that
+        is already decided is a 409.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:apply]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The applied operation, with its `result`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /tag-operations/{id}/reject:
+    parameters:
+      - $ref: "#/components/parameters/TagOperationId"
+    post:
+      operationId: tagOperations.reject
+      tags: [tag-operations]
+      summary: Reject a proposed tag operation
+      description: |
+        Marks a proposed operation rejected and records the decider. Nothing
+        else changes. An operation that is already decided is a 409.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [tags:apply]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The rejected operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagOperation"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     sessionCookie:
@@ -1293,6 +1488,13 @@ components:
       in: path
       required: true
       description: Quiz ID.
+      schema:
+        type: string
+    TagOperationId:
+      name: id
+      in: path
+      required: true
+      description: Tag operation ID.
       schema:
         type: string
     IfMatch:
@@ -2017,6 +2219,180 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Quiz"
+    TagOperationStatus:
+      type: string
+      enum: [proposed, applied, rejected]
+    TagOperationKind:
+      type: string
+      enum: [rename, merge, split]
+    TagOperationCreate:
+      type: object
+      additionalProperties: false
+      required: [kind, payload]
+      properties:
+        kind:
+          $ref: "#/components/schemas/TagOperationKind"
+        payload:
+          description: |
+            Kind-specific input. `rename`: `{tag, slug?, name?}`. `merge`:
+            `{sources[], target}`. `split`: `{source, targets[], assignments,
+            retire_source}`, where each target is `{ref}` (an existing tag) or
+            `{new: {name, slug?, description?}}`, and `assignments` maps a
+            problem ID to the target IDs, slugs or new-tag slugs it moves to.
+            Tags are given by ID, slug or alias.
+          oneOf:
+            - $ref: "#/components/schemas/RenamePayload"
+            - $ref: "#/components/schemas/MergePayload"
+            - $ref: "#/components/schemas/SplitPayload"
+        apply:
+          type: boolean
+          default: false
+          description: Apply at once instead of proposing. Needs `tags:apply`.
+    RenamePayload:
+      type: object
+      required: [tag]
+      properties:
+        tag:
+          type: string
+        slug:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 200
+    MergePayload:
+      type: object
+      required: [sources, target]
+      properties:
+        sources:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: string
+        target:
+          type: string
+    SplitPayload:
+      type: object
+      required: [source, targets]
+      properties:
+        source:
+          type: string
+        targets:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              ref:
+                type: string
+                description: An existing tag. Exactly one of `ref` and `new` is required.
+              new:
+                $ref: "#/components/schemas/TagCreate"
+        assignments:
+          type: object
+          description: Problem ID to the targets it moves to.
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        retire_source:
+          type: boolean
+          default: false
+    TagOperationActor:
+      type: object
+      required: [kind, user_id, client_id]
+      properties:
+        kind:
+          type: string
+          enum: [human, agent, system]
+        user_id:
+          type: string
+        client_id:
+          type: string
+    TagEffect:
+      type: object
+      required: [id, slug, name, status, problems_before, problems_after, created]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/TagStatus"
+        problems_before:
+          type: integer
+          description: Non-deleted problems carrying the tag before the operation; 0 for a tag the operation creates.
+        problems_after:
+          type: integer
+        created:
+          type: boolean
+          description: True for a tag the operation creates.
+    TagOperationEffect:
+      type: object
+      required: [affected_problem_ids, tags]
+      properties:
+        affected_problem_ids:
+          type: array
+          description: Problems whose tag mappings change, ascending.
+          items:
+            type: string
+        tags:
+          type: array
+          description: Every tag the operation touches, with problem counts before and after.
+          items:
+            $ref: "#/components/schemas/TagEffect"
+    TagOperation:
+      type: object
+      required: [id, kind, status, payload, proposed_by, decided_by, created_at, decided_at, applied_at, preview, preview_error, result]
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: "#/components/schemas/TagOperationKind"
+        status:
+          $ref: "#/components/schemas/TagOperationStatus"
+        payload:
+          description: The normalized input, with tags as IDs.
+        proposed_by:
+          $ref: "#/components/schemas/TagOperationActor"
+        decided_by:
+          oneOf:
+            - $ref: "#/components/schemas/TagOperationActor"
+            - type: "null"
+        created_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: [string, "null"]
+          format: date-time
+        applied_at:
+          type: [string, "null"]
+          format: date-time
+        preview:
+          description: Present on a proposed operation; null otherwise.
+          oneOf:
+            - $ref: "#/components/schemas/TagOperationEffect"
+            - type: "null"
+        preview_error:
+          type: [string, "null"]
+          description: Set instead of `preview` when a proposed operation no longer validates against the current state.
+        result:
+          description: Present on the response that applied the operation; null otherwise.
+          oneOf:
+            - $ref: "#/components/schemas/TagOperationEffect"
+            - type: "null"
+    TagOperationPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/TagOperation"
     Health:
       type: object
       required: [status]

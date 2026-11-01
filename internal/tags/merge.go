@@ -17,8 +17,8 @@ const maxMergeSources = 50
 
 // MergeInput names the tags of a merge by ID, slug or alias.
 type MergeInput struct {
-	Sources []string
-	Target  string
+	Sources []string `json:"sources"`
+	Target  string   `json:"target"`
 }
 
 // MergeResult is the state after a merge.
