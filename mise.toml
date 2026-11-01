@@ -4,7 +4,7 @@
 [tools]
 go = "1.26.3"
 node = "22" # Redocly (openapi-lint)
-"aqua:dominikh/go-tools/staticcheck" = "2025.1.1"
+"go:honnef.co/go/tools/cmd/staticcheck" = "2025.1.1" # built with the pinned go, as the old CI did
 
 [tasks.build]
 description = "Build bin/quizzotic (version from git describe, or VERSION)"
