@@ -79,6 +79,12 @@ func commands(ops []openapi.Operation) []command {
 		if res == "" {
 			res = "api"
 		}
+		if res == "admin" {
+			// `quizzotic admin` is the hand-written operator command, which
+			// shadows any generated resource of that name. Its subcommands
+			// (admin rebuild) work on the database directly.
+			continue
+		}
 		out = append(out, command{resource: res, action: kebab(rest), op: op})
 	}
 	sort.Slice(out, func(i, j int) bool {

@@ -6,9 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/attempts"
+	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/problems"
 )
@@ -107,30 +109,149 @@ func (p *Projector) fold(ctx context.Context, userID, problemID domain.ID, epoch
 // epoch. retention, when set, overrides the user's desired retention. It is
 // the whole projection; incremental updates must always agree with it.
 func (p *Projector) Rebuild(ctx context.Context, userID domain.ID, retention *float64) error {
+	_, err := p.rebuild(ctx, userID, retention)
+	return err
+}
+
+// rebuild is Rebuild reporting how many cards it wrote.
+func (p *Projector) rebuild(ctx context.Context, userID domain.ID, retention *float64) (int, error) {
 	if err := p.sc.Cards.DeleteAll(ctx, userID); err != nil {
-		return err
+		return 0, err
 	}
 	live, err := p.sc.Problems.LiveEpochs(ctx, userID)
 	if err != nil {
-		return err
+		return 0, err
 	}
+	n := 0
 	for _, pe := range live {
-		if _, err := p.fold(ctx, userID, pe.ID, pe.Epoch, retention); err != nil {
-			return fmt.Errorf("review: card for problem %s: %w", pe.ID, err)
+		c, err := p.fold(ctx, userID, pe.ID, pe.Epoch, retention)
+		if err != nil {
+			return 0, fmt.Errorf("review: card for problem %s: %w", pe.ID, err)
+		}
+		if c != nil {
+			n++
 		}
 	}
-	return nil
+	return n, nil
 }
 
+// DefaultRebuildBatch is how many users RebuildAll reads and logs at a time.
+const DefaultRebuildBatch = 100
+
 // Service runs the projection's own operations, each in one transaction.
-type Service struct{ tx Transactor }
+type Service struct {
+	tx     Transactor
+	users  auth.UserRepo
+	logger *slog.Logger
+	batch  int
+}
+
+// ServiceOption configures a Service.
+type ServiceOption func(*Service)
+
+// WithUsers gives the Service the user repo that RebuildAll and RebuildOne
+// need to visit and check users.
+func WithUsers(u auth.UserRepo) ServiceOption { return func(s *Service) { s.users = u } }
+
+// WithLogger sets where rebuild progress is logged; the default is slog.Default().
+func WithLogger(l *slog.Logger) ServiceOption { return func(s *Service) { s.logger = l } }
+
+// WithBatchSize sets how many users RebuildAll reads per page and logs
+// progress for; n <= 0 keeps DefaultRebuildBatch.
+func WithBatchSize(n int) ServiceOption {
+	return func(s *Service) {
+		if n > 0 {
+			s.batch = n
+		}
+	}
+}
 
 // NewService builds a Service over tx.
-func NewService(tx Transactor) *Service { return &Service{tx} }
+func NewService(tx Transactor, opts ...ServiceOption) *Service {
+	s := &Service{tx: tx, logger: slog.Default(), batch: DefaultRebuildBatch}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
+}
 
-// RebuildUser drops and rebuilds all of one user's cards.
-func (s *Service) RebuildUser(ctx context.Context, userID domain.ID) error {
-	return s.tx.InTx(ctx, func(sc Scope) error { return NewProjector(sc).Rebuild(ctx, userID, nil) })
+// RebuildUser drops and rebuilds all of one user's cards in one transaction
+// and returns how many cards it wrote.
+func (s *Service) RebuildUser(ctx context.Context, userID domain.ID) (int, error) {
+	var n int
+	err := s.tx.InTx(ctx, func(sc Scope) error {
+		var err error
+		n, err = NewProjector(sc).rebuild(ctx, userID, nil)
+		return err
+	})
+	return n, err
+}
+
+// RebuildSummary is what a rebuild did.
+type RebuildSummary struct {
+	Users int `json:"users"` // users rebuilt
+	Cards int `json:"cards"` // cards written
+}
+
+// RebuildOne rebuilds one existing user's cards, or returns ErrNotFound when
+// there is no such user.
+func (s *Service) RebuildOne(ctx context.Context, userID domain.ID) (RebuildSummary, error) {
+	if s.users == nil {
+		return RebuildSummary{}, errors.New("review: rebuild needs a user repo (WithUsers)")
+	}
+	if _, err := s.users.Get(ctx, userID); errors.Is(err, auth.ErrNotFound) {
+		return RebuildSummary{}, ErrNotFound
+	} else if err != nil {
+		return RebuildSummary{}, err
+	}
+	s.logger.Info("rebuild started", slog.String("user", userID.String()))
+	n, err := s.RebuildUser(ctx, userID)
+	if err != nil {
+		return RebuildSummary{}, fmt.Errorf("review: rebuild user %s: %w", userID, err)
+	}
+	s.logger.Info("rebuild finished", slog.Int("users", 1), slog.Int("cards", n))
+	return RebuildSummary{Users: 1, Cards: n}, nil
+}
+
+// RebuildAll rebuilds every user's cards from the attempt log. Users are read
+// in pages of the batch size, each user is rebuilt in its own transaction
+// (a failure stops the run and leaves later users untouched; rerunning is
+// safe because a rebuild is idempotent), and progress is logged after each
+// batch. The summary counts what was done even when an error is returned.
+func (s *Service) RebuildAll(ctx context.Context) (RebuildSummary, error) {
+	if s.users == nil {
+		return RebuildSummary{}, errors.New("review: rebuild needs a user repo (WithUsers)")
+	}
+	var sum RebuildSummary
+	s.logger.Info("rebuild started", slog.Int("batch_size", s.batch))
+	var after domain.ID
+	for batchNo := 1; ; batchNo++ {
+		ids, err := s.users.ListIDs(ctx, after, s.batch)
+		if err != nil {
+			return sum, fmt.Errorf("review: list users: %w", err)
+		}
+		for _, id := range ids {
+			if err := ctx.Err(); err != nil {
+				return sum, err
+			}
+			n, err := s.RebuildUser(ctx, id)
+			if err != nil {
+				return sum, fmt.Errorf("review: rebuild user %s: %w", id, err)
+			}
+			sum.Users++
+			sum.Cards += n
+		}
+		if len(ids) > 0 {
+			after = ids[len(ids)-1]
+			s.logger.Info("rebuild progress", slog.Int("batch", batchNo),
+				slog.Int("users", sum.Users), slog.Int("cards", sum.Cards))
+		}
+		if len(ids) < s.batch {
+			break
+		}
+	}
+	s.logger.Info("rebuild finished", slog.Int("users", sum.Users), slog.Int("cards", sum.Cards))
+	return sum, nil
 }
 
 // RecomputeCards recomputes every card of the user with the given desired

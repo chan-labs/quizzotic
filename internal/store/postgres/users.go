@@ -136,6 +136,31 @@ func (r userRepo) Sole(ctx context.Context) (auth.User, error) {
 	return auth.User{}, auth.ErrAmbiguous
 }
 
+func (r userRepo) ListIDs(ctx context.Context, after domain.ID, limit int) ([]domain.ID, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	// The nil ID sorts before every real one, so it starts at the beginning.
+	rows, err := r.q.QueryContext(ctx, `SELECT id FROM users WHERE id > ? ORDER BY id LIMIT ?`, after.String(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.ID
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		id, err := domain.ParseID(s)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
 type identityRepo struct{ q execer }
 
 func (r identityRepo) GetByIssuerSubject(ctx context.Context, issuer, subject string) (auth.Identity, error) {

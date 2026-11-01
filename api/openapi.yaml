@@ -73,6 +73,8 @@ tags:
     description: Quizzes and their ordered items.
   - name: attempts
     description: Answers to problems and their grades.
+  - name: admin
+    description: Operator tasks. Needs the admin scope, which agents never hold.
 paths:
   /me:
     get:
@@ -782,6 +784,59 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReuse"
+        default:
+          $ref: "#/components/responses/Problem"
+  /admin/rebuild:
+    post:
+      operationId: admin.rebuild
+      tags: [admin]
+      summary: Rebuild cards from the attempt log
+      description: |
+        Drops and recomputes cards from the attempt log: one card for each
+        live problem that has a scheduled attempt at its current epoch. The
+        result equals what the incremental updates produce; this is the
+        recovery tool if the projection is ever suspect.
+
+        Without a body (or with an empty object) every user's cards are
+        rebuilt, in batches, one transaction per user, with progress in the
+        server log. With `user_id` only that user's cards are rebuilt; an
+        unknown ID is 404. Rebuilding is idempotent and safe to repeat.
+
+        Needs the `admin` scope: a human only, since agent clients never hold
+        it and get 403. The scope is instance-wide: it is not limited to the
+        caller's own data.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [admin]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RebuildRequest"
+      responses:
+        "200":
+          description: The rebuild finished.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RebuildResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/IdempotencyKeyReuse"
         default:
@@ -2297,6 +2352,23 @@ components:
             takes 2-4 and a bad value returns 422. A wrong answer is always
             Again whatever is sent. `open` problems take 1-4 and are
             unscheduled until rated.
+    RebuildRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        user_id:
+          type: string
+          description: Rebuild only this user. Omit to rebuild every user.
+    RebuildResult:
+      type: object
+      required: [users, cards]
+      properties:
+        users:
+          type: integer
+          description: Users whose cards were rebuilt.
+        cards:
+          type: integer
+          description: Cards written.
     RateAttemptRequest:
       type: object
       additionalProperties: false
