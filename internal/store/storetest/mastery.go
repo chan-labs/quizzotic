@@ -25,6 +25,7 @@ func runMastery(t *testing.T, newStore NewStore) {
 	t.Run("inputs", func(t *testing.T) { runMasteryInputs(t, newStore) })
 	t.Run("user stats", func(t *testing.T) { runUserStats(t, newStore) })
 	t.Run("full recompute equals incremental", func(t *testing.T) { runMasteryProperty(t, newStore) })
+	t.Run("weak tags are introduced more often", func(t *testing.T) { runWeakTagWeighting(t, newStore) })
 }
 
 // masteryFixture is the card fixture with the attempts service wired to also

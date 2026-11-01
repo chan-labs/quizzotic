@@ -41,14 +41,15 @@ type Item struct {
 const DefaultTagRecall = 0.5
 
 // TagRecall supplies the mean recall of a problem's tags, in [0,1], that
-// weights the sampling of new problems. Until tag mastery exists (M7.6) the
-// builder is wired with StubTagRecall.
+// weights the sampling of new problems. metrics.RecallReader implements it
+// from tag mastery; StubTagRecall is the fallback when none is supplied.
 type TagRecall interface {
 	ProblemTagRecall(ctx context.Context, ownerID, problemID domain.ID) (float64, error)
 }
 
 // StubTagRecall reports DefaultTagRecall for every problem, which is what the
-// spec prescribes for tags without data. M7.6 replaces it with real mastery.
+// spec prescribes for tags without data. It is only the fallback for builders
+// wired without mastery.
 type StubTagRecall struct{}
 
 // ProblemTagRecall implements TagRecall.
