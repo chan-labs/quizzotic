@@ -18,23 +18,26 @@ import (
 // (Ref is its ID, slug or alias) or a new tag to create (New). Exactly one is
 // set.
 type SplitTarget struct {
-	Ref string
-	New *CreateInput
+	Ref string       `json:"ref,omitempty"`
+	New *CreateInput `json:"new,omitempty"`
+	// NewID is the ID the new tag is created with; one is assigned when nil.
+	// A proposal stores it so applying creates the tag the preview showed.
+	NewID *domain.ID `json:"new_id,omitempty"`
 }
 
 // SplitInput is the input of a split operation.
 type SplitInput struct {
 	// Source is the ID, slug or alias of the active tag to split.
-	Source  string
-	Targets []SplitTarget
+	Source  string        `json:"source"`
+	Targets []SplitTarget `json:"targets"`
 	// Assignments maps a problem carrying the source tag to the targets it
 	// moves to. Each entry names a target by its ID or slug (for a new
 	// target, the slug it is created with). A problem with no assignment
 	// keeps the source tag unless RetireSource is set.
-	Assignments map[domain.ID][]string
+	Assignments map[domain.ID][]string `json:"assignments"`
 	// RetireSource retires the source tag after the move. Every problem that
 	// carries the source must then have at least one assignment.
-	RetireSource bool
+	RetireSource bool `json:"retire_source"`
 }
 
 // SplitResult describes an applied split.
@@ -63,7 +66,7 @@ func (s *Service) Split(ctx context.Context, ownerID domain.ID, actor domain.Act
 	}
 	var res SplitResult
 	err := s.tx.InTx(ctx, func(r Repos) (err error) {
-		res, err = s.applySplit(ctx, r, ownerID, actor, in)
+		res, err = s.applySplit(ctx, r, ownerID, actor, in, &splitRun{})
 		return err
 	})
 	if err != nil {
@@ -72,7 +75,16 @@ func (s *Service) Split(ctx context.Context, ownerID domain.ID, actor domain.Act
 	return res, nil
 }
 
-func (s *Service) applySplit(ctx context.Context, r Repos, ownerID domain.ID, actor domain.Actor, in SplitInput) (SplitResult, error) {
+// splitRun tunes applySplit. The zero value snapshots and records the
+// operation. The proposal lifecycle sets External (it captured the snapshot
+// itself) and NoRecord (it owns the operation row) and reads the resolved
+// payload back.
+type splitRun struct {
+	External, NoRecord bool
+	payload            splitPayload
+}
+
+func (s *Service) applySplit(ctx context.Context, r Repos, ownerID domain.ID, actor domain.Actor, in SplitInput, run *splitRun) (SplitResult, error) {
 	fail := func(field, detail string) error {
 		return platform.Validation("invalid split", platform.FieldError{Field: field, Detail: detail})
 	}
@@ -126,7 +138,11 @@ func (s *Service) applySplit(ctx context.Context, r Repos, ownerID domain.ID, ac
 				continue
 			}
 			slugs[slug] = true
-			t := Tag{ID: s.ids.New(), OwnerID: ownerID, Slug: slug, Name: name, Description: tg.New.Description,
+			id := s.ids.New()
+			if tg.NewID != nil {
+				id = *tg.NewID
+			}
+			t := Tag{ID: id, OwnerID: ownerID, Slug: slug, Name: name, Description: tg.New.Description,
 				Status: StatusActive, Aliases: []string{}, CreatedAt: now, UpdatedAt: now}
 			byKey[slug] = len(targets)
 			byKey[t.ID.String()] = len(targets)
@@ -213,9 +229,11 @@ func (s *Service) applySplit(ctx context.Context, r Repos, ownerID domain.ID, ac
 			snapIDs = append(snapIDs, t.tag.ID)
 		}
 	}
-	snap, err := r.Ops.CaptureSnapshot(ctx, ownerID, snapIDs)
-	if err != nil {
-		return SplitResult{}, err
+	var snap Snapshot
+	if !run.External {
+		if snap, err = r.Ops.CaptureSnapshot(ctx, ownerID, snapIDs); err != nil {
+			return SplitResult{}, err
+		}
 	}
 
 	// Apply.
@@ -260,14 +278,18 @@ func (s *Service) applySplit(ctx context.Context, r Repos, ownerID domain.ID, ac
 			return SplitResult{}, err
 		}
 	}
-	payload, err := json.Marshal(pl)
-	if err != nil {
-		return SplitResult{}, err
-	}
-	op := Operation{ID: s.ids.New(), OwnerID: ownerID, Kind: OpSplit, Payload: payload, Status: OpApplied,
-		ProposedBy: actor, DecidedBy: actor, AppliedAt: now, Snapshot: &snap, CreatedAt: now, DecidedAt: now}
-	if err := r.Ops.Create(ctx, ownerID, op); err != nil {
-		return SplitResult{}, err
+	run.payload = pl
+	var op Operation
+	if !run.NoRecord {
+		payload, err := json.Marshal(pl)
+		if err != nil {
+			return SplitResult{}, err
+		}
+		op = Operation{ID: s.ids.New(), OwnerID: ownerID, Kind: OpSplit, Payload: payload, Status: OpApplied,
+			ProposedBy: actor, DecidedBy: actor, AppliedAt: now, Snapshot: &snap, CreatedAt: now, DecidedAt: now}
+		if err := r.Ops.Create(ctx, ownerID, op); err != nil {
+			return SplitResult{}, err
+		}
 	}
 
 	res := SplitResult{Operation: op}

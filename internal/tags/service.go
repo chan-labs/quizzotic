@@ -52,9 +52,9 @@ func NewService(tx Transactor, clock domain.Clock, ids *domain.IDGenerator) *Ser
 
 // CreateInput is the body of a tag creation.
 type CreateInput struct {
-	Slug        string // derived from Name when empty
-	Name        string
-	Description string
+	Slug        string `json:"slug"` // derived from Name when empty
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 // Patch holds the fields to change; nil leaves a field alone.

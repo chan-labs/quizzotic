@@ -38,6 +38,7 @@ func (h *Handler) Register(rt *platform.Router) {
 	rt.HandleFunc("PATCH /tags/{tag}", h.update)
 	rt.HandleFunc("GET /tags/{tag}/problems", h.listProblems)
 	rt.HandleFunc("PUT /problems/{id}/tags", h.setProblemTags)
+	h.registerOps(rt)
 }
 
 // tagView is the JSON form of a Tag.
@@ -94,6 +95,10 @@ func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrNotFound), errors.Is(err, problems.ErrNotFound):
 		err = platform.NotFound("no such resource")
+	case errors.Is(err, ErrOpNotFound):
+		err = platform.NotFound("no such resource")
+	case errors.Is(err, ErrOpNotProposed):
+		err = platform.Conflict("the operation is already decided")
 	case errors.Is(err, ErrSlugTaken):
 		err = platform.Conflict("slug is already used by an active tag or an alias")
 	case errors.Is(err, ErrPreconditionFailed):
