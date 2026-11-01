@@ -22,6 +22,19 @@ type Transactor interface {
 	InTx(ctx context.Context, fn func(Repo) error) error
 }
 
+// CardTransactor is a Transactor that also supplies the card updater bound to
+// the attempt's own transaction, so the card is written atomically with the
+// attempt. When a Service's Transactor implements it, the updater it supplies
+// is used and the one set with WithCardUpdater is not.
+type CardTransactor interface {
+	Transactor
+	InCardTx(ctx context.Context, fn func(Repo, CardUpdater) error) error
+}
+
+// AttemptRecorder is told once for every attempt that is stored by Answer.
+// platform.Metrics implements it.
+type AttemptRecorder interface{ RecordAttempt() }
+
 // ProblemSource looks up the problem being answered. The problems service
 // implements it.
 type ProblemSource interface {
@@ -29,10 +42,12 @@ type ProblemSource interface {
 }
 
 // CardUpdater is called inside the attempt's transaction, after the attempt is
-// stored and only when it is scheduled, with the rating that applies. It
-// returns the card's next due time, or nil when it has none to report. The
-// scheduling milestone supplies the real implementation; until then
-// NoopCardUpdater is used.
+// stored (or its missing rating filled) and only when it is scheduled, with the
+// rating that applies. It returns the card's next due time, or nil when it has
+// none to report. The card projection (review.Projector) is the real
+// implementation, bound to the transaction by a CardTransactor; it refolds the
+// card from the stored attempts and so does not depend on the rating argument.
+// NoopCardUpdater is the default.
 type CardUpdater interface {
 	Apply(ctx context.Context, a Attempt, rating int) (nextDue *time.Time, err error)
 }
@@ -101,6 +116,7 @@ type Service struct {
 	tx       Transactor
 	problems ProblemSource
 	cards    CardUpdater
+	rec      AttemptRecorder
 	reads    Repo
 	tags     TagResolver
 	clock    domain.Clock
@@ -119,6 +135,17 @@ func NewService(tx Transactor, src ProblemSource, clock domain.Clock, ids *domai
 
 // Option tunes a Service.
 type Option func(*Service)
+
+// WithAttemptRecorder sets who is told about each stored attempt.
+func WithAttemptRecorder(r AttemptRecorder) Option { return func(s *Service) { s.rec = r } }
+
+// inTx runs fn in a transaction with the card updater for it.
+func (s *Service) inTx(ctx context.Context, fn func(Repo, CardUpdater) error) error {
+	if ct, ok := s.tx.(CardTransactor); ok {
+		return ct.InCardTx(ctx, fn)
+	}
+	return s.tx.InTx(ctx, func(r Repo) error { return fn(r, s.cards) })
+}
 
 // WithCardUpdater sets the hook that updates the card inside the attempt's
 // transaction.
@@ -170,18 +197,21 @@ func (s *Service) Answer(ctx context.Context, actor domain.Actor, in AnswerInput
 	}
 
 	var nextDue *time.Time
-	err = s.tx.InTx(ctx, func(r Repo) error {
+	err = s.inTx(ctx, func(r Repo, cards CardUpdater) error {
 		if err := r.Create(ctx, actor.UserID, a); err != nil {
 			return err
 		}
 		if !scheduled {
 			return nil
 		}
-		nextDue, err = s.cards.Apply(ctx, a, rating)
+		nextDue, err = cards.Apply(ctx, a, rating)
 		return err
 	})
 	if err != nil {
 		return Result{}, err
+	}
+	if s.rec != nil {
+		s.rec.RecordAttempt()
 	}
 
 	gv := GradeView{Score: score, Scheduled: scheduled, Blanks: g.blanks}
@@ -279,7 +309,7 @@ func (s *Service) Rate(ctx context.Context, actor domain.Actor, id domain.ID, ra
 		nextDue *time.Time
 		applied int
 	)
-	err = s.tx.InTx(ctx, func(r Repo) error {
+	err = s.inTx(ctx, func(r Repo, cards CardUpdater) error {
 		var err error
 		if a, err = r.Get(ctx, actor.UserID, id); err != nil {
 			return err
@@ -315,7 +345,7 @@ func (s *Service) Rate(ctx context.Context, actor domain.Actor, id domain.ID, ra
 		if score != nil {
 			a.Score = score
 		}
-		nextDue, err = s.cards.Apply(ctx, a, applied)
+		nextDue, err = cards.Apply(ctx, a, applied)
 		return err
 	})
 	if err != nil {

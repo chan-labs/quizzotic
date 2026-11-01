@@ -88,6 +88,7 @@ func (r attemptRepo) SetRating(ctx context.Context, ownerID, id domain.ID, ratin
 	return attempts.ErrAlreadyRated
 }
 
+// rowScanner is *sql.Row or *sql.Rows.
 type rowScanner interface{ Scan(dest ...any) error }
 
 func scanAttempt(row rowScanner) (attempts.Attempt, error) {
@@ -178,6 +179,27 @@ func (r attemptRepo) List(ctx context.Context, ownerID domain.ID, f attempts.Lis
 		args = append(args, f.Limit)
 	}
 	rows, err := r.q.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []attempts.Attempt
+	for rows.Next() {
+		a, err := scanAttempt(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// ForCard lists the owner's attempts at one problem and card epoch, oldest
+// answer first (ties broken by ID, which is time-ordered).
+func (r attemptRepo) ForCard(ctx context.Context, ownerID, problemID domain.ID, epoch int) ([]attempts.Attempt, error) {
+	rows, err := r.q.QueryContext(ctx, `SELECT `+attemptCols+` FROM attempts
+		WHERE user_id = ? AND problem_id = ? AND card_epoch = ? ORDER BY answered_at, id`,
+		ownerID.String(), problemID.String(), epoch)
 	if err != nil {
 		return nil, err
 	}

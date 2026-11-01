@@ -12,6 +12,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/quizzes"
+	"github.com/chan-labs/quizzotic/internal/review"
 	"github.com/chan-labs/quizzotic/internal/seed"
 	"github.com/chan-labs/quizzotic/internal/settings"
 	"github.com/chan-labs/quizzotic/internal/tags"
@@ -46,6 +47,10 @@ type Store interface {
 
 	// Attempts appends answers; attempts are never updated or deleted.
 	Attempts() attempts.Repo
+
+	// Cards stores the card projection, which is derived from Attempts and
+	// can be dropped and rebuilt at any time.
+	Cards() review.Repo
 
 	// Tags stores tags, aliases and problem-to-tag mappings.
 	Tags() tags.Repo
@@ -90,6 +95,23 @@ func (a problemsTx) InTx(ctx context.Context, fn func(problems.Repo) error) erro
 	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Problems()) })
 }
 
+// ProblemsEditTx is ProblemsTx whose edits also supply the major-edit handler
+// bound to the edit's own transaction (problems.EditTransactor), so a major
+// edit and the card epoch change are atomic. majorEdit builds the handler for
+// a transaction, for example Cards.MajorEdit.
+func ProblemsEditTx(s Store, majorEdit func(tx Store) problems.MajorEditHandler) problems.Transactor {
+	return problemsEditTx{problemsTx{s}, majorEdit}
+}
+
+type problemsEditTx struct {
+	problemsTx
+	majorEdit func(tx Store) problems.MajorEditHandler
+}
+
+func (a problemsEditTx) InEditTx(ctx context.Context, fn func(problems.Repo, problems.MajorEditHandler) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Problems(), a.majorEdit(tx)) })
+}
+
 // AttemptsTx adapts a Store to attempts.Transactor.
 func AttemptsTx(s Store) attempts.Transactor { return attemptsTx{s} }
 
@@ -97,6 +119,23 @@ type attemptsTx struct{ s Store }
 
 func (a attemptsTx) InTx(ctx context.Context, fn func(attempts.Repo) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Attempts()) })
+}
+
+// AttemptsCardTx is AttemptsTx whose transactions also supply the card updater
+// bound to the same transaction (attempts.CardTransactor), so an attempt and
+// its card are written atomically. cards builds the updater for a transaction,
+// for example Cards.CardUpdater.
+func AttemptsCardTx(s Store, cards func(tx Store) attempts.CardUpdater) attempts.Transactor {
+	return attemptsCardTx{attemptsTx{s}, cards}
+}
+
+type attemptsCardTx struct {
+	attemptsTx
+	cards func(tx Store) attempts.CardUpdater
+}
+
+func (a attemptsCardTx) InCardTx(ctx context.Context, fn func(attempts.Repo, attempts.CardUpdater) error) error {
+	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Attempts(), a.cards(tx)) })
 }
 
 // ProblemsBatchTx adapts a Store to problems.BatchTransactor: problems and
@@ -145,20 +184,27 @@ func (a quizzesTx) InTx(ctx context.Context, fn func(quizzes.Repo) error) error 
 // SeedTx adapts a Store to seed.Transactor. Each InTx call builds fresh
 // problems, tags and quizzes services over one store transaction, so a seed
 // file applies completely or not at all and every write passes the services'
-// rules.
-func SeedTx(s Store, clock domain.Clock, ids *domain.IDGenerator) seed.Transactor {
-	return seedTx{s, clock, ids}
+// rules. majorEdit, when not nil, builds the handler told about a major edit
+// made through seeding, bound to the seed transaction (see Cards.MajorEdit); a
+// seed file's major edits then start a new card epoch like any other.
+func SeedTx(s Store, clock domain.Clock, ids *domain.IDGenerator, majorEdit func(tx Store) problems.MajorEditHandler) seed.Transactor {
+	return seedTx{s, clock, ids, majorEdit}
 }
 
 type seedTx struct {
-	s     Store
-	clock domain.Clock
-	ids   *domain.IDGenerator
+	s         Store
+	clock     domain.Clock
+	ids       *domain.IDGenerator
+	majorEdit func(tx Store) problems.MajorEditHandler
 }
 
 func (a seedTx) InTx(ctx context.Context, fn func(seed.Services) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
-		ps := problems.NewService(tx.Problems(), ProblemsTx(tx), a.clock, a.ids)
+		var popts []problems.Option
+		if a.majorEdit != nil {
+			popts = append(popts, problems.WithMajorEditHandler(a.majorEdit(tx)))
+		}
+		ps := problems.NewService(tx.Problems(), ProblemsTx(tx), a.clock, a.ids, popts...)
 		return fn(seed.Services{
 			Problems: ps,
 			Tags:     tags.NewService(TagsTx(tx), a.clock, a.ids),
