@@ -33,8 +33,12 @@
     var checkable = type === "checkbox" || type === "radio";
 
     if (tag === "TEXTAREA") {
-      // Enter submits; Shift+Enter adds a line. Other keys type.
-      if (!(key === "Enter" && !e.shiftKey && t.hasAttribute("data-submit-enter"))) return;
+      // Enter submits the answer; Shift+Enter adds a line. Other keys type.
+      if (key === "Enter" && !e.shiftKey && t.hasAttribute("data-submit-enter") && t.form) {
+        e.preventDefault();
+        t.form.requestSubmit(); // fires "submit", so latency is stamped
+      }
+      return;
     } else if (tag === "INPUT" && !checkable) {
       return; // typing into a text box (Enter submits natively)
     } else if (tag === "BUTTON" || tag === "A" || tag === "SELECT") {
