@@ -43,6 +43,9 @@ type Store interface {
 	// Tags stores tags, aliases and problem-to-tag mappings.
 	Tags() tags.Repo
 
+	// TagOperations stores the tag evolution audit trail and its snapshots.
+	TagOperations() tags.OpRepo
+
 	// Idempotency stores POST responses for Idempotency-Key replay.
 	Idempotency() platform.IdempotencyRepo
 
