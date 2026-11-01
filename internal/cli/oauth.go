@@ -73,12 +73,21 @@ func checkIssuerURL(raw string) error {
 		return nil
 	}
 	if u.Scheme == "http" {
-		h := u.Hostname()
-		if h == "localhost" || h == "127.0.0.1" || h == "::1" {
+		if isLoopbackHost(u.Hostname()) {
 			return nil
 		}
 	}
 	return fmt.Errorf("issuer %q must use https", raw)
+}
+
+// isLoopbackHost reports whether h is localhost or a loopback IP
+// (127.0.0.0/8, ::1).
+func isLoopbackHost(h string) bool {
+	if strings.EqualFold(h, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }
 
 func getJSON(ctx context.Context, hc *http.Client, u string, out any) error {
@@ -114,6 +123,17 @@ func discover(ctx context.Context, hc *http.Client, issuer string) (*discovery, 
 	}
 	if d.TokenEndpoint == "" {
 		return nil, errors.New("oidc discovery: no token_endpoint")
+	}
+	for name, v := range map[string]string{
+		"token_endpoint":                d.TokenEndpoint,
+		"authorization_endpoint":        d.AuthorizationEndpoint,
+		"device_authorization_endpoint": d.DeviceAuthorizationEndpoint,
+	} {
+		if v != "" {
+			if err := checkIssuerURL(v); err != nil {
+				return nil, fmt.Errorf("oidc discovery: %s: %w", name, err)
+			}
+		}
 	}
 	return &d, nil
 }
