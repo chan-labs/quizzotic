@@ -529,3 +529,57 @@ func itoa(n int) string {
 	b, _ := json.Marshal(n)
 	return string(b)
 }
+
+type fakeSessions struct {
+	owned map[domain.ID]domain.ID // session -> owner
+	err   error
+}
+
+func (f fakeSessions) Exists(_ context.Context, owner, id domain.ID) (bool, error) {
+	return f.err == nil && f.owned[id] == owner, f.err
+}
+
+func TestAnswerValidatesSession(t *testing.T) {
+	e := newEnv(t)
+	ids := domain.NewIDGenerator(fakeClock{now})
+	own, foreign, unknown := ids.New(), ids.New(), ids.New()
+	other := ids.New()
+	e.svc.sessions = fakeSessions{owned: map[domain.ID]domain.ID{own: e.user, foreign: other}}
+	in := func(sid string) AnswerInput {
+		return AnswerInput{ProblemID: e.mcq, ProblemVersion: 2, Response: raw(`{"selected":["b"]}`), LatencyMS: 1, SessionID: sid}
+	}
+	ctx := context.Background()
+
+	for name, sid := range map[string]domain.ID{"unknown": unknown, "foreign": foreign} {
+		_, err := e.svc.Answer(ctx, human(e.user), in(sid.String()))
+		var p *platform.Problem
+		if !errors.As(err, &p) || p.Status != http.StatusUnprocessableEntity || len(p.Errors) != 1 || p.Errors[0].Field != "session_id" {
+			t.Errorf("%s: got %v", name, err)
+		}
+	}
+	if len(e.repo.rows) != 0 {
+		t.Fatalf("rejected attempts were stored: %d", len(e.repo.rows))
+	}
+	if res, err := e.svc.Answer(ctx, human(e.user), in(own.String())); err != nil || res.Attempt.SessionID == nil || *res.Attempt.SessionID != own.String() {
+		t.Errorf("own session: %+v, %v", res, err)
+	}
+	// No session_id: no lookup.
+	if _, err := e.svc.Answer(ctx, human(e.user), in("")); err != nil {
+		t.Errorf("no session: %v", err)
+	}
+	// A lookup failure is not mistaken for "no such session".
+	e.svc.sessions = fakeSessions{err: errors.New("db down")}
+	if _, err := e.svc.Answer(ctx, human(e.user), in(own.String())); err == nil || errors.As(err, new(*platform.Problem)) {
+		t.Errorf("lookup failure = %v", err)
+	}
+}
+
+func TestHandlerCreateUnknownSession(t *testing.T) {
+	e := newEnv(t)
+	e.svc.sessions = fakeSessions{}
+	sid := domain.NewIDGenerator(fakeClock{now}).New().String()
+	rec := post(e, humanPrincipal(e), `{"problem_id":"`+e.mcq.String()+`","problem_version":2,"response":{"selected":["b"]},"latency_ms":1,"session_id":"`+sid+`"}`)
+	if rec.Code != http.StatusUnprocessableEntity || !bytes.Contains(rec.Body.Bytes(), []byte("session_id")) {
+		t.Errorf("status = %d, body = %s", rec.Code, rec.Body)
+	}
+}
