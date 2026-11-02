@@ -48,6 +48,18 @@ type Transactor interface {
 	InTx(ctx context.Context, fn func(Repos) error) error
 }
 
+// mutate is InTx for a unit of work that reads tags to decide a write: it
+// takes the owner's tag lock before anything is read, so two such units of the
+// same owner never interleave (Postgres runs at READ COMMITTED).
+func (s *Service) mutate(ctx context.Context, ownerID domain.ID, fn func(Repos) error) error {
+	return s.tx.InTx(ctx, func(r Repos) error {
+		if err := r.Tags.LockOwner(ctx, ownerID); err != nil {
+			return err
+		}
+		return fn(r)
+	})
+}
+
 // Service holds the tag rules.
 type Service struct {
 	tx    Transactor
@@ -91,7 +103,7 @@ func (s *Service) Create(ctx context.Context, ownerID domain.ID, in CreateInput)
 	now := s.clock.Now()
 	t := Tag{ID: s.ids.New(), OwnerID: ownerID, Slug: slug, Name: name, Description: in.Description,
 		Status: StatusActive, Aliases: []string{}, CreatedAt: now, UpdatedAt: now}
-	err := s.tx.InTx(ctx, func(r Repos) error { return r.Tags.Create(ctx, ownerID, t) })
+	err := s.mutate(ctx, ownerID, func(r Repos) error { return r.Tags.Create(ctx, ownerID, t) })
 	if err != nil {
 		return Tag{}, err
 	}
@@ -157,7 +169,7 @@ func (s *Service) Update(ctx context.Context, ownerID domain.ID, ref, ifMatch st
 		return Tag{}, platform.Validation("invalid tag", fe...)
 	}
 	var out Tag
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err := s.mutate(ctx, ownerID, func(r Repos) error {
 		t, err := Resolve(ctx, r.Tags, ownerID, ref)
 		if err != nil {
 			return err
@@ -265,7 +277,7 @@ func (s *Service) SetProblemTags(ctx context.Context, ownerID, problemID domain.
 			Field: "tags", Detail: fmt.Sprintf("at most %d tags per problem", maxProblemTags)})
 	}
 	var out []Tag
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err := s.mutate(ctx, ownerID, func(r Repos) error {
 		if _, err := r.Problems.Get(ctx, ownerID, problemID); err != nil {
 			return err
 		}
