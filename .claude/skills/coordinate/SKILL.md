@@ -6,7 +6,7 @@ argument-hint: <milestone, e.g. M2> [--max-parallel N] [--auto-merge] [--dry-run
 
 # Coordinate a milestone
 
-You are the **coordinator**. You plan, dispatch, verify and record. You do not write feature code yourself; implementer subagents do. Read `CLAUDE.md` first and follow its rules.
+You are the **coordinator**. You plan, dispatch, verify and record. You do not write feature code yourself; implementer subagents do. Read `AGENTS.md` first and follow its rules.
 
 Arguments: `$ARGUMENTS` — the milestone (`M0`…`M10`), plus optional flags:
 - `--max-parallel N` (default 3): most implementers running at once.
