@@ -1,7 +1,7 @@
 ---
 name: coordinate
-description: Coordinate one Quizzotic milestone (a Todoist section, e.g. M2) end to end — build the task dependency graph, dispatch ready tasks to implementer subagents in parallel worktrees, review each with a fresh reviewer, open PRs, and keep Todoist in sync. Use when the user runs /coordinate <milestone> or asks to work through a milestone or epic.
-argument-hint: <milestone, e.g. M2> [--max-parallel N] [--auto-merge] [--dry-run]
+description: Coordinate one Quizzotic milestone (a Todoist section, e.g. M2) end to end — build the task dependency graph, dispatch ready tasks to implementer subagents in parallel worktrees, review each with a fresh reviewer, open PRs, and keep Todoist in sync. Use when the user runs /coordinate <milestone> or asks to work through a milestone or epic. Also runs a cross-session retro with /coordinate retro.
+argument-hint: <milestone, e.g. M2, or retro> [--max-parallel N] [--auto-merge] [--dry-run]
 ---
 
 # Coordinate a milestone
@@ -70,3 +70,16 @@ Finish with a short summary:
 - whether the milestone's exit task ("(Mx exit)") is done, and the next milestone to run.
 
 Post the same summary as a comment on the milestone's exit task so it is visible in Todoist.
+
+## 6. Retro (`/coordinate retro`)
+
+Run this when the maintainer asks, or after several milestones finish. Skip sections 0 to 5. The retro changes the plan, not the code: dispatch nothing without the maintainer's go-ahead.
+
+1. **Collect:** read each coordinator session's final report, not only its latest note. Then search transcripts for repeated refusals and errors, and tally CI: failed and cancelled runs, and which jobs failed.
+2. **Verify against `main`:** check each reported gap on the current `origin/main` before filing it. Reports go stale: drop what's fixed, close tasks that are done, and correct their descriptions. For anything reported as wired up, check `internal/server/server.go`.
+3. **Run it:** start the service with `mise run dev` and load the main pages. Tests passing doesn't show the app works. If it won't start, that's the first finding.
+4. **Report status:** progress per milestone, what the running app supports today, blockers, and the exact manual steps waiting on the maintainer.
+5. **Summarize issues:** a table of each recurring problem, its evidence with counts, and a proposed fix. Lead with whatever costs the most rework. Keep process problems separate from product bugs.
+6. **File:** add follow-ups to the `Fast follow` Todoist section with the next `FF.<n>` ID and **Source**, **Build** and **Done when** lines. Group small related items into one task, and skip duplicates. Label anything needing a decision, a settings change or a real-world check `needs-human`.
+7. **Sort, then dispatch on approval:** once the maintainer agrees, move each task to its milestone section and hand it to that milestone's coordinator. Anything left over gets its own session. Items that change a coordinator's own in-flight work go first; refactors of shared files wait until those PRs merge. Hold worktree cleanup until no coordinator is running.
+8. **Close the loop:** turn every process fix that's accepted into a rule here, in `AGENTS.md` or in the agent docs, so the next run inherits it instead of relying on a brief.
