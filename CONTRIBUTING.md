@@ -8,7 +8,7 @@ Thanks for helping. Please read the [Code of Conduct](CODE_OF_CONDUCT.md). The d
 2. **Layering.** Feature packages (`internal/<feature>`) go `handler.go` -> `service.go` -> `repo.go`. Handlers do HTTP only; services hold rules and transactions; repos are interfaces implemented in `internal/store/<backend>`. Features call each other only through services. `internal/fsrs` and `internal/grading` are pure leaf packages with no I/O.
 3. **Dependencies.** Only those in [`docs/dependencies.md`](docs/dependencies.md). Anything else needs maintainer approval and an entry there.
 4. **Data rules.** Attempts are append-only. Every repo method takes the owner user ID. Register new endpoints with the owner-scoping test helper.
-5. **Tests.** New repo behavior gets conformance cases in `internal/store/storetest`. Run `mise run test ::: lint` before opening a PR.
+5. **Tests.** New repo behavior gets conformance cases in `internal/store/storetest`. Run `mise run test ::: lint` before opening a PR; if you touch repo/store code, `migrations/` or `internal/store/**`, also run `mise run test-postgres`.
 6. **SPDX headers.** New Go files start with `// SPDX-License-Identifier: Apache-2.0`.
 7. **One change, one PR**, with a clear description. Add notable changes to [CHANGELOG.md](CHANGELOG.md) under "Unreleased".
 
@@ -20,10 +20,32 @@ mise run build        # build the quizzotic binary
 mise run test         # go test -race ./...
 mise run lint         # go vet + staticcheck + Redocly lint of api/openapi.yaml
 mise run golden       # regenerate CLI help and MCP tool-list goldens
+mise run test-postgres  # Postgres store suite in a throwaway postgres:17 container (needs docker)
+mise run build-all    # cross-compile for linux, darwin, windows (CGO_ENABLED=0)
+mise run ci           # everything CI runs: lint, test, test-postgres, build-all, release-check
 mise run test ::: lint  # several tasks in one go
 ```
 
 The old `make <task>` targets still work; they are a thin shim over `mise run <task>`.
+
+## Run it locally
+
+```sh
+mise run dev          # fake OIDC issuer + server + seed data; Ctrl-C stops both
+```
+
+Prerequisite: Docker. Then open <http://localhost:8089/>. The fake issuer is
+[navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server)
+(image pinned in `dev/dev.sh`, config in `dev/mock-oauth2.json`, issuer URL
+`http://localhost:8099/dev`). It signs in a fixed test user (`dev@example.com`)
+with no password, so the browser lands straight on the Today page. The database is `.dev/quizzotic.db`
+(gitignored), seeded with the starter pack plus `dev/seed.yaml`. Ports come
+from `QUIZZOTIC_DEV_PORT` (8089) and `QUIZZOTIC_DEV_ISSUER_PORT` (8099).
+`mise run dev-issuer` and `mise run dev-server` run the halves separately, and
+`mise run dev-reset` deletes the database. `.claude/launch.json` lets an agent
+start the stack with `preview_start`. The issuer and the `dev-secret` client
+secret are fake and for local development only; nothing here is shipped in the
+`quizzotic` binary.
 
 ## Golden files
 

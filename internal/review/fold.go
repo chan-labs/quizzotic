@@ -38,15 +38,24 @@ func EffectiveRating(a attempts.Attempt) (rating int, scheduled bool) {
 // card's user, problem and epoch.
 func Fold(p fsrs.Params, as []attempts.Attempt) (c Card, ok bool) {
 	for _, a := range as {
-		r, scheduled := EffectiveRating(a)
-		if !scheduled {
-			continue
-		}
-		if c.Card.State == fsrs.Review && r == grading.RatingAgain {
-			c.Lapses++
-		}
-		c.Card = p.Next(c.Card, fsrs.Rating(r), a.AnsweredAt)
-		c.Reps++
+		c, _ = FoldStep(p, c, a)
 	}
 	return c, c.Reps > 0
+}
+
+// FoldStep applies one attempt to the card, as Fold does for each attempt in
+// turn: it returns the card unchanged and false when the attempt is not
+// scheduled. Replays that need a card's state after every attempt (history
+// backfill) step with it instead of refolding the prefix each time.
+func FoldStep(p fsrs.Params, c Card, a attempts.Attempt) (Card, bool) {
+	r, scheduled := EffectiveRating(a)
+	if !scheduled {
+		return c, false
+	}
+	if c.Card.State == fsrs.Review && r == grading.RatingAgain {
+		c.Lapses++
+	}
+	c.Card = p.Next(c.Card, fsrs.Rating(r), a.AnsweredAt)
+	c.Reps++
+	return c, true
 }

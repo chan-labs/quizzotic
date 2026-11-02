@@ -32,6 +32,15 @@ type SnapshotRepo interface {
 	// is returned and nothing is stored.
 	InsertIfAbsent(ctx context.Context, ownerID domain.ID, s MasterySnapshot) (bool, error)
 
+	// Put stores s, replacing the owner's snapshot for (tag, date) if there is
+	// one. It is only for rewriting history (see Backfill); the daily job uses
+	// InsertIfAbsent. The same ownership rules as InsertIfAbsent apply.
+	Put(ctx context.Context, ownerID domain.ID, s MasterySnapshot) error
+
+	// DeleteTags removes every snapshot the owner has for the given tags, of
+	// any date. Tags that are not the owner's, or have none, are ignored.
+	DeleteTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error
+
 	// List returns the owner's snapshots for the tag with from <= date <= to
 	// (inclusive, YYYY-MM-DD; an empty bound is open), ordered by date.
 	List(ctx context.Context, ownerID, tagID domain.ID, from, to string) ([]MasterySnapshot, error)

@@ -29,6 +29,13 @@ type TagCard struct {
 // from. Every method is scoped to the owner it names; another owner's rows are
 // indistinguishable from missing ones.
 type Repo interface {
+	// LockOwner takes the owner's lock for the rest of the transaction, the
+	// same one tags.Repo.LockOwner and review.Repo.LockOwner take. The
+	// projection takes it before reading the tags and cards a row is computed
+	// from, so a concurrent attempt, tag change or rebuild of the same owner
+	// cannot leave a row that misses it. It must run inside store.WithTx.
+	LockOwner(ctx context.Context, ownerID domain.ID) error
+
 	// Get returns the owner's mastery row for the tag, or ErrNotFound.
 	Get(ctx context.Context, ownerID, tagID domain.ID) (TagMastery, error)
 
@@ -78,6 +85,19 @@ type Repo interface {
 	// DueTimes returns, ascending, the due instants before the cutoff of the
 	// owner's cards on live, non-deleted problems.
 	DueTimes(ctx context.Context, ownerID domain.ID, before time.Time) ([]time.Time, error)
+
+	// HistoryProblems returns every problem of the owner, deleted ones
+	// included, with the lifecycle data a historical replay needs, ordered by
+	// problem ID.
+	HistoryProblems(ctx context.Context, ownerID domain.ID) ([]HistoryProblem, error)
+
+	// HistoryAttempts returns every attempt of the owner, including those on
+	// deleted problems, ordered by problem ID, card epoch, answered_at, ID.
+	HistoryAttempts(ctx context.Context, ownerID domain.ID) ([]attempts.Attempt, error)
+
+	// ActiveTags returns the owner's active tags with their creation times,
+	// ordered by tag ID.
+	ActiveTags(ctx context.Context, ownerID domain.ID) ([]HistoryTag, error)
 }
 
 // ParamsSource supplies the scheduler parameters for a user (the same source

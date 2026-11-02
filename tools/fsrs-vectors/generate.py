@@ -1,8 +1,14 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 # SPDX-License-Identifier: Apache-2.0
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["fsrs==6.3.2"]
+# ///
 """Generate FSRS-6 reference test vectors with py-fsrs (dev-only tool).
 
-Usage: python generate.py [output_path]
+Usage: uv run tools/fsrs-vectors/generate.py [output_path]
+(or `mise run fsrs-vectors`). uv reads the inline script metadata above and
+installs the pinned py-fsrs into a cached environment.
 Output is deterministic: fuzzing is disabled and the PRNG seed is fixed.
 """
 import json

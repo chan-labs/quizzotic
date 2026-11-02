@@ -23,7 +23,7 @@ func (s *Service) RevertOperation(ctx context.Context, ownerID domain.ID, actor 
 		return OpDetail{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
 	}
 	var d OpDetail
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err := s.mutate(ctx, ownerID, func(r Repos) error {
 		op, err := r.Ops.Get(ctx, ownerID, id)
 		if err != nil {
 			return err

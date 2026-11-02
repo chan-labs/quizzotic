@@ -79,7 +79,7 @@ func ApplyRename(ctx context.Context, r Repo, ownerID domain.ID, now time.Time, 
 // Rename runs ApplyRename in its own transaction.
 func (s *Service) Rename(ctx context.Context, ownerID domain.ID, in RenameInput) (Tag, error) {
 	var out Tag
-	err := s.tx.InTx(ctx, func(r Repos) (err error) {
+	err := s.mutate(ctx, ownerID, func(r Repos) (err error) {
 		out, err = ApplyRename(ctx, r.Tags, ownerID, s.clock.Now(), in)
 		return err
 	})

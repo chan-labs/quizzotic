@@ -3,6 +3,7 @@
 
 [tools]
 go = "1.26.3"
+uv = "0.9"  # Python scripts (tools/fsrs-vectors)
 node = "22" # Redocly (openapi-lint)
 "go:honnef.co/go/tools/cmd/staticcheck" = "2025.1.1" # built with the pinned go, as the old CI did
 
@@ -40,6 +41,24 @@ depends = ["vet", "staticcheck", "openapi-lint"]
 description = "Regenerate CLI help and MCP tool-list golden files"
 run = "go test ./internal/cli ./internal/mcp ./cmd/quizzotic -run Golden -update"
 
+# Local dev stack: fake OIDC issuer (needs Docker) + server + seed data. DEV ONLY.
+# Ports: QUIZZOTIC_DEV_PORT (8089), QUIZZOTIC_DEV_ISSUER_PORT (8099).
+[tasks.dev]
+description = "Run the fake OIDC issuer and the server together, seeded (Ctrl-C stops both)"
+run = "dev/dev.sh all"
+
+[tasks.dev-issuer]
+description = "Run only the fake OIDC issuer (mock-oauth2-server in Docker)"
+run = "dev/dev.sh issuer"
+
+[tasks.dev-server]
+description = "Run only the dev server (needs dev-issuer running)"
+run = "dev/dev.sh server"
+
+[tasks.dev-reset]
+description = "Delete the dev database (.dev/quizzotic.db)"
+run = "dev/dev.sh reset"
+
 [tasks.release-check]
 description = "Validate the GoReleaser config (publishes nothing)"
 run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 check"
@@ -47,3 +66,54 @@ run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 check"
 [tasks.snapshot]
 description = "Local build of archives, checksums and images (publishes nothing)"
 run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 release --snapshot --clean --skip=publish"
+
+# Same command CI runs against its postgres:17 service container. Starts a
+# throwaway container unless QUIZZOTIC_TEST_POSTGRES_URL is already set.
+[tasks.test-postgres]
+description = "Run the Postgres store suite against a throwaway postgres:17 container (needs docker)"
+shell = "bash -c"
+run = '''
+set -euo pipefail
+export QUIZZOTIC_REQUIRE_POSTGRES=1
+if [ -z "${QUIZZOTIC_TEST_POSTGRES_URL:-}" ]; then
+  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+    echo "test-postgres: docker is missing or not running; install/start it, or set QUIZZOTIC_TEST_POSTGRES_URL to an existing Postgres" >&2
+    exit 1
+  fi
+  name="quizzotic-test-pg-$$"
+  trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+  docker run -d --name "$name" \
+    -e POSTGRES_USER=quizzotic -e POSTGRES_PASSWORD=quizzotic -e POSTGRES_DB=quizzotic \
+    -p 127.0.0.1::5432 postgres:17 >/dev/null
+  ready=0
+  for _ in $(seq 1 60); do
+    if docker exec "$name" pg_isready -U quizzotic -d quizzotic -h 127.0.0.1 >/dev/null 2>&1; then ready=1; break; fi
+    sleep 1
+  done
+  if [ "$ready" != 1 ]; then echo "test-postgres: postgres did not become ready" >&2; docker logs "$name" >&2; exit 1; fi
+  port="$(docker port "$name" 5432/tcp | head -n1 | sed 's/.*://')"
+  export QUIZZOTIC_TEST_POSTGRES_URL="postgres://quizzotic:quizzotic@127.0.0.1:${port}/quizzotic?sslmode=disable"
+fi
+go test -race -count=1 -v ./internal/store/postgres
+'''
+
+# Mirrors the CI build matrix (linux, darwin, windows; amd64; no cgo).
+[tasks.build-all]
+description = "Cross-compile go build ./... for linux, darwin and windows (CGO_ENABLED=0)"
+shell = "bash -c"
+run = '''
+set -euo pipefail
+for goos in linux darwin windows; do
+  echo "go build ./... (GOOS=$goos GOARCH=amd64 CGO_ENABLED=0)"
+  CGO_ENABLED=0 GOOS=$goos GOARCH=amd64 go build ./...
+done
+'''
+
+[tasks.ci]
+description = "Full local equivalent of CI (needs docker for test-postgres)"
+depends = ["lint", "test", "test-postgres", "build-all", "release-check"]
+
+# Dev-only: regenerate internal/fsrs/testdata/vectors.json from py-fsrs (not run in CI).
+[tasks.fsrs-vectors]
+description = "Regenerate FSRS reference vectors with py-fsrs (via uv)"
+run = "uv run tools/fsrs-vectors/generate.py"
