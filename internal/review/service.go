@@ -49,12 +49,18 @@ func (p *Projector) Apply(ctx context.Context, a attempts.Attempt, _ int) (*time
 // attempts yet and gets its card with its first answer. The old attempts stay
 // in the log, attached to the old epoch.
 func (p *Projector) ProblemMajorEdit(ctx context.Context, e problems.MajorEdit) error {
+	if err := p.sc.Cards.LockOwner(ctx, e.OwnerID); err != nil {
+		return err
+	}
 	return p.sc.Cards.Delete(ctx, e.OwnerID, e.ProblemID)
 }
 
 // ProblemRetired implements problems.RetiredHandler: a card exists only for a
 // live problem, so archiving or deleting one drops its card.
 func (p *Projector) ProblemRetired(ctx context.Context, ownerID, problemID domain.ID) error {
+	if err := p.sc.Cards.LockOwner(ctx, ownerID); err != nil {
+		return err
+	}
 	return p.sc.Cards.Delete(ctx, ownerID, problemID)
 }
 
@@ -65,6 +71,11 @@ func (p *Projector) ProblemRetired(ctx context.Context, ownerID, problemID domai
 // stored card as it is and return nil. retention, when set, overrides the
 // user's desired retention.
 func (p *Projector) Recompute(ctx context.Context, userID, problemID domain.ID, epoch int, retention *float64) (*Card, error) {
+	// Before reading the epoch and the log: a concurrent attempt or edit of
+	// this owner must finish first, or its change would be missed.
+	if err := p.sc.Cards.LockOwner(ctx, userID); err != nil {
+		return nil, err
+	}
 	pe, err := p.sc.Problems.Epoch(ctx, userID, problemID)
 	if errors.Is(err, ErrNotFound) {
 		return nil, nil
@@ -115,6 +126,9 @@ func (p *Projector) Rebuild(ctx context.Context, userID domain.ID, retention *fl
 
 // rebuild is Rebuild reporting how many cards it wrote.
 func (p *Projector) rebuild(ctx context.Context, userID domain.ID, retention *float64) (int, error) {
+	if err := p.sc.Cards.LockOwner(ctx, userID); err != nil {
+		return 0, err
+	}
 	if err := p.sc.Cards.DeleteAll(ctx, userID); err != nil {
 		return 0, err
 	}
