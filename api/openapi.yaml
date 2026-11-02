@@ -604,6 +604,11 @@ paths:
         attempt is never edited afterwards, except that a missing rating may
         be filled in once.
 
+        When `session_id` is sent it must name one of the caller's own review
+        or quiz sessions. An unknown session and another user's session are
+        indistinguishable: both return 422 with an error on the `session_id`
+        field. The session's completion state is not checked.
+
         Humans only: agent clients never hold `attempts:write` and get 403.
       security:
         - bearer: []
@@ -1221,7 +1226,9 @@ paths:
       description: |
         Starts the OIDC Authorization Code + PKCE flow. Generates and stores
         state, nonce and the PKCE verifier server-side, then redirects the
-        browser to the issuer's authorization endpoint.
+        browser to the issuer's authorization endpoint. Also sets the
+        `__Host-quizzotic_login` cookie (HttpOnly, Secure, Path=/, SameSite=Lax,
+        no Domain, 10-minute lifetime) binding the state to this browser.
       security: []
       x-quizzotic-scopes: []
       parameters:
@@ -1239,6 +1246,10 @@ paths:
             Location:
               schema:
                 type: string
+            Set-Cookie:
+              description: The `__Host-quizzotic_login` pre-login cookie.
+              schema:
+                type: string
         default:
           $ref: "#/components/responses/Problem"
   /auth/callback:
@@ -1249,8 +1260,10 @@ paths:
       tags: [auth]
       summary: Complete a web login
       description: |
-        The redirect URI registered with the issuer. Consumes the one-time
-        state, exchanges the code, verifies the ID token (signature, `iss`,
+        The redirect URI registered with the issuer. Requires the
+        `__Host-quizzotic_login` cookie set by `/auth/login` to match `state`
+        (a state issued to another browser is rejected with 400 and the cookie
+        is cleared), then consumes the one-time state, exchanges the code, verifies the ID token (signature, `iss`,
         `aud`, `exp`, `nonce`), provisions the user on first login, creates a
         server-side session and sets the session cookie (HttpOnly, Secure,
         SameSite=Lax, 30-day sliding expiry).
@@ -2626,7 +2639,10 @@ components:
           description: Milliseconds from showing the prompt to submitting.
         session_id:
           type: string
-          description: Review or quiz session the answer belongs to.
+          description: >-
+            Review or quiz session the answer belongs to. Must be one of the
+            caller's own sessions; an unknown or foreign ID is a 422 on this
+            field.
         rating:
           type: integer
           minimum: 1

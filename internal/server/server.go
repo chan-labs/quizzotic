@@ -359,15 +359,15 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	problemsH := problems.NewHandler(problemsSvc, logger)
 	quizzesSvc := quizzes.NewService(store.QuizzesTx(st), problemsSvc, clock, domain.NewIDGenerator(clock))
 	quizzesH := quizzes.NewHandler(quizzesSvc, logger)
-	aopts := []attempts.Option{attempts.WithReader(st.Attempts()), attempts.WithAttemptRecorder(ho.metrics)}
+	// ho.metrics may be nil: Metrics methods tolerate a nil receiver.
+	sessionsSvc := review.NewSessionService(mastery.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock))
+	aopts := []attempts.Option{attempts.WithReader(st.Attempts()), attempts.WithAttemptRecorder(ho.metrics), attempts.WithSessions(sessionsSvc)}
 	if ho.tags != nil {
 		aopts = append(aopts, attempts.WithTagResolver(ho.tags))
 	}
 	attemptsSvc := attempts.NewService(store.AttemptsCardTx(st, mastery.CardUpdater), problemsSvc, clock,
 		domain.NewIDGenerator(clock), aopts...)
 	attemptsH := attempts.NewHandler(attemptsSvc, logger)
-	// ho.metrics may be nil: Metrics methods tolerate a nil receiver.
-	sessionsSvc := review.NewSessionService(mastery.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock))
 	sessionsH := review.NewSessionHandler(sessionsSvc, logger)
 	var cardTags review.TagResolver
 	if ho.tags != nil {
