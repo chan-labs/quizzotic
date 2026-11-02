@@ -12,6 +12,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/metrics"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/review"
+	"github.com/chan-labs/quizzotic/internal/tags"
 )
 
 // Mastery wires the mastery projection (internal/metrics) into store
@@ -60,6 +61,31 @@ func (m Mastery) MajorEdit(tx Store) problems.MajorEditHandler {
 // with the user's overrides) for the time zone and rollover hour.
 func (m Mastery) Snapshotter(s Store, log *slog.Logger) *metrics.Snapshotter {
 	return metrics.NewSnapshotter(snapshotTx{s, m}, m.clock, log)
+}
+
+// TagsTx adapts s to tags.Transactor like the package-level TagsTx, and also
+// binds the mastery rebuild that every applied or reverted tag operation runs
+// in its own transaction (spec: Tag evolution, lifecycle step 4).
+func (m Mastery) TagsTx(s Store) tags.Transactor { return tagsTx{s: s, m: &m} }
+
+// tagMastery is tags.MasteryRebuilder bound to one transaction.
+type tagMastery struct {
+	tx Store
+	m  Mastery
+}
+
+func (t tagMastery) RebuildTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
+	sc := metrics.SnapshotScope{
+		Scope:     t.m.Scope(t.tx),
+		Snapshots: t.tx.MasterySnapshots(),
+		Settings:  effectiveSettings{tx: t.tx, c: t.m.cards},
+	}
+	return metrics.RebuildTags(ctx, sc, t.m.clock, ownerID, tagIDs)
+}
+
+func (t tagMastery) ForgetTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
+	sc := metrics.SnapshotScope{Scope: t.m.Scope(t.tx), Snapshots: t.tx.MasterySnapshots()}
+	return metrics.ForgetTags(ctx, sc, ownerID, tagIDs)
 }
 
 type snapshotTx struct {

@@ -17,7 +17,7 @@ import (
 // removed. It returns ErrOpNotApplied for a proposed or rejected operation,
 // ErrOpReverted when it was reverted already and ErrRevertConflict when a
 // later applied, not reverted operation touched any of the same tags. Mastery
-// is not rebuilt here.
+// and history of every tag involved are rebuilt in the same transaction.
 func (s *Service) RevertOperation(ctx context.Context, ownerID domain.ID, actor domain.Actor, id domain.ID) (OpDetail, error) {
 	if err := actor.Validate(); err != nil {
 		return OpDetail{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
@@ -66,10 +66,16 @@ func (s *Service) RevertOperation(ctx context.Context, ownerID domain.ID, actor 
 			after = page[len(page)-1].ID
 		}
 
+		if err := r.forget(ctx, ownerID, created); err != nil {
+			return err
+		}
 		if err := r.Ops.Restore(ctx, ownerID, *op.Snapshot, created); err != nil {
 			return err
 		}
 		if err := r.Ops.MarkReverted(ctx, ownerID, id, actor, s.clock.Now()); err != nil {
+			return err
+		}
+		if err := r.rebuild(ctx, ownerID, mine); err != nil {
 			return err
 		}
 		op, err = r.Ops.Get(ctx, ownerID, id)
