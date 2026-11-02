@@ -44,6 +44,7 @@ type Web struct {
 	reviewPg reviewPages
 	sets     SettingsService
 	metrics  MetricsReader
+	tagops   TagOpsService
 }
 
 type navItem struct{ Href, Label string }
@@ -90,6 +91,9 @@ func New(cfg Config) (*Web, error) {
 	if err := w.parseMetricsTemplates(layout); err != nil {
 		return nil, err
 	}
+	if err := w.parseTagOpsTemplates(layout); err != nil {
+		return nil, err
+	}
 	return w, nil
 }
 
@@ -117,6 +121,7 @@ func (w *Web) Register(mux *http.ServeMux) {
 	w.registerReview(mux)
 	w.registerSettings(mux)
 	w.registerMetrics(mux)
+	w.registerTagOps(mux)
 }
 
 func (w *Web) gate(h http.Handler) http.Handler {

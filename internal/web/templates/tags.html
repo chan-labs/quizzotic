@@ -1,6 +1,9 @@
 {{define "content"}}<link rel="stylesheet" href="/static/metrics.css">
 <h1>Tags</h1>
 {{with .Data}}
+{{if .Ops}}<nav class="tag-actions" aria-label="Tag actions">
+  <a href="/tag-operations/rename">Rename</a> · <a href="/tag-operations/merge">Merge</a> · <a href="/tag-operations/split">Split</a> · <a href="/tag-operations">Pending and applied operations</a>
+</nav>{{end}}
 {{if .Rows}}
 <p class="muted">Recall is the mean predicted recall of the cards you have studied under each tag, right now. Weakest first.</p>
 <table class="tags">

@@ -1,0 +1,22 @@
+{{define "content"}}<link rel="stylesheet" href="/static/tagops.css">
+<h1>Rename a tag</h1>
+<p class="muted">Change a tag's name, its slug, or both. The old slug stays as an alias. This proposes the change; you review and apply it on the <a href="/tag-operations">operations page</a>.</p>
+{{with .Data}}
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+<form method="post" action="/tag-operations/rename" class="tagop">
+  <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+  <label>Tag
+    <select name="tag" required>
+      <option value="">Choose a tag</option>
+      {{$sel := .Tag}}{{range .Tags}}<option value="{{.ID}}"{{if or (eq .ID $sel) (eq .Slug $sel)}} selected{{end}}>{{.Name}} ({{.Slug}})</option>
+      {{end}}
+    </select>
+  </label>
+  <label>New name <input name="name" value="{{.Name}}" autocomplete="off"></label>
+  <label>New slug <input name="slug" value="{{.Slug}}" autocomplete="off"></label>
+  <p class="muted">Leave a field blank to keep it as it is. Fill in at least one.</p>
+  <button type="submit" class="primary">Propose rename</button>
+  <a href="/tags">Cancel</a>
+</form>
+{{end}}
+{{end}}

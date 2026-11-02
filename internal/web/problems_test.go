@@ -65,6 +65,7 @@ func newProbEnv(t *testing.T) *probEnv {
 		t.Fatal(err)
 	}
 	site.UseProblems(svc, tagSvc)
+	site.UseTagOps(tagSvc)
 	mux := http.NewServeMux()
 	site.Register(mux)
 	return &probEnv{t: t, mux: mux, svc: svc, tags: tagSvc, owner: u.ID}
