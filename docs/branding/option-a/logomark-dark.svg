@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="t">
+  <title id="t">Quizzotic logomark: a question mark whose hook is a loop, with a forgetting curve behind it</title>
+  <rect width="64" height="64" rx="14" fill="#E0E7FF"/>
+  <path d="M9 12 C20 13 24 44 56 51" fill="none" stroke="#818CF8" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 5.5"/>
+  <path d="M21 25 A11 11 0 1 1 32 36 V41" fill="none" stroke="#312E81" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="32" cy="51" r="4.2" fill="#B45309"/>
+</svg>
