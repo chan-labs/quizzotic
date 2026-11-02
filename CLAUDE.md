@@ -27,5 +27,6 @@ Open-source spaced-repetition quiz service. Go (stdlib-first), SQLite/Postgres, 
 
 - Tasks live in `mise.toml` (`mise install` once; it pins Go, Node and staticcheck). `mise run build` · `mise run test` (`go test -race ./...`) · `mise run lint` (`go vet` + `staticcheck` + Redocly lint of `api/openapi.yaml`) · chain with `mise run test ::: lint`.
 - `make <task>` still works as a thin shim over `mise run <task>`; it will be removed.
+- `mise run dev` runs the server and web UI locally at `http://localhost:8089/` with a fake OIDC issuer (`tools/devissuer`) and seed data; also `dev-issuer`, `dev-server`, `dev-reset`. Agents can start it with `preview_start` (`.claude/launch.json`). See CONTRIBUTING.md.
 - `quizzotic serve --config quizzotic.yaml`
 - Coordinate a milestone: `/coordinate M2` (see `.claude/skills/coordinate/SKILL.md`)

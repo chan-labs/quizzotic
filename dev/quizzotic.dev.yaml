@@ -1,0 +1,29 @@
+# Local development config, used by `mise run dev` (see CONTRIBUTING.md).
+# DEV ONLY: every credential here is a fake test value for the throwaway
+# issuer in tools/devissuer. Ports are overridden by dev/dev.sh through
+# QUIZZOTIC_* environment variables; the values below are the defaults.
+server:
+  listen: "127.0.0.1:8089"
+  public_url: "http://localhost:8089"
+storage:
+  url: "sqlite://.dev/quizzotic.db"
+  seed: ["builtin:fsrs-basics", "dev/seed.yaml"]
+  auto_migrate: true
+auth:
+  issuers:
+    - name: "dev-issuer"
+      issuer: "http://127.0.0.1:8099"
+      audience: "quizzotic"
+      scopes: ["openid", "profile", "email"]
+      clients:
+        - id: "quizzotic-web"
+          kind: "human"
+          secret: "dev-secret"   # fake; matches tools/devissuer's default
+        - id: "quizzotic-cli"
+          kind: "human"
+        - id: "quizzotic-agent"
+          kind: "agent"
+          allowed_scopes: ["problems:read", "problems:write", "tags:read", "tags:write", "quizzes:read", "quizzes:write", "metrics:read"]
+logging:
+  level: "info"
+  format: "text"

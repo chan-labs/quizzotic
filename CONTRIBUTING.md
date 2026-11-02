@@ -25,6 +25,23 @@ mise run test ::: lint  # several tasks in one go
 
 The old `make <task>` targets still work; they are a thin shim over `mise run <task>`.
 
+## Run it locally
+
+```sh
+mise run dev          # fake OIDC issuer + server + seed data; Ctrl-C stops both
+```
+
+Then open <http://localhost:8089/>. The throwaway issuer in `tools/devissuer`
+signs in a fixed test user (`dev@example.com`) with no password, so the browser
+lands straight on the Today page. The database is `.dev/quizzotic.db`
+(gitignored), seeded with the starter pack plus `dev/seed.yaml`. Ports come
+from `QUIZZOTIC_DEV_PORT` (8089) and `QUIZZOTIC_DEV_ISSUER_PORT` (8099).
+`mise run dev-issuer` and `mise run dev-server` run the halves separately, and
+`mise run dev-reset` deletes the database. `.claude/launch.json` lets an agent
+start the stack with `preview_start`. The issuer and its `dev-secret` client
+secret are fake and for local development only; nothing here is shipped in the
+`quizzotic` binary.
+
 ## Golden files
 
 The generated CLI help (`internal/cli/testdata`, `cmd/quizzotic/testdata`) and the MCP tool list (`internal/mcp/testdata`) are checked against golden files. Changing an operation summary, description or schema in `api/openapi.yaml` fails `mise run test` until you run `mise run golden` and commit the reviewed diff.
