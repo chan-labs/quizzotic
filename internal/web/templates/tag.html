@@ -1,0 +1,18 @@
+{{define "content"}}<link rel="stylesheet" href="/static/metrics.css">
+{{with .Data}}
+<p><a href="/tags">All tags</a></p>
+<h1>{{.Tag.Name}}</h1>
+<dl class="stats">
+  <div><dt>Recall now</dt><dd id="recall">{{.Tag.Recall}}</dd></div>
+  <div><dt>Coverage</dt><dd>{{.Tag.Coverage}}</dd><dd class="muted">{{.Tag.CardsSeen}} of {{.Tag.CardsAll}} problems studied</dd></div>
+  <div><dt>Median stability</dt><dd>{{.Tag.Stability}}</dd></div>
+  <div><dt>Lapse rate</dt><dd>{{.Tag.LapseRate}}</dd><dd class="muted">{{.Tag.Lapses}} lapses in {{.Tag.Reviews}} reviews</dd></div>
+  <div><dt>True retention</dt><dd>{{.Tag.Retention}}</dd><dd class="muted">{{.Tag.RetentionReviews}} reviews, 30 days</dd></div>
+</dl>
+<section aria-labelledby="history-h">
+  <h2 id="history-h">History</h2>
+  {{if .Samples}}{{template "linechart" .Chart}}
+  {{else}}<p class="muted">No history yet. A snapshot is saved once a day for each tag you have studied.</p>{{end}}
+</section>
+{{end}}
+{{end}}

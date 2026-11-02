@@ -1,0 +1,26 @@
+{{define "content"}}<link rel="stylesheet" href="/static/metrics.css">
+<h1>Tags</h1>
+{{with .Data}}
+{{if .Rows}}
+<p class="muted">Recall is the mean predicted recall of the cards you have studied under each tag, right now. Weakest first.</p>
+<table class="tags">
+  <caption class="sr-only">Mastery by tag</caption>
+  <thead><tr>
+    <th scope="col">Tag</th><th scope="col">Recall</th><th scope="col">Coverage</th><th scope="col">Median stability</th>
+    <th scope="col">Lapse rate</th><th scope="col">True retention (30 days)</th><th scope="col">Last reviewed (UTC)</th>
+  </tr></thead>
+  <tbody>
+  {{range .Rows}}<tr>
+    <th scope="row"><a href="/tags/{{.ID}}">{{.Name}}</a></th>
+    <td class="recall">{{if .HasRecall}}<meter min="0" max="1" value="{{.RecallValue}}" aria-label="Recall of {{.Name}}">{{.Recall}}</meter> {{end}}<span class="recall-value">{{.Recall}}</span></td>
+    <td>{{.Coverage}} <span class="muted">({{.CardsSeen}} of {{.CardsAll}})</span></td>
+    <td>{{.Stability}}</td>
+    <td>{{.LapseRate}}</td>
+    <td>{{.Retention}}{{if .RetentionReviews}} <span class="muted">({{.RetentionReviews}} reviews)</span>{{end}}</td>
+    <td>{{.LastReviewed}}</td>
+  </tr>
+  {{end}}</tbody>
+</table>
+{{else}}<p class="muted">No tags yet. Tag some problems and your mastery by tag will show here.</p>{{end}}
+{{end}}
+{{end}}
