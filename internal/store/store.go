@@ -180,7 +180,7 @@ type tagsTx struct{ s Store }
 
 func (a tagsTx) InTx(ctx context.Context, fn func(tags.Repos) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
-		return fn(tags.Repos{Tags: tx.Tags(), Ops: tx.TagOperations(), Problems: tx.Problems()})
+		return fn(tags.Repos{Tags: tx.Tags(), Ops: tx.TagOperations(), Problems: problems.NewReader(tx.Problems())})
 	})
 }
 
