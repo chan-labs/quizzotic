@@ -50,6 +50,9 @@ func TestOpenPostgresSchemesRouteToPostgres(t *testing.T) {
 func TestOpenPostgresSchemesLive(t *testing.T) {
 	raw := os.Getenv(postgresEnv)
 	if raw == "" {
+		if os.Getenv("QUIZZOTIC_REQUIRE_POSTGRES") != "" {
+			t.Fatalf("%s is not set but QUIZZOTIC_REQUIRE_POSTGRES is", postgresEnv)
+		}
 		t.Skipf("%s not set", postgresEnv)
 	}
 	_, rest, ok := strings.Cut(raw, "://")

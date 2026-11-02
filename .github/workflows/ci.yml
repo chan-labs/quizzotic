@@ -82,7 +82,7 @@ jobs:
           cache: true
           install_args: go
       - name: postgres store tests (conformance, migrations, append-only triggers)
-        run: go test -race -count=1 -v ./internal/store/postgres
+        run: go test -race -count=1 -v ./internal/store/postgres ./internal/store/driver
 
   build:
     name: build (${{ matrix.name }})
