@@ -18,6 +18,13 @@ var ErrNotFound = errors.New("attempts: not found")
 // rating: a rating is filled in once.
 var ErrAlreadyRated = errors.New("attempts: already rated")
 
+// ErrDuplicate is returned by Create when the attempt carries a session ID and
+// the session already holds as many attempts at that problem as it has items
+// for it: every presentation of the problem is answered, so this one is a
+// concurrent or replayed duplicate. A learning-step card that the session
+// lists again has a further item, so its repeat is not a duplicate.
+var ErrDuplicate = errors.New("attempts: duplicate attempt in session")
+
 // ListFilter narrows List. The zero value lists all of the owner's attempts.
 type ListFilter struct {
 	// ProblemID, when set, keeps attempts at that problem.
@@ -48,6 +55,11 @@ type Repo interface {
 
 	// Create appends a. a.UserID must equal ownerID, and the problem must be
 	// the owner's, otherwise ErrNotFound is returned and nothing is stored.
+	// When a.SessionID names a session that lists the problem, the count of
+	// the session's attempts at it is checked against the count of its items
+	// for it inside the same transaction, and ErrDuplicate is returned (and
+	// nothing stored) when no presentation is left to answer. A session ID
+	// that is unknown, or does not list the problem, is not checked.
 	Create(ctx context.Context, ownerID domain.ID, a Attempt) error
 
 	// Get returns the owner's attempt, or ErrNotFound.

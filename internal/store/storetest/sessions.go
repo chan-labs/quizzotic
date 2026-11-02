@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -475,6 +476,79 @@ func runSessionService(t *testing.T, newStore NewStore) {
 		}
 		if g, _ := f.svc.Get(f.ctx, f.user, v.ID); g.CompletedAt != nil {
 			t.Error("another user completed the session")
+		}
+	})
+
+	t.Run("concurrent identical answers record one attempt", func(t *testing.T) {
+		f := newSessionFixture(t, newStore)
+		p := f.newProblem(k, problems.StatusLive)
+		v, err := f.svc.Create(f.ctx, f.user, review.CreateSessionInput{Kind: review.SessionReview})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(v.Items) != 1 || v.Items[0].ProblemID != p.ID {
+			t.Fatalf("items = %+v, want the one new problem", v.Items)
+		}
+		pv, err := f.probs.Get(f.ctx, f.user, p.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const n = 8
+		errs := make([]error, n)
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for i := 0; i < n; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				_, errs[i] = f.atts.Answer(f.ctx, f.actor, attempts.AnswerInput{ProblemID: p.ID, ProblemVersion: pv.Version,
+					Response: json.RawMessage(k.right), LatencyMS: 5, SessionID: v.ID.String()})
+			}()
+		}
+		close(start)
+		wg.Wait()
+		ok := 0
+		for _, err := range errs {
+			switch {
+			case err == nil:
+				ok++
+			case !errors.Is(err, attempts.ErrDuplicate):
+				t.Errorf("unexpected error: %v", err)
+			}
+		}
+		if ok != 1 {
+			t.Errorf("%d answers succeeded, want exactly 1", ok)
+		}
+		log, err := f.s.Attempts().List(f.ctx, f.user, attempts.ListFilter{SessionID: v.ID})
+		if err != nil || len(log) != 1 {
+			t.Fatalf("attempts in session = %d, %v; want 1", len(log), err)
+		}
+		// A later replay is a duplicate too.
+		if _, err := f.atts.Answer(f.ctx, f.actor, attempts.AnswerInput{ProblemID: p.ID, ProblemVersion: pv.Version,
+			Response: json.RawMessage(k.right), LatencyMS: 5, SessionID: v.ID.String()}); !errors.Is(err, attempts.ErrDuplicate) {
+			t.Errorf("replay err = %v, want ErrDuplicate", err)
+		}
+	})
+
+	t.Run("a learning-step repeat is not a duplicate", func(t *testing.T) {
+		f := newSessionFixture(t, newStore)
+		p := f.newProblem(k, problems.StatusLive)
+		v, err := f.svc.Create(f.ctx, f.user, review.CreateSessionInput{Kind: review.SessionReview})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A wrong answer leaves the card in learning; the session lists it again.
+		f.answerIn(v.ID, p.ID, k.wrong)
+		f.clock.Advance(2 * time.Minute)
+		n, err := f.svc.Next(f.ctx, f.user, v.ID)
+		if err != nil || n.Item == nil || n.Item.Problem.ID != p.ID {
+			t.Fatalf("Next = %+v, %v; want the learning card again", n, err)
+		}
+		f.answerIn(v.ID, p.ID, k.wrong) // the same response, a second presentation
+		log, err := f.s.Attempts().List(f.ctx, f.user, attempts.ListFilter{SessionID: v.ID})
+		if err != nil || len(log) != 2 {
+			t.Fatalf("attempts = %d, %v; want 2", len(log), err)
 		}
 	})
 }
