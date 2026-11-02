@@ -87,6 +87,7 @@ type reviewSummary struct {
 
 // apiProblem is the subset of RFC 9457 problem details shown to the user.
 type apiProblem struct {
+	Type  string `json:"type"`
 	Title  string `json:"title"`
 	Detail string `json:"detail"`
 	Errors []struct {
@@ -158,8 +159,24 @@ func httpError(resp *http.Response, raw []byte) error {
 	if resp.StatusCode == http.StatusUnauthorized {
 		msg += " (run \"quizzotic login\")"
 	}
+	if resp.StatusCode == http.StatusConflict && p.Type == typeStaleProblemVersion {
+		return &staleProblemError{msg: msg}
+	}
 	return errors.New(msg)
 }
+
+// typeStaleProblemVersion is the problem type POST /attempts answers with
+// when the problem was edited after it was shown.
+const typeStaleProblemVersion = "urn:quizzotic:problem:stale-problem-version"
+
+// maxStaleRetries bounds how many stale answers in a row end the run, so a
+// misbehaving server cannot loop it forever.
+const maxStaleRetries = 3
+
+// staleProblemError is a 409 saying the problem changed since it was shown.
+type staleProblemError struct{ msg string }
+
+func (e *staleProblemError) Error() string { return e.msg }
 
 type sessionDTO struct {
 	ID    string `json:"id"`
@@ -257,6 +274,7 @@ func (r *reviewer) run(ctx context.Context) error {
 }
 
 func (r *reviewer) loop(ctx context.Context, sessionID string) error {
+	stale := 0
 	for n := 1; ; n++ {
 		var next nextDTO
 		if err := r.call(ctx, http.MethodGet, "/sessions/"+url.PathEscape(sessionID)+"/next", nil, &next); err != nil {
@@ -280,8 +298,18 @@ func (r *reviewer) loop(ctx context.Context, sessionID string) error {
 		}
 		var res resultDTO
 		if err := r.call(ctx, http.MethodPost, "/attempts", body, &res); err != nil {
+			var se *staleProblemError
+			if errors.As(err, &se) && stale < maxStaleRetries {
+				// The problem was edited after it was shown. Nothing was
+				// recorded; fetch the current version and ask again.
+				stale++
+				n--
+				fmt.Fprintln(r.out, "This problem was edited since it was shown; your answer was not recorded. Loading the current version.")
+				continue
+			}
 			return fmt.Errorf("submitting the answer: %w", err)
 		}
+		stale = 0
 		r.showResult(p, res)
 		rating, err := r.rate(ctx, p, &res)
 		if err != nil {

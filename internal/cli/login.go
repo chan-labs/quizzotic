@@ -219,8 +219,8 @@ func Login(ctx context.Context, args []string, env Env) int {
 	fs := flag.NewFlagSet("quizzotic login", flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
 	server := fs.String("server", "", "Quizzotic server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then "+DefaultServer+")")
-	issuer := fs.String("issuer", "", "OIDC issuer URL (default $QUIZZOTIC_ISSUER, else asked of the server)")
-	clientID := fs.String("client-id", "", "OAuth client ID (default $QUIZZOTIC_LOGIN_CLIENT_ID, else "+DefaultHumanClientID+", or "+DefaultAgentClientID+" with --agent)")
+	issuer := fs.String("issuer", "", "OIDC issuer URL (default $QUIZZOTIC_ISSUER, then issuer: in config.yaml, else asked of the server)")
+	clientID := fs.String("client-id", "", "OAuth client ID (default $QUIZZOTIC_LOGIN_CLIENT_ID, then login_client_id: in config.yaml, else "+DefaultHumanClientID+", or "+DefaultAgentClientID+" with --agent)")
 	agentFlag := fs.Bool("agent", false, "log in with the agent client; stored separately from the human login")
 	device := fs.Bool("device", false, "use the device flow instead of a browser (for machines without one)")
 	if err := fs.Parse(args); err != nil {
