@@ -18,37 +18,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: jdx/mise-action@v5.2.5
         with:
-          go-version: '1.26.3' # keep in sync with .tool-versions
-      - name: go vet
-        run: go vet ./...
-      - name: staticcheck
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
-          staticcheck ./...
+          cache: true
+      - name: lint (go vet, staticcheck, Redocly)
+        run: mise run lint
 
   openapi:
     name: openapi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: jdx/mise-action@v5.2.5
         with:
-          node-version: '22'
+          cache: true
+          install_args: node
       - name: lint api/openapi.yaml
-        run: npx --yes @redocly/cli@1.34.5 lint api/openapi.yaml
+        run: mise run openapi-lint
 
   test:
     name: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: jdx/mise-action@v5.2.5
         with:
-          go-version: '1.26.3' # keep in sync with .tool-versions
+          cache: true
+          install_args: go
       - name: go test
-        run: go test -race ./...
+        run: mise run test
 
   test-postgres:
     name: test (postgres)
@@ -72,9 +70,10 @@ jobs:
       QUIZZOTIC_REQUIRE_POSTGRES: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: jdx/mise-action@v5.2.5
         with:
-          go-version: '1.26.3' # keep in sync with .tool-versions
+          cache: true
+          install_args: go
       - name: postgres store tests (conformance, migrations, append-only triggers)
         run: go test -race -count=1 -v ./internal/store/postgres
 
@@ -93,9 +92,10 @@ jobs:
             goos: windows
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: jdx/mise-action@v5.2.5
         with:
-          go-version: '1.26.3' # keep in sync with .tool-versions
+          cache: true
+          install_args: go
       - name: go build
         env:
           CGO_ENABLED: "0"
@@ -108,8 +108,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: jdx/mise-action@v5.2.5
         with:
-          go-version: '1.26.3' # keep in sync with .tool-versions
+          cache: true
+          install_args: go
       - name: goreleaser check
-        run: make release-check
+        run: mise run release-check

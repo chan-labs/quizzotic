@@ -20,12 +20,12 @@ branches or pull requests. It runs GoReleaser, which:
 Nothing below publishes anything.
 
 ```sh
-make release-check   # validate .goreleaser.yaml
-make snapshot        # build archives, checksums and local images into ./dist
+mise run release-check   # validate .goreleaser.yaml
+mise run snapshot        # build archives, checksums and local images into ./dist
 ```
 
 Both run GoReleaser through `go run`, so no separate install is needed;
-`make snapshot` also needs Docker with buildx for the image step.
+`mise run snapshot` also needs Docker with buildx for the image step.
 
 ## Running the image
 
