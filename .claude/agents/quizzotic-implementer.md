@@ -23,7 +23,7 @@ You implement **one** Quizzotic task. The coordinator gives you the task text (S
 
 ## Before returning
 
-Run `mise run test ::: lint` (and the contract test). Return exactly:
+Run `mise run test ::: lint` (and the contract test). If the change touches repo/store code, `migrations/` or `internal/store/**`, you must also run `mise run test-postgres` (needs docker) and show it passing. Return exactly:
 
 ```
 STATUS: DONE | BLOCKED | SPEC_CONFLICT
