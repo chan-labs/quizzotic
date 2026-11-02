@@ -9,7 +9,7 @@ server:
   public_url: "https://quizzotic.example.com"   # required for serve
   session_ttl: "720h"
 storage:
-  url: "sqlite://quizzotic.db"   # sqlite://<path> or postgres://user:pass@host/db
+  url: "sqlite://quizzotic.db"   # sqlite://<path>, or postgres:// / postgresql://user:pass@host/db
   seed: ["builtin:fsrs-basics"]  # loaded on start (not wired up yet)
   auto_migrate: true             # apply pending migrations on start
 auth:
