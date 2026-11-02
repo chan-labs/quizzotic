@@ -4,9 +4,11 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/platform"
@@ -14,6 +16,11 @@ import (
 
 // SessionCookieName is the web session cookie.
 const SessionCookieName = "quizzotic_session"
+
+// LoginCookieName is the pre-login cookie that binds an authorization request
+// to the browser that started it (login CSRF defence). The __Host- prefix
+// makes browsers require Secure, Path=/ and no Domain.
+const LoginCookieName = "__Host-quizzotic_login"
 
 // WebRoutes are the web auth routes, served at the host root (outside
 // /api/v1). The OpenAPI contract test checks them against the spec.
@@ -45,6 +52,14 @@ func (h *LoginHandler) Login(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, "begin login", err, platform.NewProblem(platform.TypeInternal, http.StatusBadGateway, "identity provider unavailable"))
 		return
 	}
+	// The cookie carries the (single-use, unguessable) state sent to the
+	// issuer; the callback only accepts a state its own browser holds.
+	if u, perr := url.Parse(loc); perr == nil && u.Query().Get("state") != "" {
+		h.setLoginCookie(w, u.Query().Get("state"))
+	} else {
+		h.fail(w, r, "begin login", errors.New("authorization URL has no state"), nil)
+		return
+	}
 	http.Redirect(w, r, loc, http.StatusSeeOther)
 }
 
@@ -52,10 +67,19 @@ func (h *LoginHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *LoginHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	noStore(w)
 	q := r.URL.Query()
+	// The pre-login cookie is single-use: clear it however the callback ends.
+	bound := h.loginCookieMatches(r, q.Get("state"))
+	h.clearLoginCookie(w)
 	if e := q.Get("error"); e != "" {
 		// Burn the state so a rejected attempt cannot be replayed.
 		h.svc.AbandonLogin(r.Context(), q.Get("state"))
 		platform.WriteError(w, r, platform.Unauthorized("the identity provider rejected the login"))
+		return
+	}
+	if !bound {
+		// The state was issued to another browser (or the cookie expired).
+		// Do not consume it: only its rightful browser may.
+		platform.WriteError(w, r, platform.BadRequest("login was not started in this browser; start again at /auth/login"))
 		return
 	}
 	res, err := h.svc.CompleteLogin(r.Context(), q.Get("state"), q.Get("code"))
@@ -170,6 +194,37 @@ func (h *LoginHandler) setCookie(w http.ResponseWriter, token string, expires ti
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func (h *LoginHandler) setLoginCookie(w http.ResponseWriter, state string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     LoginCookieName,
+		Value:    state,
+		Path:     "/",
+		MaxAge:   int(DefaultStateTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *LoginHandler) clearLoginCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     LoginCookieName,
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *LoginHandler) loginCookieMatches(r *http.Request, state string) bool {
+	c, err := r.Cookie(LoginCookieName)
+	if err != nil || state == "" || c.Value == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(c.Value), []byte(state)) == 1
 }
 
 func (h *LoginHandler) clearCookie(w http.ResponseWriter) {

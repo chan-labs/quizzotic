@@ -267,7 +267,71 @@ func (a *app) login(returnTo string) *http.Response {
 	if resp.StatusCode != http.StatusSeeOther {
 		a.t.Fatalf("login status = %d", resp.StatusCode)
 	}
-	return a.do("GET", a.idp.authorize(resp.Header.Get("Location")), "", nil)
+	return a.callback(resp)
+}
+
+// callback plays the same browser: it returns the callback response for the
+// IdP trip started by login response resp, presenting its login cookie.
+func (a *app) callback(resp *http.Response) *http.Response {
+	a.t.Helper()
+	return a.callbackAt(resp, a.idp.authorize(resp.Header.Get("Location")))
+}
+
+// callbackAt requests callback path cb presenting resp's login cookie.
+func (a *app) callbackAt(resp *http.Response, cb string) *http.Response {
+	a.t.Helper()
+	req, err := http.NewRequest("GET", a.srv.URL+cb, nil)
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	for _, c := range resp.Cookies() {
+		if c.Name == auth.LoginCookieName {
+			req.AddCookie(&http.Cookie{Name: c.Name, Value: c.Value})
+		}
+	}
+	out, err := (&http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(req)
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	a.t.Cleanup(func() { out.Body.Close() })
+	return out
+}
+
+// TestCallbackRejectsStateFromAnotherBrowser is the login-CSRF defence: an
+// attacker starts a login, and a victim's browser (with no matching
+// pre-login cookie) is sent to the callback.
+func TestCallbackRejectsStateFromAnotherBrowser(t *testing.T) {
+	idp, clock, db := setup(t)
+	a := newApp(t, db, idp, clock)
+	start := a.do("GET", "/auth/login", "", nil)
+	var lc *http.Cookie
+	for _, c := range start.Cookies() {
+		if c.Name == auth.LoginCookieName {
+			lc = c
+		}
+	}
+	if lc == nil || !lc.Secure || !lc.HttpOnly || lc.Path != "/" || lc.Domain != "" || lc.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("login cookie = %+v", lc)
+	}
+	cb := a.idp.authorize(start.Header.Get("Location"))
+	if r := a.do("GET", cb, "", nil); r.StatusCode != http.StatusBadRequest || sessionCookie(r) != nil {
+		t.Fatalf("callback without cookie = %d, want 400 and no session", r.StatusCode)
+	}
+	// The state was not consumed, so its own browser can still finish.
+	ok := a.callback(start)
+	if ok.StatusCode != http.StatusSeeOther || sessionCookie(ok) == nil {
+		t.Fatalf("callback from the originating browser = %d", ok.StatusCode)
+	}
+	// The login cookie is cleared after use.
+	cleared := false
+	for _, c := range ok.Cookies() {
+		if c.Name == auth.LoginCookieName && c.MaxAge < 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Fatal("callback did not clear the login cookie")
+	}
 }
 
 func setup(t *testing.T) (*loginIdP, *domain.FakeClock, string) {
@@ -448,19 +512,21 @@ func TestCallbackRejections(t *testing.T) {
 	idp, clock, db := setup(t)
 	a := newApp(t, db, idp, clock)
 
-	loginURL := func() (state, callback string) {
+	// loginURL starts a login and returns the state, the callback path, and a
+	// getter that requests the callback with the starting browser's cookie.
+	loginURL := func() (state, callback string, get func() *http.Response) {
 		resp := a.do("GET", "/auth/login", "", nil)
 		cb := idp.authorize(resp.Header.Get("Location"))
 		u, _ := url.Parse(cb)
-		return u.Query().Get("state"), cb
+		return u.Query().Get("state"), cb, func() *http.Response { return a.callbackAt(resp, cb) }
 	}
 
 	t.Run("state is single use", func(t *testing.T) {
-		_, cb := loginURL()
-		if r := a.do("GET", cb, "", nil); r.StatusCode != http.StatusSeeOther {
+		_, _, get := loginURL()
+		if r := get(); r.StatusCode != http.StatusSeeOther {
 			t.Fatalf("first callback = %d", r.StatusCode)
 		}
-		if r := a.do("GET", cb, "", nil); r.StatusCode != http.StatusBadRequest || sessionCookie(r) != nil {
+		if r := get(); r.StatusCode != http.StatusBadRequest || sessionCookie(r) != nil {
 			t.Fatalf("replayed callback = %d, want 400 without a cookie", r.StatusCode)
 		}
 	})
@@ -473,14 +539,14 @@ func TestCallbackRejections(t *testing.T) {
 		}
 	})
 	t.Run("expired state", func(t *testing.T) {
-		_, cb := loginURL()
+		_, _, get := loginURL()
 		clock.Advance(11 * time.Minute)
-		if r := a.do("GET", cb, "", nil); r.StatusCode != http.StatusBadRequest {
+		if r := get(); r.StatusCode != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", r.StatusCode)
 		}
 	})
 	t.Run("issuer error burns the state", func(t *testing.T) {
-		state, cb := loginURL()
+		state, cb, _ := loginURL()
 		r := a.do("GET", "/auth/callback?error=access_denied&state="+state, "", nil)
 		if r.StatusCode != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", r.StatusCode)
@@ -492,8 +558,8 @@ func TestCallbackRejections(t *testing.T) {
 	t.Run("nonce mismatch in id token", func(t *testing.T) {
 		idp.set(func() { idp.forceNonce = "not-the-nonce" })
 		defer idp.set(func() { idp.forceNonce = "" })
-		_, cb := loginURL()
-		r := a.do("GET", cb, "", nil)
+		_, _, get := loginURL()
+		r := get()
 		if r.StatusCode != http.StatusUnauthorized || sessionCookie(r) != nil {
 			t.Fatalf("status = %d, want 401 without a cookie", r.StatusCode)
 		}
@@ -501,22 +567,22 @@ func TestCallbackRejections(t *testing.T) {
 	t.Run("token endpoint failure", func(t *testing.T) {
 		idp.set(func() { idp.breakExchange = true })
 		defer idp.set(func() { idp.breakExchange = false })
-		_, cb := loginURL()
-		r := a.do("GET", cb, "", nil)
+		_, _, get := loginURL()
+		r := get()
 		if r.StatusCode != http.StatusBadGateway || sessionCookie(r) != nil {
 			t.Fatalf("status = %d, want 502 without a cookie", r.StatusCode)
 		}
 	})
 	t.Run("wrong pkce verifier is rejected by the issuer", func(t *testing.T) {
 		// Swap the stored challenge so the verifier no longer matches.
-		_, cb := loginURL()
+		_, _, get := loginURL()
 		idp.mu.Lock()
 		for k, v := range idp.codes {
 			v.challenge = "different"
 			idp.codes[k] = v
 		}
 		idp.mu.Unlock()
-		if r := a.do("GET", cb, "", nil); r.StatusCode != http.StatusBadGateway {
+		if r := get(); r.StatusCode != http.StatusBadGateway {
 			t.Fatalf("status = %d, want 502", r.StatusCode)
 		}
 	})
