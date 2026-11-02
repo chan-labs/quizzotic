@@ -40,14 +40,14 @@ depends = ["vet", "staticcheck", "openapi-lint"]
 description = "Regenerate CLI help and MCP tool-list golden files"
 run = "go test ./internal/cli ./internal/mcp ./cmd/quizzotic -run Golden -update"
 
-# Local dev stack: fake OIDC issuer + server + seed data. DEV ONLY.
+# Local dev stack: fake OIDC issuer (needs Docker) + server + seed data. DEV ONLY.
 # Ports: QUIZZOTIC_DEV_PORT (8089), QUIZZOTIC_DEV_ISSUER_PORT (8099).
 [tasks.dev]
 description = "Run the fake OIDC issuer and the server together, seeded (Ctrl-C stops both)"
 run = "dev/dev.sh all"
 
 [tasks.dev-issuer]
-description = "Run only the fake OIDC issuer (tools/devissuer)"
+description = "Run only the fake OIDC issuer (mock-oauth2-server in Docker)"
 run = "dev/dev.sh issuer"
 
 [tasks.dev-server]

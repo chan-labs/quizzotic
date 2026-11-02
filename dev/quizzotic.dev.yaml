@@ -1,6 +1,6 @@
 # Local development config, used by `mise run dev` (see CONTRIBUTING.md).
 # DEV ONLY: every credential here is a fake test value for the throwaway
-# issuer in tools/devissuer. Ports are overridden by dev/dev.sh through
+# issuer (navikt/mock-oauth2-server, dev/mock-oauth2.json). Ports are overridden by dev/dev.sh through
 # QUIZZOTIC_* environment variables; the values below are the defaults.
 server:
   listen: "127.0.0.1:8089"
@@ -12,13 +12,13 @@ storage:
 auth:
   issuers:
     - name: "dev-issuer"
-      issuer: "http://127.0.0.1:8099"
+      issuer: "http://localhost:8099/dev"
       audience: "quizzotic"
       scopes: ["openid", "profile", "email"]
       clients:
         - id: "quizzotic-web"
           kind: "human"
-          secret: "dev-secret"   # fake; matches tools/devissuer's default
+          secret: "dev-secret"   # fake; mock-oauth2-server accepts any client secret
         - id: "quizzotic-cli"
           kind: "human"
         - id: "quizzotic-agent"

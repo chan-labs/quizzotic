@@ -1,6 +1,6 @@
 ---
 name: quizzotic-reviewer
-description: Independently reviews one Quizzotic task branch against its Done-when, docs/spec.md and the rules in CLAUDE.md, and returns PASS or FAIL with findings. Dispatched by the /coordinate skill after an implementer finishes; does not edit code.
+description: Independently reviews one Quizzotic task branch against its Done-when, docs/spec.md and the rules in AGENTS.md, and returns PASS or FAIL with findings. Dispatched by the /coordinate skill after an implementer finishes; does not edit code.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -8,7 +8,7 @@ You review **one** branch for **one** Quizzotic task. You did not write it and h
 
 ## Check
 
-1. Read `CLAUDE.md`, the task text you were given, and the spec sections on its **Spec** line in `docs/spec.md`.
+1. Read `AGENTS.md`, the task text you were given, and the spec sections on its **Spec** line in `docs/spec.md`.
 2. `git diff main...<branch>` and read the changed files in full.
 3. Run `mise run test ::: lint` and the contract test yourself. Do not trust the implementer's evidence.
 4. Verify, in order:
