@@ -146,7 +146,8 @@ func TestAttemptsRoundTripEveryType(t *testing.T) {
 
 	t.Run("mcq", func(t *testing.T) {
 		p := mkLive(mcqBody("Which letter is third?", true))
-		res := decode(t, e.answer(t, e.human, attemptBody(p, map[string]any{"selected": []string{"c"}}, map[string]any{"rating": 4, "session_id": domain.NewIDGenerator(domain.SystemClock{}).New().String()})), 201)
+		sid := e.newSession(t, e.human)
+		res := decode(t, e.answer(t, e.human, attemptBody(p, map[string]any{"selected": []string{"c"}}, map[string]any{"rating": 4, "session_id": sid})), 201)
 		if !*res.Grade.Correct || *res.Grade.Score != 1 || *res.Grade.Rating != 4 || !res.Grade.Scheduled {
 			t.Errorf("grade = %+v", res.Grade)
 		}
@@ -429,5 +430,58 @@ func TestAttemptsAreCountedInMetrics(t *testing.T) {
 	}
 	if !strings.Contains(e.metricsText(t), "quizzotic_attempts_recorded_total 1\n") {
 		t.Errorf("want 1 attempt:\n%s", e.metricsText(t))
+	}
+}
+
+// newSession creates a review session for the token's user and returns its ID.
+func (e *probEnv) newSession(t *testing.T, tok string) string {
+	t.Helper()
+	r := e.req(t, "POST", "/sessions", tok, map[string]any{"kind": "review"}, nil)
+	if r.code != http.StatusCreated {
+		t.Fatalf("create session = %d (%s)", r.code, r.body)
+	}
+	var s struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(r.body, &s); err != nil {
+		t.Fatal(err)
+	}
+	return s.ID
+}
+
+// An unknown session and another user's session are both a 422 on session_id,
+// so a foreign session's existence is not revealed.
+func TestAttemptsRejectUnknownAndForeignSession(t *testing.T) {
+	e := newProbEnv(t)
+	live := openBody("Which session is mine?")
+	live["status"] = "live"
+	p := e.create(t, e.human, live)
+
+	unknown := domain.NewIDGenerator(domain.SystemClock{}).New().String()
+	foreign := e.newSession(t, e.other)
+	for name, sid := range map[string]string{"unknown": unknown, "foreign": foreign} {
+		r := e.answer(t, e.human, attemptBody(p, map[string]any{"text": "x"}, map[string]any{"rating": 3, "session_id": sid}))
+		if r.code != http.StatusUnprocessableEntity {
+			t.Fatalf("%s session: status = %d (%s)", name, r.code, r.body)
+		}
+		var prob struct {
+			Errors []struct {
+				Field string `json:"field"`
+			} `json:"errors"`
+		}
+		if err := json.Unmarshal(r.body, &prob); err != nil || len(prob.Errors) != 1 || prob.Errors[0].Field != "session_id" {
+			t.Errorf("%s session: body = %s (%v)", name, r.body, err)
+		}
+		if strings.Contains(string(r.body), sid) {
+			t.Errorf("%s session: response echoes the session ID: %s", name, r.body)
+		}
+	}
+	// Nothing was stored.
+	if got, _ := e.listAttempts(t, e.human, nil, http.StatusOK); len(got) != 0 {
+		t.Errorf("rejected attempts were stored: %v", got)
+	}
+	own := e.newSession(t, e.human)
+	if r := e.answer(t, e.human, attemptBody(p, map[string]any{"text": "x"}, map[string]any{"rating": 3, "session_id": own})); r.code != http.StatusCreated {
+		t.Errorf("own session = %d (%s)", r.code, r.body)
 	}
 }

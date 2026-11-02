@@ -81,15 +81,33 @@ func openBrowser(u string) error {
 	return nil
 }
 
-func serverBase(flagVal string, env Env) string {
+// ServerBase resolves the Quizzotic base URL for other entry points (the MCP
+// server) so they share the CLI's precedence rules.
+func ServerBase(flagVal string, env Env) (string, error) {
+	env.applyDefaults()
+	return serverBase(flagVal, env)
+}
+
+// serverBase resolves the Quizzotic base URL.
+//
+// Precedence: --server, $QUIZZOTIC_SERVER, the config file's server key,
+// then DefaultServer. A malformed config file is an error.
+func serverBase(flagVal string, env Env) (string, error) {
 	base := flagVal
 	if base == "" {
 		base = env.Getenv("QUIZZOTIC_SERVER")
 	}
 	if base == "" {
+		cfg, err := loadFileConfig(env.Getenv)
+		if err != nil {
+			return "", err
+		}
+		base = cfg.Server
+	}
+	if base == "" {
 		base = DefaultServer
 	}
-	return strings.TrimRight(base, "/")
+	return strings.TrimRight(base, "/"), nil
 }
 
 func wantAgent(flagVal bool, env Env) bool {
@@ -106,6 +124,13 @@ func wantAgent(flagVal bool, env Env) bool {
 func resolveIssuer(ctx context.Context, env Env, explicit, server string) (string, error) {
 	if explicit == "" {
 		explicit = env.Getenv("QUIZZOTIC_ISSUER")
+	}
+	if explicit == "" {
+		cfg, err := loadFileConfig(env.Getenv)
+		if err != nil {
+			return "", err
+		}
+		explicit = cfg.Issuer
 	}
 	if explicit != "" {
 		return strings.TrimRight(explicit, "/"), nil
@@ -193,7 +218,7 @@ func Login(ctx context.Context, args []string, env Env) int {
 	env.applyDefaults()
 	fs := flag.NewFlagSet("quizzotic login", flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
-	server := fs.String("server", "", "Quizzotic server base URL (default $QUIZZOTIC_SERVER or "+DefaultServer+")")
+	server := fs.String("server", "", "Quizzotic server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then "+DefaultServer+")")
 	issuer := fs.String("issuer", "", "OIDC issuer URL (default $QUIZZOTIC_ISSUER, else asked of the server)")
 	clientID := fs.String("client-id", "", "OAuth client ID (default $QUIZZOTIC_LOGIN_CLIENT_ID, else "+DefaultHumanClientID+", or "+DefaultAgentClientID+" with --agent)")
 	agentFlag := fs.Bool("agent", false, "log in with the agent client; stored separately from the human login")
@@ -214,13 +239,25 @@ func Login(ctx context.Context, args []string, env Env) int {
 		cid = env.Getenv("QUIZZOTIC_LOGIN_CLIENT_ID")
 	}
 	if cid == "" {
+		cfg, err := loadFileConfig(env.Getenv)
+		if err != nil {
+			fmt.Fprintf(env.Stderr, "quizzotic: %v\n", err)
+			return 1
+		}
+		cid = cfg.LoginClientID
+	}
+	if cid == "" {
 		cid = DefaultHumanClientID
 		if agent {
 			cid = DefaultAgentClientID
 		}
 	}
 
-	base := serverBase(*server, env)
+	base, err := serverBase(*server, env)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "quizzotic: %v\n", err)
+		return 1
+	}
 	iss, err := resolveIssuer(ctx, env, *issuer, base)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "quizzotic: %v\n", err)
