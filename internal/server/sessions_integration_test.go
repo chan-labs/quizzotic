@@ -5,7 +5,9 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -435,6 +437,93 @@ func TestQuizSessionsOverHTTP(t *testing.T) {
 	}
 }
 
+// A 12-item quiz makes an ignored shuffle (a 1-in-12! chance of matching the
+// authored order) impossible to miss; the order is seeded by the session ID,
+// so the check is deterministic per session and never flaky.
+func TestQuizSessionShuffleReordersOverHTTP(t *testing.T) {
+	e := newProbEnv(t)
+	var ids []string
+	for i := range 12 {
+		b := mcqBody(fmt.Sprintf("Shuffle %d", i), false)
+		b["status"] = "live"
+		ids = append(ids, e.create(t, e.human, b).ID.String())
+	}
+	r := e.req(t, "POST", "/quizzes", e.human, map[string]any{"title": "Twelve", "status": "live", "problem_ids": ids}, nil)
+	if r.code != http.StatusCreated {
+		t.Fatalf("create quiz = %d (%s)", r.code, r.body)
+	}
+	quiz := decodeReply[quizJSON](t, r).ID
+	order := func(s sessionJSON) []string {
+		out := []string{}
+		for _, it := range s.Items {
+			out = append(out, it.ProblemID)
+		}
+		return out
+	}
+	mk := func(shuffle bool) sessionJSON {
+		return decodeReply[sessionJSON](t, e.req(t, "POST", "/sessions", e.human,
+			map[string]any{"kind": "quiz", "quiz_id": quiz, "shuffle": shuffle}, nil))
+	}
+	plain, sh := order(mk(false)), mk(true)
+	if !reflect.DeepEqual(plain, ids) {
+		t.Fatalf("unshuffled order = %v, want authored %v", plain, ids)
+	}
+	got := order(sh)
+	if reflect.DeepEqual(got, ids) {
+		t.Errorf("shuffle: true served the authored order (12 items)")
+	}
+	if len(got) != len(ids) {
+		t.Fatalf("shuffled session has %d items, want %d", len(got), len(ids))
+	}
+	seen := map[string]bool{}
+	for _, id := range got {
+		seen[id] = true
+	}
+	if len(seen) != len(ids) {
+		t.Errorf("shuffle is not a permutation: %v", got)
+	}
+	// Reading the session back returns the same order it was served in.
+	back := decodeReply[sessionJSON](t, e.req(t, "GET", "/sessions/"+sh.ID, e.human, nil, nil))
+	if !reflect.DeepEqual(order(back), got) {
+		t.Errorf("GET /sessions/{id} order differs from the served order")
+	}
+}
+
+// Answering a new problem spends that study day's new-card budget (default 20),
+// so a session built later the same day offers one fewer new problem. With 22
+// live problems the first session is capped at 20 and, after one answer, the
+// second at 19.
+func TestAnsweringSpendsTodaysNewBudget(t *testing.T) {
+	e := newProbEnv(t)
+	for i := range 22 {
+		b := mcqBody(fmt.Sprintf("Budget %d", i), false)
+		b["status"] = "live"
+		e.create(t, e.human, b)
+	}
+	newCount := func(s sessionJSON) int {
+		n := 0
+		for _, k := range s.kinds() {
+			if k == "new" {
+				n++
+			}
+		}
+		return n
+	}
+	s1 := decodeReply[sessionJSON](t, e.req(t, "POST", "/sessions", e.human, map[string]any{"kind": "review"}, nil))
+	if got := newCount(s1); got != 20 {
+		t.Fatalf("first session new items = %d, want the default daily cap of 20", got)
+	}
+	r := e.answer(t, e.human, map[string]any{"problem_id": s1.Items[0].ProblemID, "problem_version": 1, "latency_ms": 5,
+		"session_id": s1.ID, "response": map[string]any{"selected": []string{"c"}}})
+	if r.code != http.StatusCreated {
+		t.Fatalf("answer = %d (%s)", r.code, r.body)
+	}
+	s2 := decodeReply[sessionJSON](t, e.req(t, "POST", "/sessions", e.human, map[string]any{"kind": "review"}, nil))
+	if got := newCount(s2); got != 19 {
+		t.Errorf("second session new items = %d, want 19 after one new problem was answered today", got)
+	}
+}
+
 func TestEmptySessionAndSessionLookups(t *testing.T) {
 	e := newProbEnv(t)
 	r := e.req(t, "POST", "/sessions", e.human, map[string]any{"kind": "review"}, nil)
@@ -463,11 +552,16 @@ func TestEmptySessionAndSessionLookups(t *testing.T) {
 
 	// Idempotency-Key replays the original session instead of building another.
 	hdr := map[string]string{"Idempotency-Key": "session-key-1"}
+	replayBefore := e.counter(t, "quizzotic_sessions_served_total")
 	a := e.req(t, "POST", "/sessions", e.human, map[string]any{"kind": "review"}, hdr)
 	b := e.req(t, "POST", "/sessions", e.human, map[string]any{"kind": "review"}, hdr)
 	if a.code != http.StatusCreated || b.code != http.StatusCreated || decodeReply[sessionJSON](t, a).ID != decodeReply[sessionJSON](t, b).ID ||
 		b.header.Get("Idempotency-Replayed") != "true" {
 		t.Errorf("replay: %d/%d replayed=%q", a.code, b.code, b.header.Get("Idempotency-Replayed"))
+	}
+	// The replay serves nothing new: the counter rose by one, not two.
+	if got := e.counter(t, "quizzotic_sessions_served_total") - replayBefore; got != 1 {
+		t.Errorf("sessions counter rose by %d across a create and its replay, want 1", got)
 	}
 }
 
