@@ -154,6 +154,13 @@ func NewService(repo Repo, tx Transactor, clock domain.Clock, ids *domain.IDGene
 	return s
 }
 
+// NewReader builds a Service meant for reads (Get, GetPrompt, List) over repo.
+// The store uses it to hand another feature a problems service bound to that
+// feature's own transaction; its write methods are not usable.
+func NewReader(repo Repo) *Service {
+	return NewService(repo, nil, domain.SystemClock{}, domain.NewIDGenerator(domain.SystemClock{}))
+}
+
 // Create validates in and stores a new problem with its first version, owned
 // by actor's user. Validation failures are a *platform.Problem listing every
 // invalid field.
