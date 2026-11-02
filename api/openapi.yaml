@@ -1288,6 +1288,51 @@ paths:
           $ref: "#/components/responses/IdempotencyKeyReuse"
         default:
           $ref: "#/components/responses/Problem"
+  /export:
+    get:
+      operationId: export.get
+      tags: [admin]
+      summary: Export all of the caller's data
+      description: |
+        Streams everything the caller owns as one versioned JSON document
+        (`format` is `quizzotic-export`, `version` 1): the user and their
+        scheduling overrides, identities, problems with every version, tags,
+        aliases and problem-tag mappings, tag operations (with their
+        snapshots and reverts), quizzes, review sessions, seed keys and the
+        complete attempt log. Cards and mastery are projections and are not
+        exported; `quizzotic admin import` rebuilds them. IDs are preserved
+        and the output is deterministic: the same data exports to the same
+        bytes on SQLite and on Postgres.
+
+        Exporting is read-only and owner-scoped; the response is streamed in
+        key order, a page at a time, so memory does not grow with the size of
+        the data. Attempts newer than the moment the export began are left
+        out, so every attempt in the file refers to a problem in it.
+
+        Needs the `admin` scope: a human only, since agent clients never hold
+        it and get 403.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [admin]
+      responses:
+        "200":
+          description: The export document.
+          headers:
+            Content-Disposition:
+              description: Suggests a file name, `quizzotic-export.json`.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Export"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   /openapi.yaml:
     get:
       operationId: meta.openapi
@@ -2837,6 +2882,38 @@ components:
         user_id:
           type: string
           description: Rebuild only this user. Omit to rebuild every user.
+    Export:
+      type: object
+      required: [format, version, user_id, tables, counts]
+      properties:
+        format:
+          type: string
+          const: quizzotic-export
+        version:
+          type: integer
+          description: Format version; an importer refuses versions it does not know.
+        user_id:
+          type: string
+          description: The exported user's ID.
+        tables:
+          type: object
+          description: |
+            Rows by table, in dependency order, each row an object of column
+            name to value (timestamps are RFC 3339 UTC, JSON columns are
+            embedded JSON). Table names: users, identities, problems,
+            problem_versions, tags, tag_aliases, problem_tags,
+            tag_operations, quizzes, quiz_items, seed_keys, review_sessions,
+            review_session_items, attempts.
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              additionalProperties: true
+        counts:
+          type: object
+          description: Row count per table, written last so an importer can detect a truncated file.
+          additionalProperties:
+            type: integer
     RebuildResult:
       type: object
       required: [users, cards]

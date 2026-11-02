@@ -13,6 +13,7 @@ import (
 
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
+	"github.com/chan-labs/quizzotic/internal/export"
 	"github.com/chan-labs/quizzotic/internal/me"
 	"github.com/chan-labs/quizzotic/internal/metrics"
 	"github.com/chan-labs/quizzotic/internal/openapi"
@@ -91,6 +92,7 @@ func appRouter() *platform.Router {
 	review.NewSessionHandler(nil, nil).Register(rt)
 	review.NewCardHandler(nil, nil).Register(rt)
 	review.NewAdminHandler(nil, nil).Register(rt)
+	export.NewHandler(nil, nil).Register(rt)
 	metrics.NewHandler(nil, nil).Register(rt)
 	return rt
 }

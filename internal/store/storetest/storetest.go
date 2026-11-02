@@ -54,6 +54,7 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("ProjectionRaces", func(t *testing.T) { runProjectionRaces(t, newStore) })
 	t.Run("Idempotency", func(t *testing.T) { runIdempotency(t, newStore) })
 	t.Run("SeedKeys", func(t *testing.T) { runSeedKeys(t, newStore) })
+	t.Run("Export", func(t *testing.T) { runExport(t, newStore) })
 	t.Run("SoleUser", func(t *testing.T) { runSoleUser(t, newStore) })
 }
 

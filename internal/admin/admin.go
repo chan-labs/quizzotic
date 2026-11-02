@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/store/driver"
@@ -16,7 +17,7 @@ import (
 // Run dispatches an admin subcommand and returns the exit code.
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: quizzotic admin <migrate|seed|rebuild> [flags]")
+		fmt.Fprintln(stderr, "usage: quizzotic admin <migrate|seed|rebuild|export|import> [flags]")
 		return 2
 	}
 	switch args[0] {
@@ -26,6 +27,10 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return seedCmd(ctx, args[1:], stdout, stderr)
 	case "rebuild":
 		return rebuildCmd(ctx, args[1:], stdout, stderr)
+	case "export":
+		return exportCmd(ctx, args[1:], stdout, stderr)
+	case "import":
+		return importCmd(ctx, args[1:], os.Stdin, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "quizzotic admin: unknown subcommand %q\n", args[0])
 		return 2
