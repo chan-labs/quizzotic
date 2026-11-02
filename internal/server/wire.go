@@ -9,6 +9,7 @@ import (
 
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/export"
 	"github.com/chan-labs/quizzotic/internal/metrics"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
@@ -65,6 +66,7 @@ type wiring struct {
 	attempts *attempts.Service
 	admin    *review.Service
 	queries  *metrics.QueryService
+	export   *export.Service
 }
 
 // ordered returns the registered features with every feature after the ones it
