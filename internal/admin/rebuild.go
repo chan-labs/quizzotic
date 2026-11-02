@@ -20,18 +20,24 @@ import (
 // rebuildCmd implements `quizzotic admin rebuild [--user ID]`: it drops and
 // recomputes the card projection from the attempt log, for one user or, by
 // default, every user. Progress goes to stderr as log lines.
+//
+// With --history it instead rewrites the mastery snapshot history by replaying
+// the attempt log to every past study day (see historyCmd).
 func rebuildCmd(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("admin rebuild", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	cfgPath := fs.String("config", "", "config file (default "+config.DefaultPath+")")
 	storageURL := fs.String("storage-url", "", "storage URL; when set, the config file is not read (built-in scheduling defaults apply)")
 	user := fs.String("user", "", "rebuild only this user's cards (default: every user)")
+	history := fs.Bool("history", false, "rewrite mastery snapshot history by replaying the attempt log, instead of rebuilding cards")
+	tag := fs.String("tag", "", "with --history and --user: rewrite only this tag's history (ID or slug)")
 	batch := fs.Int("batch-size", review.DefaultRebuildBatch, "users to read and log progress for at a time")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() != 0 || *batch < 1 {
+	if fs.NArg() != 0 || *batch < 1 || (*tag != "" && (!*history || *user == "")) {
 		fmt.Fprintln(stderr, "usage: quizzotic admin rebuild [--user <user id>] [--batch-size n] [--config file | --storage-url url]")
+		fmt.Fprintln(stderr, "       quizzotic admin rebuild --history [--user <user id> [--tag <id or slug>]] [--config file | --storage-url url]")
 		return 2
 	}
 	var only domain.ID
@@ -61,6 +67,9 @@ func rebuildCmd(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	defer st.Close()
 
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
+	if *history {
+		return historyCmd(ctx, st, store.NewCards(sched), only, *tag, logger, stdout, stderr)
+	}
 	svc := store.NewCards(sched).Service(st, review.WithLogger(logger), review.WithBatchSize(*batch))
 
 	var sum review.RebuildSummary

@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - `quizzotic admin rebuild [--user ID]` and `POST /api/v1/admin/rebuild` (scope `admin`, humans only) recompute every card from the attempt log, in batches with progress logs; `auth.UserRepo` gains a paged `ListIDs` for it.
+- `quizzotic admin rebuild --history [--user ID [--tag ID|slug]]` rewrites the mastery snapshot history by replaying the attempt log, and the stored problem lifecycle, to the start of every past study day, using the daily job's date convention; `metrics.Backfill` does the work inside a caller's transaction for tag operations.
 - Golden tests for the generated CLI help and MCP tool list; `mise run golden` regenerates them.
 - Postgres store (`postgres://` in `storage.url`) on pgx/v5 with `timestamptz`/`jsonb` migrations mirroring SQLite, passing the shared conformance suite; CI runs it against a Postgres service container.
 - Optional Prometheus text-format `GET /metrics` (config `observability.metrics_enabled`, default off): request counts and latency histogram, store errors, attempts recorded and sessions served.
