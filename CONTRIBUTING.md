@@ -67,12 +67,20 @@ Register from an `init` function in a `*_test.go` file in `internal/server` (see
 
 `TestOwnerScopeCoverage` fails the build if any non-public operation in `api/openapi.yaml` is neither registered nor exempted, so a new endpoint cannot ship untested. Public operations (no security scheme, no scopes) need nothing.
 
+## Avoiding merge conflicts between features
+
+Parallel features should touch only their own files.
+
+- **Server wiring.** Add `internal/server/wire_<feature>.go` with an `init` that calls `addFeature(feature{Name, After, Build, Routes, Root, Site})` (see `wire.go`). Do not edit `Handler` or the router; they run whatever is registered, in `After` order. Name the features whose services yours needs in `After`; a service others will need becomes a field of `wiring`.
+- **Migrations.** Name new migrations `YYYYMMDDHHMMSS_name.sql` (UTC timestamp, 14 digits) in both `migrations/sqlite` and `migrations/postgres`, for example `20261102120000_attempt_notes.sql`. Never pick the "next number": the existing `0001` to `0014` files keep their numbers and sort first, and anything else (other digit counts) is rejected by `migrate.Load`. Never rename an applied migration.
+- **API spec.** `api/openapi.yaml` stays one file (Redocly lint, the contract test and the CLI/MCP generators read it whole). Add new paths and schemas in a block next to the feature's neighbours rather than appending at the end of the file, so two features do not both extend the same last lines.
+
 ## Adding a store backend
 
 The store is the only place that knows about a database. Features depend on `Repo` interfaces; `internal/store` composes them into `Store`.
 
 1. Create `internal/store/<backend>` implementing every feature's `Repo` interface and the `Store` interface (transactions, migrations, close).
-2. Put SQL migrations in `migrations/<backend>` (embedded).
+2. Put SQL migrations in `migrations/<backend>` (embedded), named with a timestamp as above.
 3. Keep owner scoping: every method takes the owner user ID and must never return another user's rows.
 4. Wire the backend into config validation and store construction (`internal/config`, `cmd/quizzotic`), selected by the `storage` section of `quizzotic.yaml`.
 5. Run the shared conformance suite from `internal/store/storetest` against your backend in a `_test.go` file, as the SQLite and Postgres backends do. It must pass with `-race`. Add CI coverage for the new backend.
