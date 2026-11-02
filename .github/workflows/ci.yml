@@ -74,8 +74,8 @@ jobs:
         with:
           cache: true
           install_args: go
-      - name: conformance suite on postgres
-        run: go test -race -count=1 -v -run 'TestConformance|TestMigrat|TestProblemVersions' ./internal/store/postgres
+      - name: postgres store tests (conformance, migrations, append-only triggers)
+        run: go test -race -count=1 -v ./internal/store/postgres
 
   build:
     name: build (${{ matrix.name }})
