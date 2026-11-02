@@ -23,7 +23,7 @@ You implement **one** Quizzotic task. The coordinator gives you the task text (S
 
 ## Before returning
 
-Run `make test lint` (and the contract test). Return exactly:
+Run `mise run test ::: lint` (and the contract test). Return exactly:
 
 ```
 STATUS: DONE | BLOCKED | SPEC_CONFLICT
