@@ -29,6 +29,13 @@ type TagCard struct {
 // from. Every method is scoped to the owner it names; another owner's rows are
 // indistinguishable from missing ones.
 type Repo interface {
+	// LockOwner takes the owner's lock for the rest of the transaction, the
+	// same one tags.Repo.LockOwner and review.Repo.LockOwner take. The
+	// projection takes it before reading the tags and cards a row is computed
+	// from, so a concurrent attempt, tag change or rebuild of the same owner
+	// cannot leave a row that misses it. It must run inside store.WithTx.
+	LockOwner(ctx context.Context, ownerID domain.ID) error
+
 	// Get returns the owner's mastery row for the tag, or ErrNotFound.
 	Get(ctx context.Context, ownerID, tagID domain.ID) (TagMastery, error)
 

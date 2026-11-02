@@ -83,7 +83,7 @@ func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.A
 
 	if in.Apply {
 		var d OpDetail
-		err := s.tx.InTx(ctx, func(r Repos) error {
+		err := s.mutate(ctx, ownerID, func(r Repos) error {
 			out, err := s.run(ctx, r, ownerID, actor, in.Kind, in.Payload, false)
 			if err != nil {
 				return err
@@ -198,7 +198,7 @@ func (s *Service) ApplyOperation(ctx context.Context, ownerID domain.ID, actor d
 		return OpDetail{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
 	}
 	var d OpDetail
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err := s.mutate(ctx, ownerID, func(r Repos) error {
 		op, err := r.Ops.Get(ctx, ownerID, id)
 		if err != nil {
 			return err

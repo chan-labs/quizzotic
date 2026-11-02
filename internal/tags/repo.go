@@ -31,6 +31,17 @@ type ListFilter struct {
 // scoped to the owner it names; another owner's rows are indistinguishable
 // from missing ones. Multi-step changes run inside store.WithTx.
 type Repo interface {
+	// LockOwner serializes units of work of one owner that read before they
+	// write: it blocks until any other transaction holding the owner's lock
+	// has finished, then holds the lock until the surrounding transaction
+	// ends. Services call it first in every transaction that reads tags to
+	// decide a write (slug checks, merge, rename, retire, split, revert,
+	// tagging a problem). It is the same per-owner lock as review.Repo's and
+	// metrics.Repo's. Backends whose writers are already serialized (SQLite)
+	// do nothing. It must run inside store.WithTx; see
+	// docs/adr/0007-owner-tag-lock.md.
+	LockOwner(ctx context.Context, ownerID domain.ID) error
+
 	// Create inserts t (with no aliases). It returns ErrSlugTaken when the
 	// slug is an active slug or an alias of the owner.
 	Create(ctx context.Context, ownerID domain.ID, t Tag) error

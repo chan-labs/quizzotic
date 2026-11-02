@@ -65,7 +65,7 @@ func (s *Service) Split(ctx context.Context, ownerID domain.ID, actor domain.Act
 		return SplitResult{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
 	}
 	var res SplitResult
-	err := s.tx.InTx(ctx, func(r Repos) (err error) {
+	err := s.mutate(ctx, ownerID, func(r Repos) (err error) {
 		res, err = s.applySplit(ctx, r, ownerID, actor, in, &splitRun{})
 		return err
 	})
