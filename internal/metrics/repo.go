@@ -98,6 +98,29 @@ type Repo interface {
 	// ActiveTags returns the owner's active tags with their creation times,
 	// ordered by tag ID.
 	ActiveTags(ctx context.Context, ownerID domain.ID) ([]HistoryTag, error)
+
+	// TagLabels returns the slug and name of each of the owner's active tags,
+	// ordered by tag ID.
+	TagLabels(ctx context.Context, ownerID domain.ID) ([]TagLabel, error)
+
+	// StudiedCards returns the owner's cards on live, non-deleted problems
+	// that have been reviewed at least once (see Studied), with the prompt and
+	// type of the problem's current version, ordered by problem ID.
+	StudiedCards(ctx context.Context, ownerID domain.ID) ([]ProblemCard, error)
+}
+
+// TagLabel names an active tag.
+type TagLabel struct {
+	ID         domain.ID
+	Slug, Name string
+}
+
+// ProblemCard is a studied card with the problem it is for.
+type ProblemCard struct {
+	ProblemID domain.ID
+	// Type and Prompt are those of the problem's current version.
+	Type, Prompt string
+	Card         review.Card
 }
 
 // ParamsSource supplies the scheduler parameters for a user (the same source

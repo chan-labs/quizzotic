@@ -153,6 +153,17 @@ type UserStats struct {
 // of the service clock, in the day boundaries of cfg (the user's effective
 // settings), reading one consistent snapshot.
 func (s *Service) UserStats(ctx context.Context, userID domain.ID, cfg settings.Settings, opts StatsOptions) (UserStats, error) {
+	var st UserStats
+	err := s.tx.InTx(ctx, func(sc Scope) (err error) {
+		st, err = userStatsIn(ctx, sc, s.clock.Now(), userID, cfg, opts)
+		return err
+	})
+	return st, err
+}
+
+// userStatsIn is UserStats over a caller's transaction-bound scope, so that
+// readers computing more than the user-level figures see one snapshot.
+func userStatsIn(ctx context.Context, sc Scope, now time.Time, userID domain.ID, cfg settings.Settings, opts StatsOptions) (UserStats, error) {
 	if opts.RetentionDays <= 0 {
 		opts.RetentionDays = DefaultRetentionDays
 	}
@@ -163,7 +174,6 @@ func (s *Service) UserStats(ctx context.Context, userID domain.ID, cfg settings.
 	if err != nil {
 		return UserStats{}, err
 	}
-	now := s.clock.Now()
 	today := settings.StudyDayAt(now, loc, cfg.RolloverHour)
 	activity := Activity(nil, today, loc, cfg.RolloverHour, opts.ActivityDays)
 	window := time.Duration(opts.RetentionDays) * 24 * time.Hour
@@ -174,33 +184,30 @@ func (s *Service) UserStats(ctx context.Context, userID domain.ID, cfg settings.
 	horizon := DueLoad(nil, today, loc, cfg.RolloverHour)
 
 	st := UserStats{Day: today, RetentionDays: opts.RetentionDays}
-	err = s.tx.InTx(ctx, func(sc Scope) error {
-		params, err := sc.Params.Params(ctx, userID)
-		if err != nil {
-			return err
-		}
-		if err := params.Validate(); err != nil {
-			return err
-		}
-		log, err := sc.Repo.AttemptLog(ctx, userID, since)
-		if err != nil {
-			return err
-		}
-		tags, err := sc.Repo.ProblemTags(ctx, userID)
-		if err != nil {
-			return err
-		}
-		due, err := sc.Repo.DueTimes(ctx, userID, horizon[len(horizon)-1].End)
-		if err != nil {
-			return err
-		}
-		ev := Replay(params, log, tags)
-		st.Retention, st.ByTag = TrueRetention(ev, now, window)
-		st.DueLoad = DueLoad(due, today, loc, cfg.RolloverHour)
-		st.Activity = Activity(ev, today, loc, cfg.RolloverHour, opts.ActivityDays)
-		return nil
-	})
-	return st, err
+	params, err := sc.Params.Params(ctx, userID)
+	if err != nil {
+		return UserStats{}, err
+	}
+	if err := params.Validate(); err != nil {
+		return UserStats{}, err
+	}
+	log, err := sc.Repo.AttemptLog(ctx, userID, since)
+	if err != nil {
+		return UserStats{}, err
+	}
+	tags, err := sc.Repo.ProblemTags(ctx, userID)
+	if err != nil {
+		return UserStats{}, err
+	}
+	due, err := sc.Repo.DueTimes(ctx, userID, horizon[len(horizon)-1].End)
+	if err != nil {
+		return UserStats{}, err
+	}
+	ev := Replay(params, log, tags)
+	st.Retention, st.ByTag = TrueRetention(ev, now, window)
+	st.DueLoad = DueLoad(due, today, loc, cfg.RolloverHour)
+	st.Activity = Activity(ev, today, loc, cfg.RolloverHour, opts.ActivityDays)
+	return st, nil
 }
 
 // RebuildUser drops and recomputes all of one user's mastery rows.
