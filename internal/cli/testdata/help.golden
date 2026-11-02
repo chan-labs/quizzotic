@@ -40,7 +40,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -63,7 +63,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -92,7 +92,7 @@ flags:
   --problem
       Only attempts at this problem ID.
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --since
       Only attempts answered at or after this RFC 3339 time.
   --tag
@@ -138,7 +138,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -175,7 +175,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --state
       
 
@@ -201,7 +201,7 @@ flags:
   --return_to
       Local path to return to after login. Must start with a single `/`; anything else is ignored and `/` is used.
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -221,7 +221,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -250,7 +250,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -279,7 +279,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --tag
       Only cards of problems carrying this tag (ID, slug or alias).
 
@@ -311,7 +311,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -332,7 +332,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -354,7 +354,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -372,7 +372,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -392,7 +392,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -410,7 +410,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -449,7 +449,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -473,7 +473,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -505,7 +505,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -533,7 +533,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -563,7 +563,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -590,7 +590,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --view
       Which view to return. Defaults to `full`. (one of: full, prompt)
 
@@ -622,7 +622,7 @@ flags:
   --q
       Case-insensitive substring of the prompt.
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --status
       Only problems in this status. (one of: draft, live, archived)
   --tag
@@ -655,7 +655,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -681,7 +681,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -707,7 +707,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -741,7 +741,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -769,7 +769,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -790,7 +790,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -813,7 +813,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --status
       Only quizzes with this status. (one of: draft, live, archived)
 
@@ -846,7 +846,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -875,7 +875,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -910,7 +910,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -951,7 +951,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -976,7 +976,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -1007,7 +1007,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -1044,7 +1044,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -1067,7 +1067,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -1090,7 +1090,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --status
       Only operations with this status. (one of: proposed, applied, rejected)
 
@@ -1121,7 +1121,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -1147,7 +1147,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -1175,7 +1175,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -1209,7 +1209,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -1232,7 +1232,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
@@ -1255,7 +1255,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --status
       Only tags with this status. Defaults to `active`. (one of: active, merged, retired)
 
@@ -1285,7 +1285,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
 
 table columns: id, status, type, prompt
 
@@ -1313,7 +1313,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
@@ -1342,7 +1342,7 @@ flags:
   --output
       output format: json or table (default json)
   --server
-      server base URL (default $QUIZZOTIC_SERVER or http://localhost:8080)
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
   --set
       set a body field: key=value (repeatable; dotted keys nest; values parse as JSON when valid)
 
