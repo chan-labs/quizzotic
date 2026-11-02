@@ -27,7 +27,7 @@ Colors: ink `#0F172A`, teal `#0F766E` / `#5EEAD4` / `#99F6E4`, spark `#F59E0B`; 
 
 ### B-curve. Card stack with a forgetting-curve easter egg
 
-Option B, unchanged in silhouette, plus a thin forgetting curve (steep exponential decay flattening out, the Ebbinghaus shape) drawn on the front card behind the check. It is a 1.6-unit line in a pale teal, so at 16-32 px it disappears into the card and the mark reads exactly as B; at larger sizes it shows up as a quiet nod to spaced repetition. Same colors as B, with the curve in `#5EEAD4` (light) and `#0F766E` (dark). Files live in `option-b-curve/`.
+Option B, unchanged in silhouette, plus a thin forgetting curve (steep exponential decay flattening out, the Ebbinghaus shape) drawn on the front card behind the check. It is a thin (1.2-unit) dotted line in a pale teal, so at 16-32 px it disappears into the card and the mark reads exactly as B; at larger sizes it shows up as a quiet nod to spaced repetition. Same colors as B, with the curve in `#5EEAD4` (light) and `#0F766E` (dark). Files live in `option-b-curve/`.
 
 ### C. Review Q
 

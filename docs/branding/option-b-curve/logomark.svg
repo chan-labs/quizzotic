@@ -3,7 +3,7 @@
   <rect x="9" y="14" width="28" height="38" rx="5" transform="rotate(-13 23 33)" fill="#99F6E4" stroke="#0F172A" stroke-width="2.5"/>
   <rect x="14" y="12" width="28" height="38" rx="5" transform="rotate(-3 28 31)" fill="#5EEAD4" stroke="#0F172A" stroke-width="2.5"/>
   <rect x="20" y="11" width="28" height="38" rx="5" transform="rotate(8 34 30)" fill="#FFFFFF" stroke="#0F172A" stroke-width="2.5"/>
-  <path d="M25 18 C27 36 33 42 45 43.5" transform="rotate(8 34 30)" fill="none" stroke="#5EEAD4" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M25 18 C27 36 33 42 45 43.5" transform="rotate(8 34 30)" fill="none" stroke="#5EEAD4" stroke-width="1.2" stroke-dasharray="0.1 2.4" stroke-linecap="round"/>
   <path d="M28 31 L34 37.5 L44 24" fill="none" stroke="#0F766E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M53 6 L55 12 L61 14 L55 16 L53 22 L51 16 L45 14 L51 12 Z" fill="#F59E0B" stroke="#0F172A" stroke-width="1.6" stroke-linejoin="round"/>
 </svg>
