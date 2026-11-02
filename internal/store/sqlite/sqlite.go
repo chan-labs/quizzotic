@@ -82,7 +82,7 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx store.Store) error) error
 }
 
 // Migrate implements store.Store.
-func (s *Store) Migrate(ctx context.Context) ([]int, error) {
+func (s *Store) Migrate(ctx context.Context) ([]int64, error) {
 	return migrate.Up(ctx, s.db, migrations.FS, "sqlite")
 }
 

@@ -162,7 +162,7 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx store.Store) error) error
 const migrateLockKey = 0x717a7a6f // "qzzo"
 
 // Migrate implements store.Store.
-func (s *Store) Migrate(ctx context.Context) ([]int, error) {
+func (s *Store) Migrate(ctx context.Context) ([]int64, error) {
 	return migrate.UpDialect(ctx, s.db, migrations.FS, "postgres", migrate.Dialect{
 		Rebind:        Rebind,
 		AppliedAtType: "TIMESTAMPTZ",

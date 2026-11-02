@@ -85,7 +85,7 @@ type Store interface {
 	Idempotency() platform.IdempotencyRepo
 
 	// Migrate applies pending embedded migrations and returns the versions applied.
-	Migrate(ctx context.Context) ([]int, error)
+	Migrate(ctx context.Context) ([]int64, error)
 
 	// Close releases the underlying connections.
 	Close() error

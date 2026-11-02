@@ -87,7 +87,7 @@ type reviewSummary struct {
 
 // apiProblem is the subset of RFC 9457 problem details shown to the user.
 type apiProblem struct {
-	Type  string `json:"type"`
+	Type   string `json:"type"`
 	Title  string `json:"title"`
 	Detail string `json:"detail"`
 	Errors []struct {

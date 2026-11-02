@@ -314,7 +314,7 @@ func TestSplitWizard(t *testing.T) {
 
 	form := url.Values{"source": {src.ID.String()}, "existing": {other.ID.String()},
 		"new_name": {"Transport", "", ""}, "new_slug": {"", "", ""},
-		"assign": {p1.String() + "|transport", p2.String() + "|transport", p2.String() + "|" + other.ID.String()},
+		"assign":        {p1.String() + "|transport", p2.String() + "|transport", p2.String() + "|" + other.ID.String()},
 		"retire_source": {"1"}}
 	// p3 unassigned while retiring: the service refuses and the wizard shows it.
 	rec := e.do("POST", "/tag-operations/split", form, true)
