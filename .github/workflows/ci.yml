@@ -45,7 +45,14 @@ jobs:
         with:
           cache: true
           install_args: go
+      # internal/web runs static/review.js under Node; without it that test
+      # would skip, so CI installs Node and requires it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: go test
+        env:
+          QUIZZOTIC_REQUIRE_NODE: "1"
         run: mise run test
 
   test-postgres:

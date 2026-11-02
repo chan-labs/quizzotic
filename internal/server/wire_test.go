@@ -28,7 +28,7 @@ func TestFeaturesAreOrderedByDependency(t *testing.T) {
 			}
 		}
 	}
-	for _, want := range []string{"cards", "problems", "sessions", "attempts", "quizzes", "metrics", "tags", "me"} {
+	for _, want := range []string{"cards", "problems", "sessions", "attempts", "quizzes", "metrics", "tags", "tagops", "me"} {
 		if !slices.Contains(got, want) {
 			t.Errorf("feature %q not registered: %v", want, got)
 		}
