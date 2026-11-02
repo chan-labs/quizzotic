@@ -31,7 +31,11 @@ be filled in once.
 When `session_id` is sent it must name one of the caller's own review
 or quiz sessions. An unknown session and another user's session are
 indistinguishable: both return 422 with an error on the `session_id`
-field. The session's completion state is not checked.
+field. The session's completion state is not checked. When the
+session lists the problem, each listing takes one attempt (a
+learning-step card is listed again to be answered again); an attempt
+beyond that, such as a simultaneous duplicate, returns 409 and stores
+nothing.
 
 Humans only: agent clients never hold `attempts:write` and get 403.
 
