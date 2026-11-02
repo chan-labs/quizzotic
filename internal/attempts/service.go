@@ -224,6 +224,9 @@ func (s *Service) Answer(ctx context.Context, actor domain.Actor, in AnswerInput
 	var nextDue *time.Time
 	err = s.inTx(ctx, func(r Repo, cards CardUpdater) error {
 		if err := r.Create(ctx, actor.UserID, a); err != nil {
+			if errors.Is(err, ErrDuplicate) {
+				return duplicateProblem{platform.Conflict("every presentation of this problem in the session is already answered")}
+			}
 			return err
 		}
 		if !scheduled {
@@ -249,6 +252,14 @@ func (s *Service) Answer(ctx context.Context, actor domain.Actor, in AnswerInput
 	}
 	return Result{Attempt: newView(a), Grade: gv, Answer: subj.Payload, Explanation: subj.Explanation, NextDue: nextDue}, nil
 }
+
+// duplicateProblem is the 409 for a duplicate attempt. It matches
+// ErrDuplicate with errors.Is so a caller (the website) can tell it from other
+// conflicts, and unwraps to the problem so the API renders it as usual.
+type duplicateProblem struct{ *platform.Problem }
+
+func (e duplicateProblem) Unwrap() error        { return e.Problem }
+func (e duplicateProblem) Is(target error) bool { return target == ErrDuplicate }
 
 // resolveRating applies the shared rating rules. For an auto-graded problem
 // the rating that applies is always known; an open problem without a chosen

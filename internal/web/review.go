@@ -315,6 +315,11 @@ func (w *Web) reviewAnswer(rw http.ResponseWriter, r *http.Request) {
 	}
 	res, err := rp.answers.Answer(r.Context(), domain.Actor{Kind: domain.ActorHuman, UserID: ws.UserID, ClientID: webClientID},
 		attempts.AnswerInput{ProblemID: pid, ProblemVersion: version, Response: response, LatencyMS: latency, SessionID: id.String()})
+	if errors.Is(err, attempts.ErrDuplicate) {
+		// A simultaneous identical post won the race and recorded the attempt.
+		http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther)
+		return
+	}
 	var pb *platform.Problem
 	if errors.As(err, &pb) && pb.Status == http.StatusUnprocessableEntity {
 		// The answer itself is unusable (e.g. nothing picked): ask again.
