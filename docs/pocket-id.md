@@ -94,6 +94,19 @@ Success for every client: `aud` is `quizzotic` (as a string or a one-element arr
 
 `quizzotic login` finds the issuer from `$QUIZZOTIC_SERVER`'s `/.well-known/oauth-protected-resource` (override with `--issuer` or `QUIZZOTIC_ISSUER`) and requests the scopes `openid profile email offline_access`, so the clients must be allowed to receive refresh tokens. Without one the CLI still works but you log in again when the access token expires. `--device` (or an automatic fallback when no browser opens) uses device flow when the issuer advertises it. Unattended scripts set `QUIZZOTIC_CLIENT_ID=quizzotic-headless` and `QUIZZOTIC_CLIENT_SECRET`; the CLI exchanges them by client credentials on each run and stores nothing. Logins live in `~/.config/quizzotic/credentials.json` (mode 0600); `quizzotic me` (shorthand for `quizzotic meta me`) shows who the server thinks you are, and `--agent` or `QUIZZOTIC_AGENT=1` selects the agent login.
 
+### CLI config file
+
+Instead of exporting `QUIZZOTIC_SERVER` in every shell, put the defaults in `config.yaml` in the same directory as `credentials.json` (`$XDG_CONFIG_HOME/quizzotic/` or `~/.config/quizzotic/`; the directory of `$QUIZZOTIC_CREDENTIALS` when that is set). Set `QUIZZOTIC_CLI_CONFIG` to read a different file. The file is optional, plain YAML, and holds no secrets, so it needs no special permissions. Never put tokens or client secrets in it.
+
+```yaml
+# ~/.config/quizzotic/config.yaml
+server: https://quiz.example.com        # base URL of the Quizzotic server
+issuer: https://id.example.com          # OIDC issuer; skips the server lookup at login
+login_client_id: quizzotic-cli          # client ID for `quizzotic login`
+```
+
+All keys are optional. Precedence, highest first: command-line flag (`--server`, `--issuer`, `--client-id`), environment variable (`QUIZZOTIC_SERVER`, `QUIZZOTIC_ISSUER`, `QUIZZOTIC_LOGIN_CLIENT_ID`), config file, built-in default (`http://localhost:8080`, the issuer the server advertises, `quizzotic-cli`/`quizzotic-agent`). `quizzotic mcp` uses the same base URL resolution. A missing file is ignored; an unreadable, malformed or unknown-key file is an error naming the file.
+
 ## Remote MCP clients
 
 Pocket ID supports [Client ID Metadata Documents](https://pocket-id.org/docs/guides/client-id-metadata-documents) for public clients, which lets remote MCP clients register without manual setup. Such clients must be declared `agent` in `auth.issuers[0].clients` before Quizzotic accepts their tokens.

@@ -215,7 +215,7 @@ func (c command) run(ctx context.Context, args []string, env Env) int {
 		c.usage(env.Stdout, fs)
 	}
 
-	server := fs.String("server", "", "server base URL (default $QUIZZOTIC_SERVER or "+DefaultServer+")")
+	server := fs.String("server", "", "server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then "+DefaultServer+")")
 	output := fs.String("output", "json", "output format: json or table")
 	agent := fs.Bool("agent", false, "authenticate with the stored agent login (see quizzotic login --agent)")
 	var data string
@@ -298,7 +298,11 @@ func (c command) run(ctx context.Context, args []string, env Env) int {
 		}
 	}
 
-	base := serverBase(*server, env)
+	base, err := serverBase(*server, env)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "quizzotic: %v\n", err)
+		return 1
+	}
 	target := base
 	if !op.Root {
 		target += "/api/v1"

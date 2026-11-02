@@ -36,7 +36,7 @@ func Review(ctx context.Context, args []string, env Env) int {
 	env.applyDefaults()
 	fs := flag.NewFlagSet("quizzotic review", flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
-	server := fs.String("server", "", "server base URL (default $QUIZZOTIC_SERVER or "+DefaultServer+")")
+	server := fs.String("server", "", "server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then "+DefaultServer+")")
 	agent := fs.Bool("agent", false, "refused: reviewing is for the human login only")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -52,9 +52,14 @@ func Review(ctx context.Context, args []string, env Env) int {
 		fmt.Fprintln(env.Stderr, "quizzotic: review is for the human login only; agents cannot answer problems (drop --agent and unset QUIZZOTIC_AGENT)")
 		return 2
 	}
+	base, err := serverBase(*server, env)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "quizzotic: %v\n", err)
+		return 1
+	}
 	r := &reviewer{
 		env:  env,
-		base: serverBase(*server, env),
+		base: base,
 		in:   bufio.NewReader(env.Stdin),
 		out:  env.Stdout,
 	}
