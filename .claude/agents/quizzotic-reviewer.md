@@ -18,6 +18,7 @@ You review **one** branch for **one** Quizzotic task. You did not write it and h
    - **Layering:** handlers have no business rules or SQL; services have no `net/http` or SQL; features don't reach into another feature's repo; leaf packages do no I/O.
    - **Dependencies:** `go.mod` adds nothing outside the allowed list.
    - **Data rules:** owner scoping on every repo method and endpoint (owner-scoping helper registered); attempts stay append-only; agents can never reach `attempts:write`, `sessions:write` or `admin`.
+   - **Real-server wiring:** open `internal/server/server.go` (and `cmd/quizzotic/main.go`) and confirm each user-visible feature in the diff is actually installed or registered there (`Handler`/`HandlerOption`, `authOptions`, `WithMetrics`, `WithScheduling`, background jobs started in `Run`), and that a test reaches it through `server.Run` (with `server.Options{Listener: ...}` and a real `config.Config`), the same construction path as `quizzotic serve`. **FAIL** if a feature is only tested via its own package with hand-built dependencies, or is not wired in `server.go`.
    - **Tests:** conformance cases for new repo behavior; failure paths covered, not just the happy path.
    - **Security basics:** no secrets in code or logs, input validated, Markdown rendered with raw HTML off.
 

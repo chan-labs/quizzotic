@@ -41,8 +41,9 @@ For each ready task, up to `--max-parallel` at a time:
    - the full task text and its subtasks,
    - the branch name `m<milestone>.<n>-<slug>`,
    - the spec sections named on the task's **Spec** line (it reads them in `docs/spec.md`),
-   - the merged dependency PRs it builds on (base is always `main`).
-2. **Review** each finished branch with a fresh `quizzotic-reviewer` subagent that has not seen the implementation conversation. Pass the task text and branch name.
+   - the merged dependency PRs it builds on (base is always `main`),
+   - the real-server wiring rule: each user-visible feature must be installed in `internal/server/server.go` and proved by a test through `server.Run` (as `quizzotic serve` does), not only by its own package's tests.
+2. **Review** each finished branch with a fresh `quizzotic-reviewer` subagent that has not seen the implementation conversation. Pass the task text and branch name, and tell it to check `internal/server/server.go` for real-server wiring and FAIL features only tested with hand-built dependencies.
    - `FAIL` → send the findings back to the same implementer with SendMessage. At most 2 fix rounds; after that, comment the open findings on the Todoist task and mark it blocked in your notes.
    - `PASS` → continue.
 3. **Open the PR** with `gh pr create`: title = task name; body = the Done-when (no tracker links), and the reviewer's evidence.
