@@ -12,7 +12,6 @@ import (
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/platform"
-	"github.com/chan-labs/quizzotic/internal/problems"
 )
 
 // Handler serves the tag endpoints. HTTP concerns only; rules live in Service.
@@ -93,7 +92,7 @@ func (h *Handler) owner(w http.ResponseWriter, r *http.Request) (domain.ID, bool
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, ErrNotFound), errors.Is(err, problems.ErrNotFound):
+	case errors.Is(err, ErrNotFound):
 		err = platform.NotFound("no such resource")
 	case errors.Is(err, ErrOpNotFound):
 		err = platform.NotFound("no such resource")
@@ -240,9 +239,9 @@ func (h *Handler) listProblems(w http.ResponseWriter, r *http.Request) {
 	}
 	items := make([]taggedProblemView, len(ps))
 	for i, p := range ps {
-		items[i] = taggedProblemView{ID: p.Problem.ID.String(), Status: string(p.Problem.Status),
-			CurrentVersion: p.Problem.CurrentVersion, Type: p.Version.Type, Prompt: p.Version.Prompt,
-			CreatedAt: p.Problem.CreatedAt, UpdatedAt: p.Problem.UpdatedAt}
+		items[i] = taggedProblemView{ID: p.ID.String(), Status: string(p.Status),
+			CurrentVersion: p.Version, Type: p.Type, Prompt: p.Prompt,
+			CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 	}
 	writeJSON(w, http.StatusOK, platform.NewPageResult(items, next))
 }
