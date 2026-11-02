@@ -172,7 +172,7 @@ Cards are scheduled with FSRS-6 using its published default parameters and a per
 5. Seed the sampler with the session ID, so a session can be reproduced from its ID.
 6. Freeze the ordered list on the session. Learning-step cards that come due mid-session are appended.
 
-"Today" uses the user's configured time zone and a day rollover hour (default 04:00).
+"Today" uses the user's time zone and a day rollover hour (default 04:00). A user who has not set a time zone of their own gets the instance default, `scheduling.default_timezone` (default `America/New_York`), which an operator can change at any time (see Configuration).
 
 **Quiz sessions** (`kind: quiz`) serve a quiz's problems in authored order, or shuffled on request. Their attempts update cards like any other attempt, because FSRS accounts for early reviews through elapsed time.
 
@@ -328,8 +328,8 @@ Storage is one Go interface, `store.Store`, with SQLite as the default and Postg
 - **SQLite**: single file, WAL mode, `busy_timeout` 5 s, timestamps as Unix milliseconds, JSON as TEXT.
 - **Postgres**: timestamps as `timestamptz`, JSON as `jsonb`.
 - **Migrations**: plain SQL per dialect, embedded with `embed`, numbered, recorded in `schema_migrations`, applied by `quizzotic admin migrate` or on `serve` start when `storage.auto_migrate` is true.
-- **Driver selection**: the scheme of `storage.url` picks the backend — `sqlite://path/to/file.db` or `postgres://user:pass@host/db`. An unknown scheme refuses to start.
-- **Seeding**: `quizzotic admin seed <file>` and `storage.seed` (applied on start) load tags, problems and quizzes from YAML. Every item has a stable `key`, so re-running updates in place instead of duplicating. Seeded rows belong to `--owner` (default: the only user), are recorded with actor kind `system`, and are `live` unless the file says `draft`. Built-in packs are embedded and referenced as `builtin:<name>`.
+- **Driver selection**: the scheme of `storage.url` picks the backend — `sqlite://path/to/file.db` or `postgres://user:pass@host/db` (`postgresql://` is accepted as an alias). An unknown scheme refuses to start.
+- **Seeding**: `quizzotic admin seed <file>` and `storage.seed` (applied on start) load tags, problems and quizzes from YAML. Every item has a stable `key`, so re-running updates in place instead of duplicating. Seeded rows belong to `--owner` (default: the only user), are recorded with actor kind `system`, and are `live` unless the file says `draft`. Built-in packs are embedded and referenced as `builtin:<name>`. On start, `storage.seed` applies only when the store has exactly one user; with none or several it logs a warning and skips, and starting is not an error. A fresh instance has no users until the first sign-in, so seeding runs on the next restart after that, or at once with `quizzotic admin seed <file|builtin:name> --owner <user id>` (`--owner` may be omitted while there is exactly one user). Looking up the sole user and writing as the `system` actor are deliberate, narrow exceptions to the rule that every repo call carries the owner ID: they exist so operator tooling can seed without a signed-in principal, and seeded rows still belong to a single owner.
 - **Starter pack**: `builtin:fsrs-basics` ships about 40 problems on spaced repetition and FSRS — the forgetting curve, stability, difficulty, retrievability, ratings, desired retention — plus how to use Quizzotic. It also serves as the end-to-end test fixture.
 - **Conformance suite**: `storetest.Run(t, newStore)` runs the same behavioral tests against each backend. CI runs SQLite always and Postgres in a service container.
 
@@ -343,7 +343,7 @@ server:
   public_url: "https://quizzotic.example.com"
   session_ttl: "720h"
 storage:
-  url: "sqlite://quizzotic.db"  # scheme picks the driver: sqlite:// or postgres://
+  url: "sqlite://quizzotic.db"  # scheme picks the driver: sqlite://, postgres:// or postgresql://
   seed: ["builtin:fsrs-basics"]  # loaded on start; keyed, so safe to re-run
   auto_migrate: true
 auth:
@@ -380,7 +380,7 @@ logging:
 # tracing: configured only by standard OTEL_* environment variables
 ```
 
-Scheduling values here are defaults; each user can override them in Settings, stored on the user row.
+Scheduling values here are instance defaults; each user can override them in Settings, stored on the user row. `scheduling.default_timezone` is an IANA zone name (validated at start; an unknown name refuses to start) and applies to every user who has not set a time zone of their own. Operators can change it whenever they like by editing the config and restarting. It is resolved when a user's settings are read, so the change takes effect for those users immediately after the restart, moving their study-day boundary (the rollover hour is measured in that zone) and so what counts as "today" for session limits, due-load and activity charts, and the day a new mastery snapshot is filed under. It does not change users who have set their own time zone (including everyone who has saved the Settings page, which stores the displayed zone as their own), and it does not rewrite anything stored: card due times are absolute instants, and existing mastery snapshots keep their dates. `quizzotic admin rebuild --history` re-derives snapshot dates in the current zones.
 
 ## Open source and operations
 

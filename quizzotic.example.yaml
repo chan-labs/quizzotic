@@ -10,7 +10,11 @@ server:
   session_ttl: "720h"
 storage:
   url: "sqlite://quizzotic.db"   # sqlite://<path>, or postgres:// / postgresql://user:pass@host/db
-  seed: ["builtin:fsrs-basics"]  # loaded on start (not wired up yet)
+  # Loaded on start, but only when the store has exactly one user. On a fresh
+  # instance there is none until the first sign-in, so startup logs a warning and
+  # skips; seeding then runs on the next restart, or at once with
+  # `quizzotic admin seed builtin:fsrs-basics --owner <user id>`.
+  seed: ["builtin:fsrs-basics"]
   auto_migrate: true             # apply pending migrations on start
 auth:
   issuers:                       # v1: exactly one
@@ -41,6 +45,9 @@ scheduling:
   new_interval: 4
   weak_tag_boost: 1.0
   rollover_hour: 4
+  # IANA zone used for every user who has not set their own time zone in Settings.
+  # Change it whenever you like (restart to apply): it moves those users' study-day
+  # boundary. It does not touch users' own zones or stored data.
   default_timezone: "America/New_York"
 logging:
   level: "info"                  # debug, info, warn, error

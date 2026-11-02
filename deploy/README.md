@@ -50,6 +50,12 @@ The issuer URL must be reachable from the Quizzotic container at the same URL br
 
 A one-shot `quizzotic-data-init` service makes `quizzotic-data` writable for the image's non-root user (numeric uid/gid 65532, so Kubernetes `runAsNonRoot` works without a `runAsUser` override). To use PostgreSQL instead, set `storage.url` to a `postgres://` or `postgresql://` URL and drop the volume.
 
+## Time zone and first-run seeding
+
+`scheduling.default_timezone` (default `America/New_York`, set in `quizzotic.yaml`) is the time zone for every user who has not set their own in Settings. You can change it at any time and restart; it moves those users' study-day boundary (the rollover hour is measured in it) but does not change users' own zones or any stored data.
+
+If `storage.seed` lists packs, they are applied on start only when the instance has exactly one user. A fresh instance has none until the first sign-in, so startup logs a warning and skips; seeding then runs on the next restart, or immediately with a one-shot container: `docker compose run --rm quizzotic admin seed builtin:fsrs-basics --config /etc/quizzotic/quizzotic.yaml --owner <user id>` (the image's entrypoint is `quizzotic`; `--owner` may be omitted while there is exactly one user).
+
 ## Health checks
 
 The Quizzotic image is distroless: it has no shell or `curl`, so Compose cannot run a healthcheck inside it. The `quizzotic-health` service shares Quizzotic's network namespace and polls `http://localhost:8080/healthz` every 30 seconds, so `docker compose ps` shows it as `healthy`. `/readyz` additionally reports store and JWKS state. If you recreate only `quizzotic`, run `docker compose up -d` again so the probe re-attaches.
