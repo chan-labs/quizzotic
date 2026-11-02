@@ -88,6 +88,14 @@ func (t tagMastery) ForgetTags(ctx context.Context, ownerID domain.ID, tagIDs []
 	return metrics.ForgetTags(ctx, sc, ownerID, tagIDs)
 }
 
+// Queries is the read side of the mastery metrics over s (the overview, per-tag
+// figures, history and weakest problems), each call reading in one transaction
+// with the user's effective settings. tags resolves the tag of a history
+// request; nil makes history answer 404.
+func (m Mastery) Queries(s Store, tags metrics.TagResolver) *metrics.QueryService {
+	return metrics.NewQueryService(snapshotTx{s, m}, m.clock, tags)
+}
+
 type snapshotTx struct {
 	s Store
 	m Mastery
