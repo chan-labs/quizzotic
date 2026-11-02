@@ -31,9 +31,9 @@ var ErrCSRF = errors.New("auth: csrf token missing or invalid")
 
 // BearerAuthenticator verifies an IdP access token and resolves its principal.
 type BearerAuthenticator struct {
-	Verifier *Verifier
-	Audience string
-	Resolver *Resolver
+	Verifier  *Verifier
+	Audiences []string
+	Resolver  *Resolver
 }
 
 // Authenticate implements Authenticator.
@@ -46,7 +46,7 @@ func (b *BearerAuthenticator) Authenticate(_ http.ResponseWriter, r *http.Reques
 	if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(tok) == "" {
 		return Principal{}, invalid("malformed Authorization header")
 	}
-	claims, err := b.Verifier.Verify(r.Context(), strings.TrimSpace(tok), VerifyOptions{Audience: b.Audience})
+	claims, err := b.Verifier.Verify(r.Context(), strings.TrimSpace(tok), VerifyOptions{Audiences: b.Audiences})
 	if err != nil {
 		return Principal{}, err
 	}

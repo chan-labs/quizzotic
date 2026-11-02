@@ -47,7 +47,7 @@ func TestExportThroughTheRealServer(t *testing.T) {
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
 	cfg.Storage.URL = "sqlite://" + filepath.Join(t.TempDir(), "q.db")
 	cfg.Auth.Issuers = []config.Issuer{{
-		Name: "test", Issuer: idp.srv.URL, Audience: itAudience,
+		Name: "test", Issuer: idp.srv.URL, Audiences: []string{itAudience},
 		Scopes: []string{"openid", "profile", "email"},
 		Clients: []config.Client{
 			{ID: "quizzotic-cli", Kind: "human"},

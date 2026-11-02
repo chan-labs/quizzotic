@@ -181,7 +181,7 @@ func (s *LoginService) CompleteLogin(ctx context.Context, state, code string) (L
 	if err != nil {
 		return LoginResult{}, err
 	}
-	claims, err := s.ver.Verify(ctx, idToken, VerifyOptions{Audience: s.cfg.ClientID, Nonce: st.Nonce})
+	claims, err := s.ver.Verify(ctx, idToken, VerifyOptions{Audiences: []string{s.cfg.ClientID}, Nonce: st.Nonce})
 	if err != nil {
 		return LoginResult{}, err
 	}
