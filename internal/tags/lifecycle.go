@@ -34,20 +34,21 @@ type ProposeInput struct {
 
 // TagEffect is one tag an operation touches, with problem counts around it.
 type TagEffect struct {
-	ID             domain.ID
-	Slug, Name     string
-	Status         Status // after the operation
-	ProblemsBefore int    // 0 for a tag the operation creates
-	ProblemsAfter  int
-	Created        bool
+	ID             domain.ID `json:"id"`
+	Slug           string    `json:"slug"`
+	Name           string    `json:"name"`
+	Status         Status    `json:"status"`          // after the operation
+	ProblemsBefore int       `json:"problems_before"` // 0 for a tag the operation creates
+	ProblemsAfter  int       `json:"problems_after"`
+	Created        bool      `json:"created"`
 }
 
 // Effect is what an operation does (preview) or did (result).
 type Effect struct {
 	// AffectedProblems lists, ascending, the problems whose tag mappings
 	// change; mastery for them and the involved tags is rebuilt (M8.7).
-	AffectedProblems []domain.ID
-	Tags             []TagEffect
+	AffectedProblems []domain.ID `json:"affected_problems"`
+	Tags             []TagEffect `json:"tags"`
 }
 
 // tagIDs lists the tags the operation touched, those it created included.
@@ -98,6 +99,7 @@ func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.A
 				return err
 			}
 			op.Payload, op.Status, op.DecidedBy, op.DecidedAt, op.AppliedAt, op.Snapshot = out.payload, OpApplied, actor, now, now, &out.snap
+			op.Result = &out.effect
 			if err := r.Ops.Create(ctx, ownerID, op); err != nil {
 				return err
 			}
@@ -131,7 +133,8 @@ func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.A
 
 // GetOperation returns the operation. A proposed one carries a preview
 // computed against the current state, or PreviewError when it no longer
-// validates.
+// validates. An applied one carries the Result recorded when it was applied
+// (nil for one applied before results were recorded).
 func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (OpDetail, error) {
 	var d OpDetail
 	err := s.tx.InTx(ctx, func(r Repos) error {
@@ -140,7 +143,10 @@ func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (OpDe
 			return err
 		}
 		d = OpDetail{Operation: op}
-		if op.Status == OpProposed {
+		switch op.Status {
+		case OpApplied:
+			d.Result = op.Result
+		case OpProposed:
 			out, err := s.run(ctx, r, ownerID, op.ProposedBy, op.Kind, op.Payload, true)
 			var p *platform.Problem
 			switch {
@@ -158,6 +164,32 @@ func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (OpDe
 		return OpDetail{}, err
 	}
 	return d, nil
+}
+
+// ListOperationDetails is ListOperations with each operation's detail: the
+// preview of every proposed one and the recorded result of every applied
+// one. Each preview runs in its own rolled-back transaction, because a
+// preview executes the operation and earlier ones must not leak into later
+// ones.
+func (s *Service) ListOperationDetails(ctx context.Context, ownerID domain.ID, status OpStatus, p platform.Page) ([]OpDetail, string, error) {
+	ops, next, err := s.ListOperations(ctx, ownerID, status, p)
+	if err != nil {
+		return nil, "", err
+	}
+	out := make([]OpDetail, 0, len(ops))
+	for _, op := range ops {
+		d := OpDetail{Operation: op}
+		switch op.Status {
+		case OpApplied:
+			d.Result = op.Result
+		case OpProposed:
+			if d, err = s.GetOperation(ctx, ownerID, op.ID); err != nil {
+				return nil, "", err
+			}
+		}
+		out = append(out, d)
+	}
+	return out, next, nil
 }
 
 func previewError(err error) string {
@@ -224,7 +256,7 @@ func (s *Service) ApplyOperation(ctx context.Context, ownerID domain.ID, actor d
 		}
 		now := s.clock.Now()
 		if err := r.Ops.Decide(ctx, ownerID, id, Decision{Status: OpApplied, DecidedBy: actor, DecidedAt: now,
-			AppliedAt: now, Snapshot: &out.snap}); err != nil {
+			AppliedAt: now, Snapshot: &out.snap, Result: &out.effect}); err != nil {
 			return err
 		}
 		if err := r.rebuild(ctx, ownerID, out.effect.tagIDs()); err != nil {

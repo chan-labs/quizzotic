@@ -219,7 +219,7 @@ func TestAgentProposesHumanApplies(t *testing.T) {
 	wantProblem(t, oe.human.Do("POST", "/tag-operations/"+op.ID+"/apply", nil), http.StatusConflict, "conflict")
 	wantProblem(t, oe.human.Do("POST", "/tag-operations/"+op.ID+"/reject", nil), http.StatusConflict, "conflict")
 	final := decode[opJSON](t, oe.human.Do("GET", "/tag-operations/"+op.ID, nil), http.StatusOK)
-	if final.Status != "applied" || final.Preview != nil || final.Result != nil {
+	if final.Status != "applied" || final.Preview != nil || final.Result == nil || !slices.Equal(final.Result.AffectedProblemIDs, want) {
 		t.Fatalf("final = %+v", final)
 	}
 }

@@ -1026,7 +1026,7 @@
     "name": "quizzes_update"
   },
   {
-    "description": "Get a tag operation\n\nReturns the operation. A proposed operation carries a live `preview`:\nthe problems affected and the resulting tag counts if it were applied\nnow.",
+    "description": "Get a tag operation\n\nReturns the operation. A proposed operation carries a live `preview`:\nthe problems affected and the resulting tag counts if it were applied\nnow. An applied operation carries its recorded `result`: the problems\nit changed and the tag counts when it was applied.",
     "inputSchema": {
       "properties": {
         "id": {
@@ -1042,7 +1042,7 @@
     "name": "tagOperations_get"
   },
   {
-    "description": "List tag operations\n\nLists the caller's tag operations ordered by ID, optionally only those\nwith one status.",
+    "description": "List tag operations\n\nLists the caller's tag operations ordered by ID, optionally only those\nwith one status. Each item is the full operation: a proposed one\ncarries its live `preview` (or `preview_error`) and an applied one its\nrecorded `result`, so a client can render a queue from one call.",
     "inputSchema": {
       "properties": {
         "cursor": {

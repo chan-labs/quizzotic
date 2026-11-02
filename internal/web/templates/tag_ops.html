@@ -42,11 +42,22 @@
 {{if .Applied}}
 <table class="tags">
   <caption class="sr-only">Applied tag operations, newest first</caption>
-  <thead><tr><th scope="col">Operation</th><th scope="col">Proposed by</th><th scope="col">Applied (UTC)</th><th scope="col">Revert</th></tr></thead>
+  <thead><tr><th scope="col">Operation</th><th scope="col">Proposed by</th><th scope="col">Applied (UTC)</th><th scope="col">Result</th><th scope="col">Revert</th></tr></thead>
   <tbody>{{range .Applied}}<tr id="op-{{.ID}}">
     <th scope="row">{{.Summary}}</th>
     <td>{{.By}}</td>
     <td>{{.Decided}}</td>
+    <td>{{if .HasResult}}<details>
+      <summary>{{.Affected}} problem{{if ne .Affected 1}}s{{end}} changed tags</summary>
+      <table class="tags">
+        <caption class="sr-only">Result of {{.Summary}}</caption>
+        <thead><tr><th scope="col">Tag</th><th scope="col">Status afterwards</th><th scope="col">Problems before</th><th scope="col">Problems after</th></tr></thead>
+        <tbody>{{range .Effects}}<tr>
+          <th scope="row">{{.Name}} <span class="muted">({{.Slug}}){{if .Created}} new{{end}}</span></th>
+          <td>{{.Status}}</td><td>{{.Before}}</td><td>{{.After}}</td></tr>
+        {{end}}</tbody>
+      </table>
+    </details>{{else}}<span class="muted">Not recorded</span>{{end}}</td>
     <td>{{if .Reverted}}Reverted {{.Reverted}}{{else}}<form method="post" action="/tag-operations/{{.ID}}/revert">
       <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
       <button type="submit">Revert<span class="sr-only"> {{.Summary}}</span></button>
@@ -55,6 +66,23 @@
   {{end}}</tbody>
 </table>
 {{else}}<p class="muted">No operation has been applied yet.</p>{{end}}
+</section>
+
+<section aria-labelledby="rejected-h">
+<h2 id="rejected-h">Rejected</h2>
+{{if .Rejected}}
+<table class="tags">
+  <caption class="sr-only">Rejected tag operations, newest first</caption>
+  <thead><tr><th scope="col">Operation</th><th scope="col">Proposed by</th><th scope="col">Rejected by</th><th scope="col">Rejected (UTC)</th></tr></thead>
+  <tbody>{{range .Rejected}}<tr id="op-{{.ID}}">
+    <th scope="row">{{.Summary}}</th>
+    <td>{{.By}}</td>
+    <td>{{.DecidedBy}}</td>
+    <td>{{.Decided}}</td>
+  </tr>
+  {{end}}</tbody>
+</table>
+{{else}}<p class="muted">No operation has been rejected.</p>{{end}}
 </section>
 {{end}}
 {{end}}

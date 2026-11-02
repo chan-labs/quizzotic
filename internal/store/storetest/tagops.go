@@ -198,6 +198,65 @@ func runTagOperations(t *testing.T, newStore NewStore) {
 		}
 	})
 
+	t.Run("an applied operation keeps its result", func(t *testing.T) {
+		s, a, b := setup(t)
+		tg := mkTag(t, s, a, "res")
+		snap, err := s.TagOperations().CaptureSnapshot(ctx, a.ID, []domain.ID{tg.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := &tags.Effect{AffectedProblems: []domain.ID{ids.New()}, Tags: []tags.TagEffect{
+			{ID: tg.ID, Slug: "res", Name: "Res", Status: tags.StatusActive, ProblemsBefore: 2, ProblemsAfter: 3, Created: false}}}
+
+		// Decided to applied: the result comes back on Get and List.
+		op := proposed(a, tags.OpRename, `{}`)
+		if err := s.TagOperations().Create(ctx, a.ID, op); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := s.TagOperations().Get(ctx, a.ID, op.ID); err != nil || got.Result != nil {
+			t.Fatalf("proposed result = %+v, %v; want nil", got.Result, err)
+		}
+		if err := s.TagOperations().Decide(ctx, a.ID, op.ID, tags.Decision{Status: tags.OpApplied, DecidedBy: human(a),
+			DecidedAt: t0, AppliedAt: t0, Snapshot: &snap, Result: want}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.TagOperations().Get(ctx, a.ID, op.ID)
+		if err != nil || !reflect.DeepEqual(got.Result, want) {
+			t.Fatalf("result = %+v, %v; want %+v", got.Result, err, want)
+		}
+		all, err := s.TagOperations().List(ctx, a.ID, tags.OpFilter{Status: tags.OpApplied})
+		if err != nil || len(all) != 1 || !reflect.DeepEqual(all[0].Result, want) {
+			t.Fatalf("list result = %+v, %v", all, err)
+		}
+		if _, err := s.TagOperations().Get(ctx, b.ID, op.ID); !errors.Is(err, tags.ErrOpNotFound) {
+			t.Fatalf("other owner get = %v; want not found", err)
+		}
+
+		// Created already applied, with empty slices reading back non-nil.
+		direct := proposed(a, tags.OpRename, `{"slug":"n"}`)
+		direct.Status, direct.DecidedBy, direct.DecidedAt, direct.AppliedAt, direct.Snapshot, direct.Result =
+			tags.OpApplied, human(a), t0, t0, &snap, &tags.Effect{}
+		if err := s.TagOperations().Create(ctx, a.ID, direct); err != nil {
+			t.Fatal(err)
+		}
+		back, err := s.TagOperations().Get(ctx, a.ID, direct.ID)
+		if err != nil || back.Result == nil || back.Result.AffectedProblems == nil || back.Result.Tags == nil {
+			t.Fatalf("empty result = %+v, %v", back.Result, err)
+		}
+
+		// A rejection records no result.
+		rej := proposed(a, tags.OpRename, `{}`)
+		if err := s.TagOperations().Create(ctx, a.ID, rej); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.TagOperations().Decide(ctx, a.ID, rej.ID, tags.Decision{Status: tags.OpRejected, DecidedBy: human(a), DecidedAt: t0}); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := s.TagOperations().Get(ctx, a.ID, rej.ID); err != nil || got.Result != nil {
+			t.Fatalf("rejected result = %+v, %v; want nil", got.Result, err)
+		}
+	})
+
 	t.Run("created already applied, list and filter", func(t *testing.T) {
 		s, a, _ := setup(t)
 		snap := tags.Snapshot{}

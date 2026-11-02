@@ -62,8 +62,11 @@ type Operation struct {
 	DecidedBy  domain.Actor // zero value while proposed
 	AppliedAt  time.Time    // zero unless applied
 	Snapshot   *Snapshot
-	CreatedAt  time.Time
-	DecidedAt  time.Time // zero while proposed
+	// Result is the effect the operation had when it was applied; nil
+	// until applied, and for operations applied before it was recorded.
+	Result    *Effect
+	CreatedAt time.Time
+	DecidedAt time.Time // zero while proposed
 
 	// RevertedAt and RevertedBy are set once an applied operation has been
 	// reverted; its status stays applied and its snapshot is kept.
@@ -138,6 +141,7 @@ type Decision struct {
 	DecidedAt time.Time
 	AppliedAt time.Time
 	Snapshot  *Snapshot
+	Result    *Effect // set with OpApplied
 }
 
 // OpRepo persists tag operations. Every method is scoped to the owner it

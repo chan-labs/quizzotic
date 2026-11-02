@@ -139,7 +139,7 @@ var Tables = []Table{
 		Name: "tag_operations",
 		Cols: cols(txt("id"), txt("owner_id"), txt("kind"), js("payload"), txt("status"),
 			actor("proposed_by"), ntxt("decided_by_kind"), txt("decided_by_user_id"), txt("decided_by_client_id"),
-			njs("before_snapshot"), at("created_at"), nat("decided_at"), nat("applied_at"),
+			njs("before_snapshot"), njs("result"), at("created_at"), nat("decided_at"), nat("applied_at"),
 			nat("reverted_at"), ntxt("reverted_by_kind"), txt("reverted_by_user_id"), txt("reverted_by_client_id")),
 		Key: []string{"id"}, Owner: `owner_id = ?`, OwnerCol: "owner_id",
 	},
