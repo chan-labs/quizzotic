@@ -1,6 +1,6 @@
 # Setting up Pocket ID as the identity provider
 
-Quizzotic trusts one OIDC issuer and mints no tokens ([ADR 0004](adr/0004-idp-issued-tokens-only.md)). [Pocket ID](https://pocket-id.org) is the documented example IdP; nothing in Quizzotic is specific to it. This guide registers the four OAuth clients Quizzotic expects and makes each one receive an access token whose `aud` is `quizzotic`.
+Quizzotic trusts one OIDC issuer and mints no tokens ([ADR 0004](adr/0004-idp-issued-tokens-only.md)). [Pocket ID](https://pocket-id.org) is the documented example IdP; nothing in Quizzotic is specific to it. This guide registers the four OAuth clients Quizzotic expects and lists each client's ID as an accepted audience, because Pocket ID sets the access-token `aud` to the client ID.
 
 Hosts below are placeholders: `https://auth.example.com` is your Pocket ID instance and `https://quizzotic.example.com` is your Quizzotic `server.public_url`. Pocket ID's admin UI changes between releases, so treat the field names as a guide and check the [Pocket ID documentation](https://pocket-id.org/docs) for your version.
 
@@ -20,7 +20,7 @@ Use exactly these IDs, or change both the IdP and `auth.issuers[0].clients` to m
 In the Pocket ID admin area, open OIDC Clients and add each client.
 
 1. **`quizzotic-web`**
-   - Client ID: `quizzotic-web` (set it explicitly if your version lets you; otherwise copy the generated ID into the config).
+   - Client ID: `quizzotic-web` (Pocket ID generates client IDs; copy each generated ID into `auth.issuers[0].clients` and `audience`, the examples below use `quizzotic-web` and so on as placeholders).
    - Callback URL: `https://quizzotic.example.com/auth/callback`
    - Logout callback URL (if asked): `https://quizzotic.example.com/`
    - Public client: off. Generate a client secret and keep it out of version control; you will pass it as `QUIZZOTIC_AUTH_ISSUERS_0_CLIENTS_0_SECRET`.
@@ -37,9 +37,9 @@ In the Pocket ID admin area, open OIDC Clients and add each client.
 
 Restrict each client to the users or groups allowed to use Quizzotic, using Pocket ID's allowed-groups setting.
 
-## 2. Make the access-token audience `quizzotic`
+## 2. Accept each client's ID as an audience
 
-Quizzotic verifies `iss`, signature, `exp`, `nbf` and `aud` locally against the issuer's JWKS, and `aud` must equal `auth.issuers[0].audience` (`quizzotic`). Pocket ID issues JWT access tokens; configure each of the four clients so that the access-token `aud` is `quizzotic` rather than the default (typically the client's own ID). Use the audience or resource setting that your Pocket ID version provides for OIDC clients. If your version has no such setting, do not work around it in Quizzotic: open an issue so the supported audience mapping can be documented.
+Quizzotic verifies `iss`, signature, `exp`, `nbf` and `aud` locally against the issuer's JWKS. Pocket ID issues JWT access tokens whose `aud` is the ID of the client that requested them, and client IDs cannot be chosen freely, so there is no single audience to configure. Instead, `auth.issuers[0].audience` takes a list: a token is accepted when its `aud` (a string or an array) contains any listed value. List the IDs of all four clients (a single string still works for an IdP that issues one shared audience). Tokens with any other `aud` are rejected. Quizzotic still classifies a token by its `client_id` or `azp` claim, falling back to the one declared client named in `aud`.
 
 Quizzotic does not read audience from ID tokens: the web client's ID token (whose `aud` is the client ID, as OIDC requires) is used only for sign-in and `nonce` checks.
 
@@ -52,7 +52,8 @@ auth:
   issuers:
     - name: "pocketid"
       issuer: "https://auth.example.com"
-      audience: "quizzotic"
+      # Pocket ID sets aud to the client ID; list the four IDs from step 1.
+      audience: ["quizzotic-web", "quizzotic-cli", "quizzotic-agent", "quizzotic-headless"]
       scopes: ["openid", "profile", "email"]
       clients:
         - id: "quizzotic-web"
@@ -71,7 +72,7 @@ auth:
 
 Rules enforced at start-up: `kind` is `human` or `agent`; `acts_for` is valid only on `agent` clients; agent clients may never hold `attempts:write`, `sessions:write` or `admin`. Secrets belong in environment variables or your secret store, never in a committed file.
 
-## 4. Verify each client gets `aud=quizzotic`
+## 4. Verify each client's `aud`
 
 Decode the access token (the payload is the second dot-separated segment, base64url) and check its claims, for example with `cut -d. -f2 <<<"$TOKEN" | base64 -d | jq '{iss, aud, sub, client_id, exp}'`. Discover endpoints from `https://auth.example.com/.well-known/openid-configuration`.
 
@@ -84,11 +85,11 @@ Decode the access token (the payload is the second dot-separated segment, base64
     -d client_secret="$HEADLESS_SECRET"
   ```
 
-  Use the `token_endpoint` from discovery if it differs. Expect `aud` to be `quizzotic`.
+  Use the `token_endpoint` from discovery if it differs. Expect `aud` to be this client's ID.
 - **`quizzotic-cli` and `quizzotic-agent`:** run `quizzotic login` and `quizzotic login --agent`, or perform an Authorization Code + PKCE (or device-flow) exchange by hand, and decode the returned `access_token`.
 - **`quizzotic-web`:** complete a browser sign-in with a test client or OIDC debugger using the same client and secret, and decode the `access_token` from the token response.
 
-Success for every client: `aud` is `quizzotic` (as a string or a one-element array), and `iss` equals your configured issuer.
+Success for every client: `aud` is that client's own ID (as a string or an array), it appears in `auth.issuers[0].audience`, and `iss` equals your configured issuer.
 
 ## Using the CLI logins
 

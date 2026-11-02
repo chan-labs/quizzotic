@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"slices"
 	"strings"
 	"time"
 )
@@ -60,8 +61,10 @@ func NewVerifier(issuer string, keys KeySource, opts ...VerifierOption) *Verifie
 
 // VerifyOptions are the per-call expectations.
 type VerifyOptions struct {
-	// Audience must appear in the token's aud claim. Required.
-	Audience string
+	// Audiences lists the acceptable audiences; the token's aud claim (a
+	// string or an array) must contain at least one of them. Required, and
+	// no entry may be empty.
+	Audiences []string
 	// Nonce, when non-empty, must equal the token's nonce claim (ID tokens).
 	Nonce string
 }
@@ -86,8 +89,13 @@ type jwtHeader struct {
 // Verify checks the signature and the iss, aud, exp, nbf and (optionally)
 // nonce claims of a compact JWS.
 func (v *Verifier) Verify(ctx context.Context, token string, opt VerifyOptions) (*Claims, error) {
-	if opt.Audience == "" {
-		return nil, errors.New("auth: VerifyOptions.Audience is required")
+	if len(opt.Audiences) == 0 {
+		return nil, errors.New("auth: VerifyOptions.Audiences is required")
+	}
+	for _, a := range opt.Audiences {
+		if a == "" {
+			return nil, errors.New("auth: VerifyOptions.Audiences must not contain an empty value")
+		}
 	}
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -195,7 +203,7 @@ func (v *Verifier) checkClaims(raw map[string]any, opt VerifyOptions) (*Claims, 
 	}
 	found := false
 	for _, a := range c.Audience {
-		if a == opt.Audience {
+		if slices.Contains(opt.Audiences, a) {
 			found = true
 		}
 	}

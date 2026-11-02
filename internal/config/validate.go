@@ -177,8 +177,18 @@ func (c *Config) ValidateForServe() error {
 		if is.Issuer == "" {
 			add("%s.issuer: required", pre)
 		}
-		if is.Audience == "" {
-			add("%s.audience: required", pre)
+		if len(is.Audiences) == 0 {
+			add("%s.audience: required (a string or a list)", pre)
+		}
+		seenAud := map[string]bool{}
+		for k, a := range is.Audiences {
+			switch {
+			case strings.TrimSpace(a) == "":
+				add("%s.audience[%d]: must not be empty", pre, k)
+			case seenAud[a]:
+				add("%s.audience[%d]: duplicate %q", pre, k, a)
+			}
+			seenAud[a] = true
 		}
 		if len(is.Scopes) == 0 {
 			add("%s.scopes: at least one scope is required", pre)

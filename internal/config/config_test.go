@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -191,8 +192,8 @@ func TestParse_EnvOverrides(t *testing.T) {
 			}
 		}},
 		{"indexed struct field", []string{"QUIZZOTIC_AUTH_ISSUERS_0_AUDIENCE=other"}, func(t *testing.T, c *Config) {
-			if c.Auth.Issuers[0].Audience != "other" {
-				t.Errorf("audience = %q", c.Auth.Issuers[0].Audience)
+			if got := c.Auth.Issuers[0].Audiences; len(got) != 1 || got[0] != "other" {
+				t.Errorf("audience = %q", got)
 			}
 		}},
 		{"nested index secret", []string{
@@ -513,5 +514,53 @@ func assertProblems(t *testing.T, err error, want ...string) {
 		if !strings.Contains(err.Error(), w) {
 			t.Errorf("error missing %q:\n%v", w, err)
 		}
+	}
+}
+
+func TestAudienceForms(t *testing.T) {
+	issuer := func(aud string) []byte {
+		return []byte("auth:\n  issuers:\n    - {name: a, issuer: \"https://a.example.com\", audience: " + aud + ", scopes: [openid]}\n")
+	}
+	for _, tc := range []struct {
+		name, aud string
+		env       []string
+		want      []string
+	}{
+		{"string", `"q"`, nil, []string{"q"}},
+		{"list", `[web, cli, agent]`, nil, []string{"web", "cli", "agent"}},
+		{"env list", `q`, []string{"QUIZZOTIC_AUTH_ISSUERS_0_AUDIENCE=a, b"}, []string{"a", "b"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := tc.env
+			if env == nil {
+				env = []string{}
+			}
+			cfg, err := Parse(issuer(tc.aud), env)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Auth.Issuers[0].Audiences; !slices.Equal(got, tc.want) {
+				t.Fatalf("audiences = %v, want %v", got, tc.want)
+			}
+			if err := cfg.ValidateForServe(); err == nil || !strings.Contains(err.Error(), "public_url") || strings.Contains(err.Error(), "audience") {
+				t.Fatalf("ValidateForServe = %v, want only the public_url problem", err)
+			}
+		})
+	}
+	for name, tc := range map[string]struct{ aud, want string }{
+		"mapping":   {`{a: b}`, "must be a string or a list"},
+		"empty":     {`[web, ""]`, "audience[1]: must not be empty"},
+		"duplicate": {`[web, web]`, `audience[1]: duplicate "web"`},
+		"none":      {`[]`, "audience: required"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg, err := Parse(issuer(tc.aud), []string{})
+			if err == nil {
+				err = cfg.ValidateForServe()
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
