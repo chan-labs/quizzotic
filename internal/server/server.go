@@ -199,7 +199,7 @@ func authOptions(cfg *config.Config, logger *slog.Logger, st store.Store, idp *a
 	if err != nil {
 		return nil, fmt.Errorf("spec scopes: %w", err)
 	}
-	hopts := []HandlerOption{WithMCP(cfg.Server.PublicURL), WithTags(tags.NewService(store.TagsTx(st), clock, ids)), WithIdentity(me.NewService(authSvc, issuer.Issuer, cfg.Server.PublicURL, catalog)), WithAPIAuth(&auth.BearerAuthenticator{
+	hopts := []HandlerOption{WithMCP(cfg.Server.PublicURL), WithTags(tags.NewService(store.NewMastery(store.NewCards(cfg.Scheduling), clock).TagsTx(st), clock, ids)), WithIdentity(me.NewService(authSvc, issuer.Issuer, cfg.Server.PublicURL, catalog)), WithAPIAuth(&auth.BearerAuthenticator{
 		Verifier: auth.NewVerifier(issuer.Issuer, idp),
 		Audience: issuer.Audience,
 		Resolver: auth.NewResolver(clients, authSvc),
