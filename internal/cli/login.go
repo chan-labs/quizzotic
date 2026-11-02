@@ -135,13 +135,20 @@ func resolveIssuer(ctx context.Context, env Env, explicit, server string) (strin
 	if explicit != "" {
 		return strings.TrimRight(explicit, "/"), nil
 	}
+	if err := checkIssuerURL(server); err != nil {
+		return "", fmt.Errorf("server URL: %w", err)
+	}
 	var doc struct {
 		AuthorizationServers []string `json:"authorization_servers"`
 	}
 	if err := getJSON(ctx, env.HTTP, server+"/.well-known/oauth-protected-resource", &doc); err != nil || len(doc.AuthorizationServers) == 0 {
 		return "", fmt.Errorf("cannot find the identity provider: pass --issuer or set QUIZZOTIC_ISSUER (server lookup failed: %v)", err)
 	}
-	return strings.TrimRight(doc.AuthorizationServers[0], "/"), nil
+	iss := strings.TrimRight(doc.AuthorizationServers[0], "/")
+	if err := checkIssuerURL(iss); err != nil {
+		return "", fmt.Errorf("authorization server advertised by %s: %w", server, err)
+	}
+	return iss, nil
 }
 
 // AccessToken returns the bearer token for API calls, in this order:
