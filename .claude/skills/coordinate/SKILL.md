@@ -45,11 +45,11 @@ For each ready task, up to `--max-parallel` at a time:
    - the real-server wiring rule: each user-visible feature must be installed in `internal/server/server.go` and proved by a test through `server.Run` (as `quizzotic serve` does), not only by its own package's tests.
 2. **Review** each finished branch with a fresh `quizzotic-reviewer` subagent that has not seen the implementation conversation. Pass the task text and branch name, and tell it to check `internal/server/server.go` for real-server wiring and FAIL features only tested with hand-built dependencies.
    - `FAIL` → send the findings back to the same implementer with SendMessage. At most 2 fix rounds; after that, comment the open findings on the Todoist task and mark it blocked in your notes.
-   - `PASS` → continue.
+   - `PASS` → continue. Any code change after a PASS, and any non-trivial conflict resolution, needs a fresh `quizzotic-reviewer` (a new one, not the previous), and merge waits for its PASS.
 3. **Open the PR** with `gh pr create`: title = task name; body = the Done-when (no tracker links), and the reviewer's evidence.
 4. **Record** on the Todoist task: a comment with the PR URL and review verdict. Tick the subtasks the implementer reports done.
 5. **CI:** `gh pr checks --watch`. Red CI goes back to the implementer and counts as a fix round.
-6. **Merge:** with `--auto-merge`, squash-merge once green and delete the branch. Without it, comment "PR ready for review" and treat the task as waiting.
+6. **Merge:** merge needs a reviewer PASS and every required check green on the exact head commit; re-check after any branch update or push. `main` requires its checks and binds admins: never use `--admin`, and never rename or remove required check jobs. With `--auto-merge`, enable GitHub auto-merge (`gh pr merge --squash --auto`) or use the merge queue, and delete the branch once merged. If the branch is behind, merge `main` into it; no force-push and no rebase of pushed branches. Without `--auto-merge`, comment "PR ready for review" and treat the task as waiting.
 7. **Complete** the Todoist task only when it is merged, its Done-when passed, and it is not `needs-human`.
 8. Recompute the ready set. A task is ready only when every dependency is merged to `main`; pull `main` before the next dispatch.
 
@@ -58,6 +58,7 @@ For each ready task, up to `--max-parallel` at a time:
 - **Spec conflict** reported by an implementer or reviewer: comment the conflict on the task, skip it and its dependents, continue with the rest.
 - **Blocked** after 2 fix rounds, or an unmeetable dependency: same as above.
 - **Waiting on the maintainer** (unmerged PRs without `--auto-merge`, or `needs-human` checks): keep going on whatever else is ready; when nothing is ready, stop.
+- If git (signing, push, the 1Password agent) is refused or fails, stop and report the exact refusal; see `AGENTS.md` rule 10. Tell every subagent the same.
 - Never add a dependency outside the allowed list, never edit `docs/spec.md`, never push to `main` directly.
 
 ## 5. Report
