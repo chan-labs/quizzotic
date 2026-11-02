@@ -15,7 +15,7 @@ func init() {
 		Name:  "problems",
 		After: []string{"cards"},
 		Build: func(w *wiring) {
-			popts := []problems.Option{problems.WithBatch(store.ProblemsBatchTx(w.st))}
+			popts := []problems.Option{problems.WithBatch(w.mastery.ProblemsBatchTx(w.st))}
 			if w.ho.tags != nil {
 				popts = append(popts, problems.WithTagResolver(w.ho.tags))
 			}

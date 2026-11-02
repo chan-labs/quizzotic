@@ -60,6 +60,11 @@ func (s *Service) transition(ctx context.Context, ownerID, id domain.ID, ifMatch
 		if err := r.SetStatus(ctx, ownerID, id, to, s.clock.Now()); err != nil {
 			return notFound(err)
 		}
+		if to == StatusLive {
+			if err := published(ctx, h, ownerID, id); err != nil {
+				return err
+			}
+		}
 		if to == StatusArchived {
 			if err := retired(ctx, h, ownerID, id); err != nil {
 				return err

@@ -339,6 +339,8 @@ func metricsSnapshotter(f *rebuildFx) *metrics.Snapshotter {
 // recorder is a MasteryRebuilder that remembers its calls.
 type recorder struct{ calls [][]domain.ID }
 
+func (r *recorder) UpdateTags(context.Context, domain.ID, []domain.ID) error { return nil }
+
 func (r *recorder) ForgetTags(context.Context, domain.ID, []domain.ID) error { return nil }
 
 func (r *recorder) RebuildTags(_ context.Context, _ domain.ID, ids []domain.ID) error {

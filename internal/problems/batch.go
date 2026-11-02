@@ -32,6 +32,10 @@ type TagBinder interface {
 type BatchScope struct {
 	Problems Repo
 	Tags     TagBinder
+	// Created, when set, is told inside the transaction of each problem the
+	// batch created, after its tags are attached, so the mastery of those
+	// tags is current when the batch commits.
+	Created func(ctx context.Context, ownerID, problemID domain.ID) error
 }
 
 // BatchTransactor runs fn atomically over transaction-bound repositories.
@@ -108,6 +112,11 @@ func (s *Service) CreateBatch(ctx context.Context, actor domain.Actor, items []B
 			}
 			if len(tagIDs[i]) > 0 {
 				if err := sc.Tags.SetProblemTags(ctx, actor.UserID, p.ID, tagIDs[i]); err != nil {
+					return err
+				}
+			}
+			if sc.Created != nil && p.Status == StatusLive && len(tagIDs[i]) > 0 {
+				if err := sc.Created(ctx, actor.UserID, p.ID); err != nil {
 					return err
 				}
 			}

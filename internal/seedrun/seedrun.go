@@ -51,7 +51,7 @@ func ResolveOwner(ctx context.Context, st store.Store, owner string) (domain.ID,
 // ApplyFile applies a loaded seed file for ownerID.
 func ApplyFile(ctx context.Context, st store.Store, ownerID domain.ID, f *seed.File) (seed.Report, error) {
 	clock := domain.SystemClock{}
-	return seed.NewLoader(store.SeedTx(st, clock, domain.NewIDGenerator(clock), store.DefaultCards().MajorEdit)).Apply(ctx, ownerID, f)
+	return seed.NewLoader(store.SeedTx(st, clock, domain.NewIDGenerator(clock), store.NewMastery(store.DefaultCards(), clock))).Apply(ctx, ownerID, f)
 }
 
 // Startup applies every spec (a file path or builtin:<name>) for the sole

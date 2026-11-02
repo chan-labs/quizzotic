@@ -603,7 +603,7 @@ func runCardProjection(t *testing.T, newStore NewStore) {
 			t.Fatal(err)
 		}
 		ids := domain.NewIDGenerator(f.clock)
-		err := store.SeedTx(f.s, f.clock, ids, f.cards.MajorEdit).InTx(f.ctx, func(sv seed.Services) error {
+		err := store.SeedTx(f.s, f.clock, ids, store.NewMastery(f.cards, f.clock)).InTx(f.ctx, func(sv seed.Services) error {
 			v, err := sv.Problems.Get(f.ctx, f.user, p.ID)
 			if err != nil {
 				return err

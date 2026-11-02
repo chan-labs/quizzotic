@@ -40,6 +40,20 @@ type RetiredHandler interface {
 	ProblemRetired(ctx context.Context, ownerID, problemID domain.ID) error
 }
 
+// PublishedHandler is optionally implemented by a MajorEditHandler to be told,
+// inside the same transaction, that a problem became live: it now counts in
+// the cards of its tags, so their mastery changes.
+type PublishedHandler interface {
+	ProblemPublished(ctx context.Context, ownerID, problemID domain.ID) error
+}
+
+func published(ctx context.Context, h MajorEditHandler, ownerID, id domain.ID) error {
+	if ph, ok := h.(PublishedHandler); ok {
+		return ph.ProblemPublished(ctx, ownerID, id)
+	}
+	return nil
+}
+
 func retired(ctx context.Context, h MajorEditHandler, ownerID, id domain.ID) error {
 	if rh, ok := h.(RetiredHandler); ok {
 		return rh.ProblemRetired(ctx, ownerID, id)
