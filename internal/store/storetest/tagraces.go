@@ -194,6 +194,60 @@ func runTagRaces(t *testing.T, newStore NewStore) {
 		}
 	})
 
+	// A batch create resolves its tag references with Binder.ResolveTags and
+	// tags the new problems in the same transaction. The resolve must take the
+	// owner's lock, or a merge that commits in between leaves problems mapped
+	// to the merged tag.
+	resolveAndTag := func(f *fx, p domain.ID, ref string) error {
+		return store.TagsTx(f.s).InTx(ctx, func(r tags.Repos) error {
+			b := tags.NewBinder(r.Tags)
+			ids, fe, err := b.ResolveTags(ctx, f.owner.ID, []string{ref})
+			if err != nil || len(fe) > 0 {
+				return err
+			}
+			return b.SetProblemTags(ctx, f.owner.ID, p, ids)
+		})
+	}
+	t.Run("Binder.ResolveTags waits for the owner's lock", func(t *testing.T) {
+		f := setup(t)
+		tg := mkTag(t, f, "bound")
+		blocked := blockedWhileLockHeld(t, f.s, f.owner.ID, func() error {
+			return store.TagsTx(f.s).InTx(ctx, func(r tags.Repos) error {
+				_, _, err := tags.NewBinder(r.Tags).ResolveTags(ctx, f.owner.ID, []string{tg.Slug})
+				return err
+			})
+		})
+		if !blocked {
+			t.Fatal("ResolveTags ran while another unit of work held the owner's lock")
+		}
+	})
+	t.Run("a merge racing a batch's tag resolve leaves no mapping on the merged tag", func(t *testing.T) {
+		f := setup(t)
+		for round := 0; round < rounds; round++ {
+			src := mkTag(t, f, fmt.Sprintf("b%d-src", round))
+			dst := mkTag(t, f, fmt.Sprintf("b%d-dst", round))
+			var ps []domain.ID
+			for i := 0; i < 8; i++ {
+				ps = append(ps, mkProblem(t, f))
+			}
+			fns := []func() error{func() error {
+				_, err := f.svc.Merge(ctx, f.owner.ID, tags.MergeInput{Sources: []string{src.Slug}, Target: dst.Slug})
+				return err
+			}}
+			for _, p := range ps {
+				fns = append(fns, func() error { return resolveAndTag(f, p, src.Slug) })
+			}
+			check(t, round, race(fns...))
+			got, err := f.s.Tags().ProblemIDs(ctx, f.owner.ID, src.ID, domain.Nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 0 {
+				t.Fatalf("round %d: %d problems still map to the merged tag", round, len(got))
+			}
+		}
+	})
+
 	t.Run("opposing merges cannot merge both tags away", func(t *testing.T) {
 		f := setup(t)
 		for round := 0; round < rounds; round++ {

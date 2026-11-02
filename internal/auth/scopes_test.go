@@ -188,7 +188,7 @@ func TestBearerAuthenticatorEndToEnd(t *testing.T) {
 	s := signers["ES256"]
 	hdr := map[string]any{"alg": "ES256", "kid": "ES256"}
 	ba := &BearerAuthenticator{
-		Verifier: newTestVerifier(keys), Audience: jwtAud,
+		Verifier: newTestVerifier(keys), Audiences: []string{jwtAud},
 		Resolver: NewResolver(testClients(t), &fakeUsers{}),
 	}
 	req := func(tok string) *http.Request {
@@ -227,5 +227,21 @@ func TestEmbeddedSpecOperationsParse(t *testing.T) {
 	ops, err := openapi.SpecOperations()
 	if err != nil || len(ops) == 0 {
 		t.Fatalf("ops=%d err=%v", len(ops), err)
+	}
+}
+
+func TestResolveClassifiesByAudienceWithoutClientClaim(t *testing.T) {
+	r := NewResolver(testClients(t), &fakeUsers{})
+	c := &Claims{Issuer: jwtIss, Subject: "u1", Audience: []string{"agent-local"}, Raw: map[string]any{}}
+	p, err := r.Resolve(context.Background(), c)
+	if err != nil || p.Kind != KindAgent || p.ClientID != "agent-local" {
+		t.Fatalf("p = %+v, err = %v", p, err)
+	}
+	// Two declared clients in aud is ambiguous; an undeclared aud is unknown.
+	for _, aud := range [][]string{{"web", "agent-local"}, {"stranger"}} {
+		c := &Claims{Issuer: jwtIss, Subject: "u1", Audience: aud, Raw: map[string]any{}}
+		if _, err := r.Resolve(context.Background(), c); !errors.Is(err, ErrUnknownClient) {
+			t.Errorf("aud %v: err = %v, want ErrUnknownClient", aud, err)
+		}
 	}
 }

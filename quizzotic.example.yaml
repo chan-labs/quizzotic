@@ -9,14 +9,16 @@ server:
   public_url: "https://quizzotic.example.com"   # required for serve
   session_ttl: "720h"
 storage:
-  url: "sqlite://quizzotic.db"   # sqlite://<path> or postgres://user:pass@host/db
+  url: "sqlite://quizzotic.db"   # sqlite://<path>, or postgres:// / postgresql://user:pass@host/db
   seed: ["builtin:fsrs-basics"]  # loaded on start (not wired up yet)
   auto_migrate: true             # apply pending migrations on start
 auth:
   issuers:                       # v1: exactly one
     - name: "example-idp"
       issuer: "https://auth.example.com"
-      audience: "quizzotic"
+      # Accepted access-token audiences: one string, or a list. Pocket ID sets
+      # aud to the OAuth client ID, so list every client's ID here.
+      audience: ["quizzotic-web", "quizzotic-cli", "quizzotic-agent", "quizzotic-headless"]
       scopes: ["openid", "profile", "email"]
       clients:
         - id: "quizzotic-web"

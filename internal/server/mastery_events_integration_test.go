@@ -42,6 +42,13 @@ func newRunEnv(t *testing.T) *probEnv {
 // cleanup, once).
 func startRunEnv(t *testing.T, idp *fakeIdP, dbPath string, seeds []string) (*probEnv, func()) {
 	t.Helper()
+	return startRunEnvWith(t, idp, dbPath, seeds, nil)
+}
+
+// startRunEnvWith is startRunEnv with a hook that may change the config before
+// the server starts.
+func startRunEnvWith(t *testing.T, idp *fakeIdP, dbPath string, seeds []string, tweak func(*config.Config)) (*probEnv, func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cfg := config.Default()
@@ -49,13 +56,18 @@ func startRunEnv(t *testing.T, idp *fakeIdP, dbPath string, seeds []string) (*pr
 	cfg.Storage.URL = "sqlite://" + dbPath
 	cfg.Storage.Seed = seeds
 	cfg.Auth.Issuers = []config.Issuer{{
-		Name: "test", Issuer: idp.srv.URL, Audience: itAudience,
+		Name: "test", Issuer: idp.srv.URL, Audiences: []string{itAudience},
 		Scopes: []string{"openid", "profile", "email"},
 		Clients: []config.Client{
+			{ID: itWebClient, Kind: "human", Secret: itWebSecret},
 			{ID: "quizzotic-cli", Kind: "human"},
 			{ID: "quizzotic-agent", Kind: "agent", AllowedScopes: []string{"problems:read", "problems:write"}},
 		},
 	}}
+
+	if tweak != nil {
+		tweak(&cfg)
+	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

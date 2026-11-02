@@ -70,6 +70,23 @@ func (c *Clients) Lookup(id string) (ClientInfo, error) {
 	return info, nil
 }
 
+// fromAudience returns the declared client named by a token's aud, for tokens
+// with no client_id or azp claim (Pocket ID sets aud to the client ID). It
+// answers only when exactly one aud entry is a declared client, so an
+// ambiguous token stays unclassified.
+func (c *Clients) fromAudience(aud []string) string {
+	found := ""
+	for _, a := range aud {
+		if _, ok := c.byID[a]; ok && a != "" {
+			if found != "" && found != a {
+				return ""
+			}
+			found = a
+		}
+	}
+	return found
+}
+
 // tokenClientID extracts the OAuth client ID from verified claims
 // (client_id per RFC 9068, else azp).
 func tokenClientID(raw map[string]any) string {
@@ -125,7 +142,11 @@ func NewResolver(clients *Clients, users Provisioner) *Resolver {
 // set (client-credentials), and holds the client's allowed_scopes narrowed by
 // the token's scope claim when present.
 func (r *Resolver) Resolve(ctx context.Context, c *Claims) (Principal, error) {
-	client, err := r.clients.Lookup(tokenClientID(c.Raw))
+	id := tokenClientID(c.Raw)
+	if id == "" {
+		id = r.clients.fromAudience(c.Audience)
+	}
+	client, err := r.clients.Lookup(id)
 	if err != nil {
 		return Principal{}, err
 	}

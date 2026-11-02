@@ -122,7 +122,7 @@ func TestVerifyAlgorithms(t *testing.T) {
 	for alg, s := range signers {
 		t.Run(alg, func(t *testing.T) {
 			tok := s.token(t, map[string]any{"alg": alg, "kid": alg}, goodClaims())
-			c, err := v.Verify(context.Background(), tok, VerifyOptions{Audience: jwtAud, Nonce: "n-1"})
+			c, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}, Nonce: "n-1"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -149,20 +149,23 @@ func TestVerifyClaimFailures(t *testing.T) {
 		opt    VerifyOptions
 		ok     bool
 	}{
-		{"wrong iss", mut(func(m map[string]any) { m["iss"] = "https://evil.example.com" }), VerifyOptions{Audience: jwtAud}, false},
-		{"missing iss", mut(func(m map[string]any) { delete(m, "iss") }), VerifyOptions{Audience: jwtAud}, false},
-		{"wrong aud", mut(func(m map[string]any) { m["aud"] = "other" }), VerifyOptions{Audience: jwtAud}, false},
-		{"missing aud", mut(func(m map[string]any) { delete(m, "aud") }), VerifyOptions{Audience: jwtAud}, false},
-		{"aud array match", mut(func(m map[string]any) { m["aud"] = []string{"x", jwtAud} }), VerifyOptions{Audience: jwtAud}, true},
-		{"aud array miss", mut(func(m map[string]any) { m["aud"] = []string{"x", "y"} }), VerifyOptions{Audience: jwtAud}, false},
-		{"expired", mut(func(m map[string]any) { m["exp"] = jwtNow.Add(-2 * time.Minute).Unix() }), VerifyOptions{Audience: jwtAud}, false},
-		{"expired within skew", mut(func(m map[string]any) { m["exp"] = jwtNow.Add(-30 * time.Second).Unix() }), VerifyOptions{Audience: jwtAud}, true},
-		{"missing exp", mut(func(m map[string]any) { delete(m, "exp") }), VerifyOptions{Audience: jwtAud}, false},
-		{"nbf in future", mut(func(m map[string]any) { m["nbf"] = jwtNow.Add(2 * time.Minute).Unix() }), VerifyOptions{Audience: jwtAud}, false},
-		{"nbf within skew", mut(func(m map[string]any) { m["nbf"] = jwtNow.Add(30 * time.Second).Unix() }), VerifyOptions{Audience: jwtAud}, true},
-		{"nonce mismatch", goodClaims(), VerifyOptions{Audience: jwtAud, Nonce: "other"}, false},
-		{"nonce missing", mut(func(m map[string]any) { delete(m, "nonce") }), VerifyOptions{Audience: jwtAud, Nonce: "n-1"}, false},
-		{"nonce not checked", mut(func(m map[string]any) { delete(m, "nonce") }), VerifyOptions{Audience: jwtAud}, true},
+		{"wrong iss", mut(func(m map[string]any) { m["iss"] = "https://evil.example.com" }), VerifyOptions{Audiences: []string{jwtAud}}, false},
+		{"missing iss", mut(func(m map[string]any) { delete(m, "iss") }), VerifyOptions{Audiences: []string{jwtAud}}, false},
+		{"wrong aud", mut(func(m map[string]any) { m["aud"] = "other" }), VerifyOptions{Audiences: []string{jwtAud}}, false},
+		{"missing aud", mut(func(m map[string]any) { delete(m, "aud") }), VerifyOptions{Audiences: []string{jwtAud}}, false},
+		{"aud array match", mut(func(m map[string]any) { m["aud"] = []string{"x", jwtAud} }), VerifyOptions{Audiences: []string{jwtAud}}, true},
+		{"aud array miss", mut(func(m map[string]any) { m["aud"] = []string{"x", "y"} }), VerifyOptions{Audiences: []string{jwtAud}}, false},
+		{"any listed aud matches", mut(func(m map[string]any) { m["aud"] = "web" }), VerifyOptions{Audiences: []string{"cli", "web"}}, true},
+		{"aud array any listed matches", mut(func(m map[string]any) { m["aud"] = []string{"x", "cli"} }), VerifyOptions{Audiences: []string{"cli", "web"}}, true},
+		{"no listed aud matches", mut(func(m map[string]any) { m["aud"] = []string{"x", "y"} }), VerifyOptions{Audiences: []string{"cli", "web"}}, false},
+		{"expired", mut(func(m map[string]any) { m["exp"] = jwtNow.Add(-2 * time.Minute).Unix() }), VerifyOptions{Audiences: []string{jwtAud}}, false},
+		{"expired within skew", mut(func(m map[string]any) { m["exp"] = jwtNow.Add(-30 * time.Second).Unix() }), VerifyOptions{Audiences: []string{jwtAud}}, true},
+		{"missing exp", mut(func(m map[string]any) { delete(m, "exp") }), VerifyOptions{Audiences: []string{jwtAud}}, false},
+		{"nbf in future", mut(func(m map[string]any) { m["nbf"] = jwtNow.Add(2 * time.Minute).Unix() }), VerifyOptions{Audiences: []string{jwtAud}}, false},
+		{"nbf within skew", mut(func(m map[string]any) { m["nbf"] = jwtNow.Add(30 * time.Second).Unix() }), VerifyOptions{Audiences: []string{jwtAud}}, true},
+		{"nonce mismatch", goodClaims(), VerifyOptions{Audiences: []string{jwtAud}, Nonce: "other"}, false},
+		{"nonce missing", mut(func(m map[string]any) { delete(m, "nonce") }), VerifyOptions{Audiences: []string{jwtAud}, Nonce: "n-1"}, false},
+		{"nonce not checked", mut(func(m map[string]any) { delete(m, "nonce") }), VerifyOptions{Audiences: []string{jwtAud}}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -185,7 +188,7 @@ func TestVerifyRejectsAlgNone(t *testing.T) {
 		cb, _ := json.Marshal(goodClaims())
 		for _, sig := range []string{"", b64([]byte("x"))} {
 			tok := b64(hb) + "." + b64(cb) + "." + sig
-			if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audience: jwtAud}); !errors.Is(err, ErrInvalidToken) {
+			if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
 				t.Fatalf("alg %q sig %q: err = %v", alg, sig, err)
 			}
 		}
@@ -204,7 +207,7 @@ func TestVerifyAlgPinnedToKeyType(t *testing.T) {
 		{"RS256", "RS256", "ES256"},
 	} {
 		tok := signers[tc.signer].token(t, map[string]any{"alg": tc.alg, "kid": tc.kid}, goodClaims())
-		if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audience: jwtAud}); !errors.Is(err, ErrInvalidToken) {
+		if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
 			t.Fatalf("%+v: err = %v", tc, err)
 		}
 	}
@@ -215,7 +218,7 @@ func TestVerifyJWKAlgMustMatch(t *testing.T) {
 	keys["ES256"].Alg = "RS256" // JWKS advertises a different alg than the key type
 	v := newTestVerifier(keys)
 	tok := signers["ES256"].token(t, map[string]any{"alg": "ES256", "kid": "ES256"}, goodClaims())
-	if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audience: jwtAud}); !errors.Is(err, ErrInvalidToken) {
+	if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -240,11 +243,14 @@ func TestVerifyBadInputs(t *testing.T) {
 		"no kid":      s.token(t, map[string]any{"alg": "RS256"}, goodClaims()),
 		"bad sig":     parts[0] + "." + parts[1] + ".AAAA",
 	} {
-		if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audience: jwtAud}); !errors.Is(err, ErrInvalidToken) {
+		if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}
-	if _, err := v.Verify(context.Background(), good, VerifyOptions{}); err == nil {
+	if _, err := v.Verify(context.Background(), good, VerifyOptions{Audiences: []string{}}); err == nil {
 		t.Error("empty audience option must be refused")
+	}
+	if _, err := v.Verify(context.Background(), good, VerifyOptions{Audiences: []string{jwtAud, ""}}); err == nil {
+		t.Error("an empty listed audience must be refused")
 	}
 }

@@ -369,7 +369,8 @@ func count(s string, b byte) int {
 
 // TestTodayDueMatchesSessionBuilderAtBoundary pins the one due rule: a card
 // due exactly at now is due for both Today and the session builder, one due a
-// moment later is for neither, and a non-live problem's card counts for neither.
+// moment later is for neither, and the card of a non-live problem or of a
+// stale epoch (a major edit since) counts for neither.
 func TestTodayDueMatchesSessionBuilderAtBoundary(t *testing.T) {
 	w := newWorld()
 	w.cfg.NewPerDay = 0 // only review items, so the plan length is the due count
@@ -378,11 +379,12 @@ func TestTodayDueMatchesSessionBuilderAtBoundary(t *testing.T) {
 		c.Due = due
 		w.cards[id] = c
 	}
-	before, exact, after, retired := w.dueCard(3), w.dueCard(3), w.dueCard(3), w.dueCard(3)
+	before, exact, after, retired, stale := w.dueCard(3), w.dueCard(3), w.dueCard(3), w.dueCard(3), w.dueCard(3)
 	setDue(before, now.Add(-time.Nanosecond))
 	setDue(exact, now)
 	setDue(after, now.Add(time.Nanosecond))
 	delete(w.live, retired) // card remains but its problem is no longer live
+	w.live[stale] = 2       // major edit: the due card is of epoch 1, the problem now at 2
 
 	b := w.builder()
 	plan, err := b.Build(context.Background(), w.user, w.ids.New(), now)
@@ -400,7 +402,7 @@ func TestTodayDueMatchesSessionBuilderAtBoundary(t *testing.T) {
 	for _, it := range plan.Items {
 		got[it.ProblemID] = true
 	}
-	if !got[before] || !got[exact] || got[after] || got[retired] {
+	if !got[before] || !got[exact] || got[after] || got[retired] || got[stale] {
 		t.Errorf("served set wrong: %v", got)
 	}
 }

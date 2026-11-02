@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -191,8 +192,8 @@ func TestParse_EnvOverrides(t *testing.T) {
 			}
 		}},
 		{"indexed struct field", []string{"QUIZZOTIC_AUTH_ISSUERS_0_AUDIENCE=other"}, func(t *testing.T, c *Config) {
-			if c.Auth.Issuers[0].Audience != "other" {
-				t.Errorf("audience = %q", c.Auth.Issuers[0].Audience)
+			if got := c.Auth.Issuers[0].Audiences; len(got) != 1 || got[0] != "other" {
+				t.Errorf("audience = %q", got)
 			}
 		}},
 		{"nested index secret", []string{
@@ -378,7 +379,11 @@ func TestParseStorageURL(t *testing.T) {
 		{"SQLITE://x.db", DriverSQLite, "x.db", ""},
 		{"postgres://user:pass@db.example.com/quizzotic", DriverPostgres, "postgres://user:pass@db.example.com/quizzotic", ""},
 		{"postgres://db.example.com:5432/q?sslmode=disable", DriverPostgres, "postgres://db.example.com:5432/q?sslmode=disable", ""},
+		{"postgresql://user:pass@db.example.com/quizzotic", DriverPostgres, "postgresql://user:pass@db.example.com/quizzotic", ""},
+		{"postgresql://db.example.com:5432/q?sslmode=disable", DriverPostgres, "postgresql://db.example.com:5432/q?sslmode=disable", ""},
+		{"POSTGRESQL://db.example.com/q", DriverPostgres, "postgresql://db.example.com/q", ""},
 		{"sqlite://", "", "", "needs a file path"},
+		{"postgresql:///nohost", "", "", "postgresql:// needs a host"},
 		{"postgres:///nohost", "", "", "needs a host"},
 		{"mysql://u@h/db", "", "", `unknown scheme "mysql"`},
 		{"http://example.com", "", "", "unknown scheme"},
@@ -406,7 +411,7 @@ func TestParseStorageURL(t *testing.T) {
 }
 
 func TestParseStorageURL_ErrorsDoNotLeakSecrets(t *testing.T) {
-	for _, raw := range []string{"user:hunter2@db.example.com/q", "hunter2", "mysql://user:hunter2@db.example.com/q", "postgres://user:hunter2@/q"} {
+	for _, raw := range []string{"user:hunter2@db.example.com/q", "hunter2", "mysql://user:hunter2@db.example.com/q", "postgres://user:hunter2@/q", "postgresql://user:hunter2@/q"} {
 		_, _, err := ParseStorageURL(raw)
 		if err == nil {
 			t.Fatalf("%q: expected error", raw)
@@ -418,12 +423,14 @@ func TestParseStorageURL_ErrorsDoNotLeakSecrets(t *testing.T) {
 }
 
 func TestStorageDriver(t *testing.T) {
-	cfg, err := Parse([]byte(minimalYAML), []string{"QUIZZOTIC_STORAGE_URL=postgres://db.example.com/q"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if d, _ := cfg.StorageDriver(); d != DriverPostgres {
-		t.Errorf("driver = %q", d)
+	for _, u := range []string{"postgres://db.example.com/q", "postgresql://db.example.com/q"} {
+		cfg, err := Parse([]byte(minimalYAML), []string{"QUIZZOTIC_STORAGE_URL=" + u})
+		if err != nil {
+			t.Fatalf("%s: %v", u, err)
+		}
+		if d, target := cfg.StorageDriver(); d != DriverPostgres || target != u {
+			t.Errorf("%s: driver = %q target = %q", u, d, target)
+		}
 	}
 }
 
@@ -513,5 +520,53 @@ func assertProblems(t *testing.T, err error, want ...string) {
 		if !strings.Contains(err.Error(), w) {
 			t.Errorf("error missing %q:\n%v", w, err)
 		}
+	}
+}
+
+func TestAudienceForms(t *testing.T) {
+	issuer := func(aud string) []byte {
+		return []byte("auth:\n  issuers:\n    - {name: a, issuer: \"https://a.example.com\", audience: " + aud + ", scopes: [openid]}\n")
+	}
+	for _, tc := range []struct {
+		name, aud string
+		env       []string
+		want      []string
+	}{
+		{"string", `"q"`, nil, []string{"q"}},
+		{"list", `[web, cli, agent]`, nil, []string{"web", "cli", "agent"}},
+		{"env list", `q`, []string{"QUIZZOTIC_AUTH_ISSUERS_0_AUDIENCE=a, b"}, []string{"a", "b"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := tc.env
+			if env == nil {
+				env = []string{}
+			}
+			cfg, err := Parse(issuer(tc.aud), env)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Auth.Issuers[0].Audiences; !slices.Equal(got, tc.want) {
+				t.Fatalf("audiences = %v, want %v", got, tc.want)
+			}
+			if err := cfg.ValidateForServe(); err == nil || !strings.Contains(err.Error(), "public_url") || strings.Contains(err.Error(), "audience") {
+				t.Fatalf("ValidateForServe = %v, want only the public_url problem", err)
+			}
+		})
+	}
+	for name, tc := range map[string]struct{ aud, want string }{
+		"mapping":   {`{a: b}`, "must be a string or a list"},
+		"empty":     {`[web, ""]`, "audience[1]: must not be empty"},
+		"duplicate": {`[web, web]`, `audience[1]: duplicate "web"`},
+		"none":      {`[]`, "audience: required"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg, err := Parse(issuer(tc.aud), []string{})
+			if err == nil {
+				err = cfg.ValidateForServe()
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }

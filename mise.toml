@@ -98,7 +98,7 @@ if [ -z "${QUIZZOTIC_TEST_POSTGRES_URL:-}" ]; then
   port="$(docker port "$name" 5432/tcp | head -n1 | sed 's/.*://')"
   export QUIZZOTIC_TEST_POSTGRES_URL="postgres://quizzotic:quizzotic@127.0.0.1:${port}/quizzotic?sslmode=disable"
 fi
-go test -race -count=1 -v ./internal/store/postgres
+go test -race -count=1 -v ./internal/store/postgres ./internal/store/driver
 '''
 
 # Mirrors the CI build matrix (linux, darwin, windows; amd64; no cgo).

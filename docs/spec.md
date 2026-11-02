@@ -239,8 +239,8 @@ Quizzotic trusts one configured OIDC issuer for every token, human or agent, and
 **Rules**
 
 - On first valid login, Quizzotic creates the Identity and User rows (just-in-time provisioning). No signup screen.
-- JWTs are verified against the issuer's JWKS (cached, refreshed on unknown `kid`): signature, `iss`, `aud`, `exp`, `nbf`, and `nonce` for ID tokens.
-- Every token comes from the IdP; Quizzotic mints none. Principal kind comes from the token's client ID, declared in `auth.clients` as `human` or `agent`, and tokens from unknown clients are rejected. A delegated agent token resolves to the human in its `sub`; a client-credentials token resolves through the client's `acts_for`. An agent's scopes are its client's `allowed_scopes`, narrowed by the token's `scope` claim when present, and config validation refuses `attempts:write`, `sessions:write` or `admin` on any agent client.
+- JWTs are verified against the issuer's JWKS (cached, refreshed on unknown `kid`): signature, `iss`, `aud`, `exp`, `nbf`, and `nonce` for ID tokens. An issuer lists its accepted audiences in `audience` (one string or a list, no empty or duplicate entries); a token passes when its `aud` (a string or an array) contains any of them. IdPs such as Pocket ID set `aud` to the OAuth client ID, which cannot be chosen freely, so the list holds each client's ID.
+- Every token comes from the IdP; Quizzotic mints none. Principal kind comes from the token's client ID (its `client_id` or `azp` claim, else the one declared client named in `aud`), declared in `auth.clients` as `human` or `agent`, and tokens from unknown clients are rejected. A delegated agent token resolves to the human in its `sub`; a client-credentials token resolves through the client's `acts_for`. An agent's scopes are its client's `allowed_scopes`, narrowed by the token's `scope` claim when present, and config validation refuses `attempts:write`, `sessions:write` or `admin` on any agent client.
 - Web forms carry a per-session CSRF token in addition to SameSite cookies.
 - Every query is filtered by the principal's user ID. There is no cross-user read.
 
@@ -256,7 +256,7 @@ Quizzotic trusts one configured OIDC issuer for every token, human or agent, and
 | `attempts:write`, `sessions:write` | Yes | Never |
 | `admin` | Yes | Never |
 
-Pocket ID supports [Client ID Metadata Documents](https://pocket-id.org/docs/guides/client-id-metadata-documents) for public clients, which lets remote MCP clients register without manual setup; it also issues JWT access tokens with a configurable `aud`, so the API verifies them locally against JWKS.
+Pocket ID supports [Client ID Metadata Documents](https://pocket-id.org/docs/guides/client-id-metadata-documents) for public clients, which lets remote MCP clients register without manual setup; it also issues JWT access tokens whose `aud` is the client ID, so the API verifies them locally against JWKS by listing each client ID as an accepted audience.
 
 ## REST API surface
 
@@ -350,7 +350,7 @@ auth:
   issuers:                     # v1: exactly one
     - name: "pocketid"
       issuer: "https://auth.example.com"
-      audience: "quizzotic"
+      audience: ["quizzotic-web", "quizzotic-cli", "quizzotic-agent", "quizzotic-headless"]   # one per client, or a single string
       scopes: ["openid", "profile", "email"]
       clients:
         - id: "quizzotic-web"
@@ -417,7 +417,7 @@ Eleven milestones, built in order: M0–M9 deliver v1.0, and M10 fits FSRS param
 
 All seven are resolved.
 
-- [x] Resolved: Pocket ID issues JWT access tokens with a configurable `aud`; no userinfo fallback needed.
+- [x] Resolved: Pocket ID issues JWT access tokens whose `aud` is the client ID; the issuer accepts a list of audiences (one per client), and no userinfo fallback is needed.
 - [x] Resolved: Pocket ID supports loopback redirects, so the CLI uses PKCE loopback on any port.
 - [x] Resolved: Pocket ID supports both client credentials and device flow. Headless agents use client credentials; interactive agents use PKCE or device flow.
 - [x] Resolved: per-user FSRS parameter fitting is planned as M10, after v1.0.

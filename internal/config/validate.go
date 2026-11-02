@@ -19,12 +19,13 @@ const (
 
 // ParseStorageURL picks the backend from the URL scheme. For sqlite the
 // returned target is the file path (the text after "sqlite://", so relative
-// paths work); for postgres it is the full connection URL.
+// paths work); for postgres (postgres:// or postgresql://) it is the full
+// connection URL.
 func ParseStorageURL(raw string) (Driver, string, error) {
 	scheme, rest, ok := strings.Cut(raw, "://")
 	if !ok || scheme == "" {
 		// Never echo raw: it may carry a database password.
-		return "", "", fmt.Errorf("storage.url: missing scheme (use sqlite:// or postgres://)")
+		return "", "", fmt.Errorf("storage.url: missing scheme (use sqlite://, postgres:// or postgresql://)")
 	}
 	switch strings.ToLower(scheme) {
 	case "sqlite":
@@ -32,17 +33,18 @@ func ParseStorageURL(raw string) (Driver, string, error) {
 			return "", "", fmt.Errorf("storage.url: sqlite:// needs a file path")
 		}
 		return DriverSQLite, rest, nil
-	case "postgres":
+	case "postgres", "postgresql":
 		u, err := url.Parse(raw)
 		if err != nil {
 			return "", "", fmt.Errorf("storage.url: invalid postgres URL")
 		}
 		if u.Host == "" {
-			return "", "", fmt.Errorf("storage.url: postgres:// needs a host")
+			return "", "", fmt.Errorf("storage.url: %s:// needs a host", strings.ToLower(scheme))
 		}
-		return DriverPostgres, raw, nil
+		// pgx matches the scheme case-sensitively; the switch above does not.
+		return DriverPostgres, strings.ToLower(scheme) + "://" + rest, nil
 	default:
-		return "", "", fmt.Errorf("storage.url: unknown scheme %q (use sqlite:// or postgres://)", scheme)
+		return "", "", fmt.Errorf("storage.url: unknown scheme %q (use sqlite://, postgres:// or postgresql://)", scheme)
 	}
 }
 
@@ -177,8 +179,18 @@ func (c *Config) ValidateForServe() error {
 		if is.Issuer == "" {
 			add("%s.issuer: required", pre)
 		}
-		if is.Audience == "" {
-			add("%s.audience: required", pre)
+		if len(is.Audiences) == 0 {
+			add("%s.audience: required (a string or a list)", pre)
+		}
+		seenAud := map[string]bool{}
+		for k, a := range is.Audiences {
+			switch {
+			case strings.TrimSpace(a) == "":
+				add("%s.audience[%d]: must not be empty", pre, k)
+			case seenAud[a]:
+				add("%s.audience[%d]: duplicate %q", pre, k, a)
+			}
+			seenAud[a] = true
 		}
 		if len(is.Scopes) == 0 {
 			add("%s.scopes: at least one scope is required", pre)
