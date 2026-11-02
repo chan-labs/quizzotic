@@ -20,9 +20,11 @@ type attemptRepo struct{ q execer }
 const attemptCols = `id, user_id, problem_id, problem_version, card_epoch, session_id, response,
 	auto_correct, score, rating, latency_ms, answered_at, client_kind, client_user_id, client_client_id`
 
-// Create appends the attempt, but only when the problem is the owner's: the
-// INSERT selects nothing for another owner's problem, which is reported as
-// ErrNotFound.
+// Create appends the attempt, but only when the problem is the owner's (the
+// INSERT selects nothing for another owner's problem: ErrNotFound) and the
+// session, if it lists the problem, still has an unanswered presentation of it
+// (otherwise ErrDuplicate). Under the owner lock the count and the insert are
+// one atomic step per owner.
 func (r attemptRepo) Create(ctx context.Context, ownerID domain.ID, a attempts.Attempt) error {
 	if a.UserID != ownerID {
 		return errors.New("attempts: attempt user does not match owner id")
@@ -40,23 +42,54 @@ func (r attemptRepo) Create(ctx context.Context, ownerID domain.ID, a attempts.A
 	if a.Score != nil {
 		score = *a.Score
 	}
+	if session != nil {
+		// READ COMMITTED: two transactions could both count before either
+		// inserts. The owner lock serializes them; outside a transaction there
+		// is nothing to serialize against.
+		if rb, ok := r.q.(rebinder); ok {
+			if _, ok := rb.q.(*sql.Tx); ok {
+				if err := lockOwner(ctx, r.q, ownerID); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	res, err := r.q.ExecContext(ctx, `INSERT INTO attempts (`+attemptCols+`)
 		SELECT ?::text, ?::text, p.id, ?::integer, ?::integer, ?::text, ?::jsonb, ?::boolean, ?::double precision,
 			?::integer, ?::integer, ?::timestamptz, ?::text, ?::text, ?::text
-		FROM problems p WHERE p.id = ? AND p.owner_id = ?`,
+		FROM problems p WHERE p.id = ? AND p.owner_id = ?
+		AND (?::text IS NULL
+		  OR NOT EXISTS (SELECT 1 FROM review_session_items i WHERE i.session_id = ?::text AND i.problem_id = p.id)
+		  OR (SELECT COUNT(*) FROM attempts x WHERE x.user_id = ? AND x.session_id = ?::text AND x.problem_id = p.id)
+		   < (SELECT COUNT(*) FROM review_session_items i WHERE i.session_id = ?::text AND i.problem_id = p.id))`,
 		a.ID.String(), ownerID.String(), a.ProblemVersion, a.CardEpoch, session, string(a.Response),
 		autoCorrect, score, rating, a.LatencyMS, ts(a.AnsweredAt), string(a.Client.Kind),
 		actorUser(a.Client), a.Client.ClientID,
-		a.ProblemID.String(), ownerID.String())
+		a.ProblemID.String(), ownerID.String(), session, session, ownerID.String(), session, session)
 	if err != nil {
 		return err
 	}
 	if n, err := res.RowsAffected(); err != nil {
 		return err
 	} else if n == 0 {
-		return attempts.ErrNotFound
+		return r.notStored(ctx, ownerID, a)
 	}
 	return nil
+}
+
+// notStored tells why the INSERT stored nothing: the problem is not the
+// owner's (ErrNotFound) or the session has no presentation left (ErrDuplicate).
+func (r attemptRepo) notStored(ctx context.Context, ownerID domain.ID, a attempts.Attempt) error {
+	var one int
+	err := r.q.QueryRowContext(ctx, `SELECT 1 FROM problems WHERE id = ? AND owner_id = ?`,
+		a.ProblemID.String(), ownerID.String()).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return attempts.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return attempts.ErrDuplicate
 }
 
 // SetRating fills a missing rating. The WHERE clause only matches an unrated
