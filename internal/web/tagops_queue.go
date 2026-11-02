@@ -31,15 +31,15 @@ type opCard struct {
 	Highlight                      bool
 	Effects                        []opEffectRow
 	Affected                       int
-	HasPreview                     bool
+	HasPreview, HasResult          bool
 	PreviewError                   string
-	Decided                        string
+	Decided, DecidedBy             string
 	Reverted                       string
 }
 
 type opsData struct {
-	Pending, Applied []opCard
-	Notice, Error    string
+	Pending, Applied, Rejected []opCard
+	Notice, Error              string
 }
 
 func actorLabel(a domain.Actor) string {
@@ -67,11 +67,13 @@ func (w *Web) tagNames(ctx context.Context, owner domain.ID) (map[string]string,
 	return names, nil
 }
 
-func (w *Web) allOps(ctx context.Context, owner domain.ID, st tags.OpStatus) ([]tags.Operation, error) {
-	var out []tags.Operation
+// allOps loads every operation of the owner, with previews and results, one
+// page-sized call at a time (a single call for any realistic queue).
+func (w *Web) allOps(ctx context.Context, owner domain.ID) ([]tags.OpDetail, error) {
+	var out []tags.OpDetail
 	cursor := ""
 	for {
-		ops, next, err := w.tagops.ListOperations(ctx, owner, st, platform.Page{Cursor: cursor, Limit: platform.MaxLimit})
+		ops, next, err := w.tagops.ListOperationDetails(ctx, owner, "", platform.Page{Cursor: cursor, Limit: platform.MaxLimit})
 		if err != nil {
 			return nil, err
 		}
@@ -141,13 +143,23 @@ func summarize(op tags.Operation, names map[string]string) string {
 func (w *Web) opCard(op tags.Operation, names map[string]string) opCard {
 	c := opCard{ID: op.ID.String(), Kind: string(op.Kind), Summary: summarize(op, names), Status: string(op.Status),
 		By: actorLabel(op.ProposedBy), Created: op.CreatedAt.UTC().Format("2006-01-02 15:04 UTC")}
-	if !op.AppliedAt.IsZero() {
-		c.Decided = op.AppliedAt.UTC().Format("2006-01-02 15:04 UTC")
+	if !op.DecidedAt.IsZero() {
+		c.Decided = op.DecidedAt.UTC().Format("2006-01-02 15:04 UTC")
+		c.DecidedBy = actorLabel(op.DecidedBy)
 	}
 	if !op.RevertedAt.IsZero() {
 		c.Reverted = op.RevertedAt.UTC().Format("2006-01-02 15:04 UTC")
 	}
 	return c
+}
+
+func effectRows(e *tags.Effect) []opEffectRow {
+	var rows []opEffectRow
+	for _, t := range e.Tags {
+		rows = append(rows, opEffectRow{Name: t.Name, Slug: t.Slug, Status: string(t.Status),
+			Before: t.ProblemsBefore, After: t.ProblemsAfter, Created: t.Created})
+	}
+	return rows
 }
 
 func (w *Web) opsView(ctx context.Context, owner domain.ID, highlight string) (opsData, error) {
@@ -156,35 +168,32 @@ func (w *Web) opsView(ctx context.Context, owner domain.ID, highlight string) (o
 		return opsData{}, err
 	}
 	var d opsData
-	proposed, err := w.allOps(ctx, owner, tags.OpProposed)
+	all, err := w.allOps(ctx, owner)
 	if err != nil {
 		return d, err
 	}
-	for _, op := range proposed {
-		c := w.opCard(op, names)
+	slices.Reverse(all) // newest first
+	for _, det := range all {
+		c := w.opCard(det.Operation, names)
 		c.Highlight = c.ID == highlight
-		det, err := w.tagops.GetOperation(ctx, owner, op.ID)
-		if err != nil {
-			return d, err
-		}
-		c.PreviewError = det.PreviewError
-		if p := det.Preview; p != nil {
-			c.HasPreview, c.Affected = true, len(p.AffectedProblems)
-			for _, t := range p.Tags {
-				c.Effects = append(c.Effects, opEffectRow{Name: t.Name, Slug: t.Slug, Status: string(t.Status),
-					Before: t.ProblemsBefore, After: t.ProblemsAfter, Created: t.Created})
+		switch det.Operation.Status {
+		case tags.OpProposed:
+			c.PreviewError = det.PreviewError
+			if p := det.Preview; p != nil {
+				c.HasPreview, c.Affected, c.Effects = true, len(p.AffectedProblems), effectRows(p)
 			}
+			d.Pending = append(d.Pending, c)
+		case tags.OpApplied:
+			if r := det.Result; r != nil {
+				c.HasResult, c.Affected, c.Effects = true, len(r.AffectedProblems), effectRows(r)
+			}
+			d.Applied = append(d.Applied, c)
+		case tags.OpRejected:
+			d.Rejected = append(d.Rejected, c)
 		}
-		d.Pending = append(d.Pending, c)
 	}
-	applied, err := w.allOps(ctx, owner, tags.OpApplied)
-	if err != nil {
-		return d, err
-	}
-	slices.Reverse(applied) // newest first
-	for _, op := range applied {
-		d.Applied = append(d.Applied, w.opCard(op, names))
-	}
+	// The approvals queue reads oldest first, so the oldest ask is on top.
+	slices.Reverse(d.Pending)
 	return d, nil
 }
 

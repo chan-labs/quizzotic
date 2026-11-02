@@ -24,18 +24,44 @@ const tagOpCols = `id, owner_id, kind, payload, status,
 	proposed_by_kind, proposed_by_user_id, proposed_by_client_id,
 	decided_by_kind, decided_by_user_id, decided_by_client_id,
 	before_snapshot, created_at, decided_at, applied_at,
-	reverted_at, reverted_by_kind, reverted_by_user_id, reverted_by_client_id`
+	reverted_at, reverted_by_kind, reverted_by_user_id, reverted_by_client_id, result`
 
 const tagOpInsertCols = `id, owner_id, kind, payload, status,
 	proposed_by_kind, proposed_by_user_id, proposed_by_client_id,
 	decided_by_kind, decided_by_user_id, decided_by_client_id,
-	before_snapshot, created_at, decided_at, applied_at`
+	before_snapshot, created_at, decided_at, applied_at, result`
 
 func nullMillis(t time.Time) any {
 	if t.IsZero() {
 		return nil
 	}
 	return Millis(t)
+}
+
+func encodeResult(e *tags.Effect) (any, error) {
+	if e == nil {
+		return nil, nil
+	}
+	c := *e
+	if c.AffectedProblems == nil {
+		c.AffectedProblems = []domain.ID{}
+	}
+	if c.Tags == nil {
+		c.Tags = []tags.TagEffect{}
+	}
+	b, err := json.Marshal(c)
+	return string(b), err
+}
+
+func decodeResult(raw []byte) (*tags.Effect, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	var e tags.Effect
+	if err := json.Unmarshal(raw, &e); err != nil {
+		return nil, err
+	}
+	return &e, nil
 }
 
 func encodeSnapshot(s *tags.Snapshot) (any, error) {
@@ -68,12 +94,16 @@ func (r tagOpRepo) Create(ctx context.Context, ownerID domain.ID, op tags.Operat
 	if op.Status != tags.OpProposed {
 		decKind = string(op.DecidedBy.Kind)
 	}
+	res, err := encodeResult(op.Result)
+	if err != nil {
+		return err
+	}
 	_, err = r.q.ExecContext(ctx, `INSERT INTO tag_operations (`+tagOpInsertCols+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		op.ID.String(), ownerID.String(), string(op.Kind), string(op.Payload), string(op.Status),
 		string(op.ProposedBy.Kind), actorUser(op.ProposedBy), op.ProposedBy.ClientID,
 		decKind, actorUser(op.DecidedBy), op.DecidedBy.ClientID,
-		snap, Millis(op.CreatedAt), nullMillis(op.DecidedAt), nullMillis(op.AppliedAt))
+		snap, Millis(op.CreatedAt), nullMillis(op.DecidedAt), nullMillis(op.AppliedAt), res)
 	return err
 }
 
@@ -89,10 +119,11 @@ func scanTagOp(r scanner) (tags.Operation, error) {
 		decided, applied, reverted       sql.NullInt64
 		rKind                            sql.NullString
 		rUser, rClient                   string
+		resultRaw                        sql.NullString
 	)
 	if err := r.Scan(&id, &owner, &kind, &payload, &status, &pKind, &pUser, &pClient,
 		&dKind, &dUser, &dClient, &snap, &created, &decided, &applied,
-		&reverted, &rKind, &rUser, &rClient); err != nil {
+		&reverted, &rKind, &rUser, &rClient, &resultRaw); err != nil {
 		return op, err
 	}
 	var err error
@@ -131,6 +162,11 @@ func scanTagOp(r scanner) (tags.Operation, error) {
 		op.RevertedAt = FromMillis(reverted.Int64)
 		op.RevertedBy = domain.Actor{Kind: domain.ActorKind(rKind.String), ClientID: rClient}
 		if op.RevertedBy.UserID, err = parseActorUser(rUser); err != nil {
+			return op, err
+		}
+	}
+	if resultRaw.Valid {
+		if op.Result, err = decodeResult([]byte(resultRaw.String)); err != nil {
 			return op, err
 		}
 	}
@@ -189,12 +225,16 @@ func (r tagOpRepo) Decide(ctx context.Context, ownerID, id domain.ID, d tags.Dec
 	if err != nil {
 		return err
 	}
+	result, err := encodeResult(d.Result)
+	if err != nil {
+		return err
+	}
 	res, err := r.q.ExecContext(ctx, `UPDATE tag_operations SET status = ?,
 		decided_by_kind = ?, decided_by_user_id = ?, decided_by_client_id = ?,
-		before_snapshot = ?, decided_at = ?, applied_at = ?
+		before_snapshot = ?, decided_at = ?, applied_at = ?, result = ?
 		WHERE owner_id = ? AND id = ? AND status = 'proposed'`,
 		string(d.Status), string(d.DecidedBy.Kind), actorUser(d.DecidedBy), d.DecidedBy.ClientID,
-		snap, Millis(d.DecidedAt), nullMillis(d.AppliedAt), ownerID.String(), id.String())
+		snap, Millis(d.DecidedAt), nullMillis(d.AppliedAt), result, ownerID.String(), id.String())
 	if err != nil {
 		return err
 	}

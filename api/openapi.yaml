@@ -2042,7 +2042,9 @@ paths:
       summary: List tag operations
       description: |
         Lists the caller's tag operations ordered by ID, optionally only those
-        with one status.
+        with one status. Each item is the full operation: a proposed one
+        carries its live `preview` (or `preview_error`) and an applied one its
+        recorded `result`, so a client can render a queue from one call.
       security:
         - bearer: []
         - sessionCookie: []
@@ -2136,7 +2138,8 @@ paths:
       description: |
         Returns the operation. A proposed operation carries a live `preview`:
         the problems affected and the resulting tag counts if it were applied
-        now.
+        now. An applied operation carries its recorded `result`: the problems
+        it changed and the tag counts when it was applied.
       security:
         - bearer: []
         - sessionCookie: []
@@ -3756,7 +3759,10 @@ components:
           type: [string, "null"]
           description: Set instead of `preview` when a proposed operation no longer validates against the current state.
         result:
-          description: Present on the response that applied the operation; null otherwise.
+          description: |
+            The effect of an applied operation, recorded when it was applied;
+            null for a proposed or rejected one, and for one applied before
+            results were recorded.
           oneOf:
             - $ref: "#/components/schemas/TagOperationEffect"
             - type: "null"

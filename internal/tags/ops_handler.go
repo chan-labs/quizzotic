@@ -147,14 +147,14 @@ func (h *Handler) listOps(w http.ResponseWriter, r *http.Request) {
 		platform.WriteError(w, r, err)
 		return
 	}
-	ops, next, err := h.svc.ListOperations(r.Context(), p.UserID, OpStatus(r.URL.Query().Get("status")), page)
+	ops, next, err := h.svc.ListOperationDetails(r.Context(), p.UserID, OpStatus(r.URL.Query().Get("status")), page)
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
 	items := make([]operationView, len(ops))
-	for i, op := range ops {
-		items[i] = operationViewOf(OpDetail{Operation: op})
+	for i, d := range ops {
+		items[i] = operationViewOf(d)
 	}
 	writeJSON(w, http.StatusOK, platform.NewPageResult(items, next))
 }
