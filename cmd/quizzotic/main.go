@@ -52,6 +52,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return cli.Login(ctx, args[1:], env)
 		}
 		return cli.Logout(ctx, args[1:], env)
+	case "review":
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		return cli.Review(ctx, args[1:], cli.Env{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr})
 	case "mcp":
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
@@ -101,7 +105,7 @@ func serve(args []string, stderr io.Writer) int {
 
 func usage(w io.Writer) {
 	fmt.Fprintln(w, "usage: quizzotic <command> [flags]")
-	fmt.Fprintln(w, "commands: serve, mcp, admin, login, logout, version")
+	fmt.Fprintln(w, "commands: serve, mcp, admin, review, login, logout, version")
 	if res := cli.Resources(); len(res) > 0 {
 		fmt.Fprintf(w, "api resources: %s (run \"quizzotic <resource>\" for actions)\n", strings.Join(res, ", "))
 	}
