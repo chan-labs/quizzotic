@@ -432,6 +432,17 @@ func TestApplyAndRevertRebuildMastery(t *testing.T) {
 	}
 	same(last(), a.ID, dst.ID)
 
+	n = len(rec.calls)
+	res, err := f.svc.Split(f.ctx, f.owner, f.actor, tags.SplitInput{Source: "dst",
+		Targets: []tags.SplitTarget{{New: &tags.CreateInput{Slug: "part", Name: "Part"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.calls) != n+1 {
+		t.Fatalf("direct split made %d rebuild calls, want 1", len(rec.calls)-n)
+	}
+	same(last(), dst.ID, res.Targets[0].ID)
+
 	// A failed operation rolls back and rebuilds nothing.
 	n = len(rec.calls)
 	if _, err := f.svc.Merge(f.ctx, f.owner, tags.MergeInput{Sources: []string{"nope"}, Target: "dst"}); err == nil {
