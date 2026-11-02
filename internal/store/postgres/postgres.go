@@ -166,7 +166,10 @@ func (s *Store) Migrate(ctx context.Context) ([]int, error) {
 	return migrate.UpDialect(ctx, s.db, migrations.FS, "postgres", migrate.Dialect{
 		Rebind:        Rebind,
 		AppliedAtType: "TIMESTAMPTZ",
-		AppliedAt:     func(t time.Time) any { return t.UTC() },
+		// Timestamp versions (YYYYMMDDHHMMSS) overflow INTEGER; older databases are widened.
+		VersionType: "BIGINT",
+		AfterCreate: `ALTER TABLE schema_migrations ALTER COLUMN version TYPE BIGINT`,
+		AppliedAt:   func(t time.Time) any { return t.UTC() },
 		Lock: func(ctx context.Context) (func(), error) {
 			c, err := s.db.Conn(ctx)
 			if err != nil {

@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/domain"
@@ -21,9 +20,6 @@ import (
 	"github.com/chan-labs/quizzotic/internal/metrics"
 	"github.com/chan-labs/quizzotic/internal/openapi"
 	"github.com/chan-labs/quizzotic/internal/platform"
-	"github.com/chan-labs/quizzotic/internal/problems"
-	"github.com/chan-labs/quizzotic/internal/quizzes"
-	"github.com/chan-labs/quizzotic/internal/review"
 	"github.com/chan-labs/quizzotic/internal/seed"
 	"github.com/chan-labs/quizzotic/internal/seedrun"
 	"github.com/chan-labs/quizzotic/internal/store"
@@ -285,33 +281,27 @@ func WithAPIAuth(a auth.Authenticator) HandlerOption {
 
 // NewAPIRouter returns the API router with every feature registered and the
 // scope guard installed, so each request is authorized against the spec
-// operation of the pattern the router matched. It panics if the embedded spec
-// cannot be parsed (a build-time invariant covered by tests).
+// operation of the pattern the router matched. Features are registered with no
+// services, which is enough to list and authorize routes. It panics if the
+// embedded spec cannot be parsed (a build-time invariant covered by tests).
 func NewAPIRouter(a auth.Authenticator) (*platform.Router, *auth.ScopeGuard) {
-	return newAPIRouter(a, me.NewHandler(nil, nil), tags.NewHandler(nil, nil), problems.NewHandler(nil, nil), quizzes.NewHandler(nil, nil), attempts.NewHandler(nil, nil),
-		review.NewSessionHandler(nil, nil), review.NewCardHandler(nil, nil), review.NewAdminHandler(nil, nil), metrics.NewHandler(nil, nil), nil, nil)
+	return newAPIRouter(a, &wiring{ho: &handlerOptions{}, clock: domain.SystemClock{}})
 }
 
-func newAPIRouter(a auth.Authenticator, meH *me.Handler, tagH *tags.Handler, problemsH *problems.Handler, quizzesH *quizzes.Handler, attemptsH *attempts.Handler, sessionsH *review.SessionHandler, cardsH *review.CardHandler, adminH *review.AdminHandler, metricsH *metrics.Handler, extraOps []openapi.Operation, extraRegister func(*platform.Router), gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
+// newAPIRouter registers openapi's own routes and then every feature's routes
+// from w, behind the scope guard.
+func newAPIRouter(a auth.Authenticator, w *wiring, gopts ...auth.GuardOption) (*platform.Router, *auth.ScopeGuard) {
 	ops, err := openapi.SpecOperations()
 	if err != nil {
 		panic("server: embedded OpenAPI spec: " + err.Error())
 	}
-	guard := auth.NewScopeGuard(a, append(ops, extraOps...), gopts...)
+	guard := auth.NewScopeGuard(a, append(ops, w.ho.extraOps...), gopts...)
 	rt := platform.NewRouter()
 	rt.SetAuthorizer(guard.Authorize)
 	openapi.Register(rt)
-	meH.Register(rt)
-	tagH.Register(rt)
-	problemsH.Register(rt)
-	quizzesH.Register(rt)
-	attemptsH.Register(rt)
-	sessionsH.Register(rt)
-	cardsH.Register(rt)
-	adminH.Register(rt)
-	metricsH.Register(rt)
-	if extraRegister != nil {
-		extraRegister(rt)
+	w.registerRoutes(rt)
+	if w.ho.extraRegister != nil {
+		w.ho.extraRegister(rt)
 	}
 	return rt, guard
 }
@@ -354,38 +344,9 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	})
 
 	clock := domain.SystemClock{}
-	meH := me.NewHandler(ho.me, logger)
-	popts := []problems.Option{problems.WithBatch(store.ProblemsBatchTx(st))}
-	if ho.tags != nil {
-		popts = append(popts, problems.WithTagResolver(ho.tags))
-	}
-	cards := store.DefaultCards()
-	if ho.cards != nil {
-		cards = *ho.cards
-	}
-	// Mastery rides on the same card parameters, so cards project first and
-	// the mastery rows follow in the attempt's transaction.
-	mastery := store.NewMastery(cards, clock)
-	problemsSvc := problems.NewService(st.Problems(), store.ProblemsEditTx(st, mastery.MajorEdit), clock, domain.NewIDGenerator(clock), popts...)
-	problemsH := problems.NewHandler(problemsSvc, logger)
-	quizzesSvc := quizzes.NewService(store.QuizzesTx(st), problemsSvc, clock, domain.NewIDGenerator(clock))
-	quizzesH := quizzes.NewHandler(quizzesSvc, logger)
-	// ho.metrics may be nil: Metrics methods tolerate a nil receiver.
-	sessionsSvc := review.NewSessionService(mastery.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock))
-	aopts := []attempts.Option{attempts.WithReader(st.Attempts()), attempts.WithAttemptRecorder(ho.metrics), attempts.WithSessions(sessionsSvc)}
-	if ho.tags != nil {
-		aopts = append(aopts, attempts.WithTagResolver(ho.tags))
-	}
-	attemptsSvc := attempts.NewService(store.AttemptsCardTx(st, mastery.CardUpdater), problemsSvc, clock,
-		domain.NewIDGenerator(clock), aopts...)
-	attemptsH := attempts.NewHandler(attemptsSvc, logger)
-	sessionsH := review.NewSessionHandler(sessionsSvc, logger)
-	var cardTags review.TagResolver
-	if ho.tags != nil {
-		cardTags = ho.tags
-	}
-	cardsH := review.NewCardHandler(review.NewCardService(st.Cards(), cardTags), logger)
-	rt, _ := newAPIRouter(auth.Chain(ho.auth), meH, tags.NewHandler(ho.tags, logger), problemsH, quizzesH, attemptsH, sessionsH, cardsH, review.NewAdminHandler(cards.Service(st, review.WithLogger(logger)), logger), metrics.NewHandler(mastery.Queries(st, ho.tagsResolver()), logger), ho.extraOps, ho.extraRegister, auth.WithGuardLogger(logger))
+	w := &wiring{ho: &ho, logger: logger, st: st, clock: clock}
+	w.build()
+	rt, _ := newAPIRouter(auth.Chain(ho.auth), w, auth.WithGuardLogger(logger))
 	// After the scope guard has authenticated the request: replays are per user.
 	rt.UseAfterAuth(platform.Idempotency(st.Idempotency(), clock, func(ctx context.Context) (domain.ID, bool) {
 		p, ok := auth.PrincipalFrom(ctx)
@@ -395,21 +356,12 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	mux := http.NewServeMux()
 	health.Register(mux)
 	rt.Mount(mux)
-	meH.RegisterRoot(mux)
+	w.registerRoot(mux)
 	if ho.web != nil {
 		ho.web.Register(mux)
 	}
 	if ho.site != nil {
-		if ho.tags != nil {
-			ho.site.UseProblems(problemsSvc, ho.tags)
-		} else {
-			ho.site.UseProblems(problemsSvc, nil)
-		}
-		ho.site.UseDrafts(problemsSvc)
-		ho.site.UseQuizzes(quizzesSvc, problemsSvc, sessionsSvc)
-		ho.site.UseToday(mastery.Builder(st), sessionsSvc, clock.Now)
-		ho.site.UseReview(sessionsSvc, attemptsSvc, problemsSvc)
-		ho.site.UseSettings(cards.SettingsService(st, review.WithLogger(logger)))
+		w.useSite(ho.site)
 		ho.site.Register(mux)
 	}
 

@@ -25,6 +25,10 @@ Open-source spaced-repetition quiz service. Go (stdlib-first), SQLite/Postgres, 
 10. **Plain `git` only.** If git (signing, push, the 1Password agent) is refused or fails, stop and report the exact refusal. No `/usr/bin/git`, proxies, hook changes or disabling signing.
 11. **Merging.** Reviewer PASS plus every required check green on the head commit; the coordinator's merge rules are in `.claude/skills/coordinate/SKILL.md` step 3.6.
 
+## Parallel work
+
+New features register themselves in `internal/server/wire_<feature>.go` (an `init` calling `addFeature`) instead of editing `server.Handler`, and new migrations are named `YYYYMMDDHHMMSS_name.sql` in both dialect directories, never the next integer. Details: CONTRIBUTING.md, "Avoiding merge conflicts between features".
+
 ## Commands
 
 - Tasks live in `mise.toml` (`mise install` once; it pins Go, Node and staticcheck). `mise run build` · `mise run test` (`go test -race ./...`) · `mise run lint` (`go vet` + `staticcheck` + Redocly lint of `api/openapi.yaml`) · chain with `mise run test ::: lint`. `mise run test-postgres` (throwaway postgres:17 via docker) · `mise run build-all` · `mise run ci` (all of CI).
