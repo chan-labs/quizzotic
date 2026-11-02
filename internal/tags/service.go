@@ -29,7 +29,17 @@ var slugRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 type Repos struct {
 	Tags     Repo
 	Ops      OpRepo
-	Problems problems.Repo
+	Problems ProblemReader
+}
+
+// ProblemReader is the part of the problems service this feature needs: the
+// owner's non-deleted problems. Features call each other only through
+// services, so tags never touches problems.Repo. The store binds it to the
+// same transaction as the other repositories.
+type ProblemReader interface {
+	// Get returns the owner's problem, or a 404 platform.Problem when it is
+	// missing, deleted or another owner's.
+	Get(ctx context.Context, ownerID, id domain.ID) (problems.View, error)
 }
 
 // Transactor runs fn atomically over transaction-bound repositories. The store
@@ -74,12 +84,6 @@ type Patch struct {
 	Slug        *string
 	Name        *string
 	Description *string
-}
-
-// TaggedProblem is a problem with the content of its current version.
-type TaggedProblem struct {
-	Problem problems.Problem
-	Version problems.Version
 }
 
 // Create makes an active tag.
@@ -194,12 +198,12 @@ func (s *Service) Update(ctx context.Context, ownerID domain.ID, ref, ifMatch st
 
 // ListProblems returns one page of the non-deleted problems carrying the tag
 // ref names, with their current versions, and the next cursor.
-func (s *Service) ListProblems(ctx context.Context, ownerID domain.ID, ref string, p platform.Page) ([]TaggedProblem, string, error) {
+func (s *Service) ListProblems(ctx context.Context, ownerID domain.ID, ref string, p platform.Page) ([]problems.View, string, error) {
 	after, err := parseCursor(p.Cursor)
 	if err != nil {
 		return nil, "", err
 	}
-	var out []TaggedProblem
+	var out []problems.View
 	next := ""
 	err = s.tx.InTx(ctx, func(r Repos) error {
 		t, err := Resolve(ctx, r.Tags, ownerID, ref)
@@ -215,15 +219,11 @@ func (s *Service) ListProblems(ctx context.Context, ownerID domain.ID, ref strin
 			next = ids[len(ids)-1].String()
 		}
 		for _, id := range ids {
-			pr, err := r.Problems.Get(ctx, ownerID, id)
+			v, err := r.Problems.Get(ctx, ownerID, id)
 			if err != nil {
 				return err
 			}
-			v, err := r.Problems.GetVersion(ctx, ownerID, id, pr.CurrentVersion)
-			if err != nil {
-				return err
-			}
-			out = append(out, TaggedProblem{Problem: pr, Version: v})
+			out = append(out, v)
 		}
 		return nil
 	})
