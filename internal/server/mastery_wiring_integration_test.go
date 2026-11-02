@@ -60,8 +60,9 @@ func TestMasteryWiredIntoServer(t *testing.T) {
 	pw := e.tagged(t, "Studied weak", weak.String())
 	ps := e.tagged(t, "Studied strong", strong.String())
 
-	if _, err := e.st.Mastery().Get(ctx, owner, weak); err == nil {
-		t.Fatal("tag_mastery row exists before any attempt")
+	// Tagging a live problem already counts its card, before any attempt.
+	if m, err := e.st.Mastery().Get(ctx, owner, weak); err != nil || m.CardsTotal != 1 || m.CardsSeen != 0 {
+		t.Fatalf("tag_mastery before any attempt = %+v (%v), want one unstudied card", m, err)
 	}
 
 	for _, p := range []problems.View{pw, ps} {

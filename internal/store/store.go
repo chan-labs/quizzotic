@@ -157,13 +157,20 @@ func (a attemptsCardTx) InCardTx(ctx context.Context, fn func(attempts.Repo, att
 
 // ProblemsBatchTx adapts a Store to problems.BatchTransactor: problems and
 // their tags are written in one store transaction.
-func ProblemsBatchTx(s Store) problems.BatchTransactor { return problemsBatchTx{s} }
+func ProblemsBatchTx(s Store) problems.BatchTransactor { return problemsBatchTx{s: s} }
 
-type problemsBatchTx struct{ s Store }
+type problemsBatchTx struct {
+	s Store
+	m *Mastery // nil: the batch does not refresh mastery
+}
 
 func (a problemsBatchTx) InBatchTx(ctx context.Context, fn func(problems.BatchScope) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
-		return fn(problems.BatchScope{Problems: tx.Problems(), Tags: tags.NewBinder(tx.Tags())})
+		sc := problems.BatchScope{Problems: tx.Problems(), Tags: tags.NewBinder(tx.Tags())}
+		if a.m != nil {
+			sc.Created = a.m.Projector(tx).UpdateProblem
+		}
+		return fn(sc)
 	})
 }
 
@@ -178,8 +185,9 @@ func (a settingsTx) InTx(ctx context.Context, fn func(settings.Repos) error) err
 	})
 }
 
-// TagsTx adapts a Store to tags.Transactor.
-// Operations through it do not rebuild mastery; see Mastery.TagsTx.
+// TagsTx adapts a Store to tags.Transactor. It is for tests of the tag rules
+// alone: operations through it do not rebuild mastery. Production uses
+// Mastery.TagsTx, and tags.Repos fails loudly when it has neither.
 func TagsTx(s Store) tags.Transactor { return tagsTx{s: s} }
 
 type tagsTx struct {
@@ -192,6 +200,8 @@ func (a tagsTx) InTx(ctx context.Context, fn func(tags.Repos) error) error {
 		r := tags.Repos{Tags: tx.Tags(), Ops: tx.TagOperations(), Problems: problems.NewReader(tx.Problems())}
 		if a.m != nil {
 			r.Mastery = tagMastery{tx: tx, m: *a.m}
+		} else {
+			r.SkipMastery = true
 		}
 		return fn(r)
 	})
@@ -209,30 +219,27 @@ func (a quizzesTx) InTx(ctx context.Context, fn func(quizzes.Repo) error) error 
 // SeedTx adapts a Store to seed.Transactor. Each InTx call builds fresh
 // problems, tags and quizzes services over one store transaction, so a seed
 // file applies completely or not at all and every write passes the services'
-// rules. majorEdit, when not nil, builds the handler told about a major edit
-// made through seeding, bound to the seed transaction (see Cards.MajorEdit); a
-// seed file's major edits then start a new card epoch like any other.
-func SeedTx(s Store, clock domain.Clock, ids *domain.IDGenerator, majorEdit func(tx Store) problems.MajorEditHandler) seed.Transactor {
-	return seedTx{s, clock, ids, majorEdit}
+// rules. m is the mastery wiring: a seed file's major edits start a new card
+// epoch, and its publishes, retirements and tag changes refresh mastery, like
+// any other write, all in the seed transaction.
+func SeedTx(s Store, clock domain.Clock, ids *domain.IDGenerator, m Mastery) seed.Transactor {
+	return seedTx{s, clock, ids, m}
 }
 
 type seedTx struct {
-	s         Store
-	clock     domain.Clock
-	ids       *domain.IDGenerator
-	majorEdit func(tx Store) problems.MajorEditHandler
+	s     Store
+	clock domain.Clock
+	ids   *domain.IDGenerator
+	m     Mastery
 }
 
 func (a seedTx) InTx(ctx context.Context, fn func(seed.Services) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
-		var popts []problems.Option
-		if a.majorEdit != nil {
-			popts = append(popts, problems.WithMajorEditHandler(a.majorEdit(tx)))
-		}
-		ps := problems.NewService(tx.Problems(), ProblemsTx(tx), a.clock, a.ids, popts...)
+		ps := problems.NewService(tx.Problems(), ProblemsTx(tx), a.clock, a.ids,
+			problems.WithMajorEditHandler(a.m.MajorEdit(tx)))
 		return fn(seed.Services{
 			Problems: ps,
-			Tags:     tags.NewService(TagsTx(tx), a.clock, a.ids),
+			Tags:     tags.NewService(a.m.TagsTx(tx), a.clock, a.ids),
 			Quizzes:  quizzes.NewService(QuizzesTx(tx), ps, a.clock, a.ids),
 			Keys:     tx.SeedKeys(),
 			Clock:    a.clock,
