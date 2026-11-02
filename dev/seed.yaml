@@ -1,0 +1,47 @@
+# Extra dev-only test data, applied after the built-in starter pack.
+version: 1
+
+tags:
+  - key: dev.tag.geography
+    slug: dev-geography
+    name: Dev geography
+    description: Sample tag for local testing.
+
+problems:
+  - key: dev.capital-france
+    type: mcq
+    prompt: What is the capital of France?
+    payload:
+      choices:
+        - {id: a, text: Paris}
+        - {id: b, text: Lyon}
+        - {id: c, text: Nice}
+      correct: [a]
+    explanation: Paris has been the capital for centuries.
+    tags: [dev.tag.geography]
+
+  - key: dev.capital-japan
+    type: mcq
+    prompt: What is the capital of Japan?
+    payload:
+      choices:
+        - {id: a, text: Kyoto}
+        - {id: b, text: Tokyo}
+        - {id: c, text: Osaka}
+      correct: [b]
+    tags: [dev.tag.geography]
+
+  - key: dev.water-formula
+    type: open
+    prompt: What is the chemical formula of water?
+    payload:
+      reference_answer: H2O
+      rubric:
+        - Two hydrogen atoms and one oxygen atom
+    tags: [dev.tag.geography]
+
+quizzes:
+  - key: dev.quiz.sample
+    title: Dev sample quiz
+    description: A tiny quiz for local testing.
+    problems: [dev.capital-france, dev.capital-japan, dev.water-formula]

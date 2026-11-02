@@ -1,0 +1,22 @@
+{
+  "interactiveLogin": false,
+  "tokenCallbacks": [
+    {
+      "issuerId": "dev",
+      "tokenExpiry": 3600,
+      "requestMappings": [
+        {
+          "requestParam": "grant_type",
+          "match": "*",
+          "claims": {
+            "sub": "dev-user-1",
+            "name": "Dev User",
+            "preferred_username": "Dev User",
+            "email": "dev@example.com",
+            "email_verified": true
+          }
+        }
+      ]
+    }
+  ]
+}
