@@ -50,6 +50,7 @@ For each ready task, up to `--max-parallel` at a time:
 4. **Record** on the Todoist task: a comment with the PR URL and review verdict. Tick the subtasks the implementer reports done.
 5. **CI:** `gh pr checks --watch`. Red CI goes back to the implementer and counts as a fix round.
 6. **Merge:** merge needs a reviewer PASS and every required check green on the exact head commit; re-check after any branch update or push. `main` requires its checks and binds admins: never use `--admin`, and never rename or remove required check jobs. With `--auto-merge`, enable GitHub auto-merge (`gh pr merge --squash --auto`) or use the merge queue, and delete the branch once merged. If the branch is behind, merge `main` into it; no force-push and no rebase of pushed branches. After merging `main`, and before pushing, run `mise run test ::: lint` locally whenever the merge touched files the task changed (plus `mise run test-postgres` for store or migration changes); CI is not the first check. Without `--auto-merge`, comment "PR ready for review" and treat the task as waiting.
+   - **Auth work** (login, sessions, token validation, OIDC settings) is not done until a real IdP check has run against an actual OIDC issuer, for example `mise run dev` with its issuer, or the maintainer's own check. Mock-only tests have hidden a real login failure.
 7. **Complete** the Todoist task only when it is merged, its Done-when passed, and it is not `needs-human`.
 8. Recompute the ready set. A task is ready only when every dependency is merged to `main`; pull `main` before the next dispatch.
 
@@ -58,6 +59,7 @@ For each ready task, up to `--max-parallel` at a time:
 - **Spec conflict** reported by an implementer or reviewer: comment the conflict on the task, skip it and its dependents, continue with the rest.
 - **Blocked** after 2 fix rounds, or an unmeetable dependency: same as above.
 - **Waiting on the maintainer** (unmerged PRs without `--auto-merge`, or `needs-human` checks): keep going on whatever else is ready; when nothing is ready, stop.
+- **Never end a turn with an armed PR that is behind `main`.** Auto-merge does not update the branch. Merge `main` in (running the local tests per step 3.6) and keep a watcher running, or say plainly in the report that the PR is armed but behind and will not merge by itself.
 - If git (signing, push, the 1Password agent) is refused or fails, stop and report the exact refusal; see `AGENTS.md` rule 10. Tell every subagent the same.
 - Never add a dependency outside the allowed list, never edit `docs/spec.md`, never push to `main` directly.
 
@@ -75,7 +77,7 @@ Post the same summary as a comment on the milestone's exit task so it is visible
 
 Run this when the maintainer asks, or after several milestones finish. Skip sections 0 to 5. The retro changes the plan, not the code: dispatch nothing without the maintainer's go-ahead.
 
-1. **Collect:** read each coordinator session's final report, not only its latest note. Then search transcripts for repeated refusals and errors, and tally CI: failed and cancelled runs, and which jobs failed.
+1. **Collect:** read each coordinator session's final report, not only its latest note. Then search transcripts for repeated refusals and errors, and tally CI: failed and cancelled runs, and which jobs failed. Also read the maintainer's comments and completions in the tracker since the last retro, and act on them: fold them into the plan, close or adjust tasks, and reply where a reply is needed.
 2. **Verify against `main`:** check each reported gap on the current `origin/main` before filing it. Reports go stale: drop what's fixed, close tasks that are done, and correct their descriptions. For anything reported as wired up, check `internal/server/server.go`.
 3. **Run it:** start the service with `mise run dev` and load the main pages. Tests passing doesn't show the app works. If it won't start, that's the first finding.
 4. **Report status:** progress per milestone, what the running app supports today, blockers, and the exact manual steps waiting on the maintainer.
