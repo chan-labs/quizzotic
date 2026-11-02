@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Package migrate applies numbered SQL migrations from an fs.FS and records
+// Package migrate applies versioned SQL migrations from an fs.FS and records
 // them in schema_migrations. Each backend passes the directory holding its
 // own dialect's SQL. Bookkeeping SQL uses ? placeholders, so a backend whose
 // driver needs another style must wrap db.
@@ -19,6 +19,24 @@ import (
 
 var nameRE = regexp.MustCompile(`^(\d+)_([a-z0-9_]+)\.sql$`)
 
+// A version is either a legacy sequence number (up to four digits, 0001 to
+// 0014 today) or a UTC timestamp of exactly 14 digits (YYYYMMDDHHMMSS). New
+// migrations use timestamps so two branches adding one never pick the same
+// number or edit a shared line. Timestamps sort after every legacy number, so
+// the applied history keeps its order and its recorded version values.
+const (
+	maxLegacyDigits = 4
+	timestampDigits = 14
+)
+
+func checkVersionDigits(file, digits string) error {
+	if n := len(digits); n > maxLegacyDigits && n != timestampDigits {
+		return fmt.Errorf("migration file %q: version must be a sequence number of up to %d digits or a %d-digit YYYYMMDDHHMMSS timestamp",
+			file, maxLegacyDigits, timestampDigits)
+	}
+	return nil
+}
+
 // Migration is one SQL file.
 type Migration struct {
 	Version int
@@ -26,8 +44,9 @@ type Migration struct {
 	SQL     string
 }
 
-// Load reads and orders the migrations in dir of fsys. Versions must be
-// unique; gaps are allowed.
+// Load reads and orders the migrations in dir of fsys. Versions (legacy
+// sequence numbers and 14-digit timestamps, see above) must be unique; gaps
+// are allowed.
 func Load(fsys fs.FS, dir string) ([]Migration, error) {
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
@@ -41,7 +60,10 @@ func Load(fsys fs.FS, dir string) ([]Migration, error) {
 		}
 		m := nameRE.FindStringSubmatch(e.Name())
 		if m == nil {
-			return nil, fmt.Errorf("migration file %q: want NNNN_name.sql", e.Name())
+			return nil, fmt.Errorf("migration file %q: want NNNN_name.sql or YYYYMMDDHHMMSS_name.sql", e.Name())
+		}
+		if err := checkVersionDigits(e.Name(), m[1]); err != nil {
+			return nil, err
 		}
 		v, _ := strconv.Atoi(m[1])
 		if prev, dup := seen[v]; dup {
@@ -75,6 +97,12 @@ type Dialect struct {
 	AppliedAtType string
 	// AppliedAt converts the apply time to a value of that type.
 	AppliedAt func(time.Time) any
+	// VersionType is the column type of schema_migrations.version; empty is
+	// INTEGER. Timestamp versions need 64 bits.
+	VersionType string
+	// AfterCreate, if set, runs once the table exists, to bring a table
+	// created by an older release up to VersionType.
+	AfterCreate string
 	// Lock, if set, runs before any migration and returns a release func.
 	// A backend uses it to serialize concurrent migrators.
 	Lock func(ctx context.Context) (release func(), err error)
@@ -98,6 +126,10 @@ func UpDialect(ctx context.Context, db *sql.DB, fsys fs.FS, dir string, d Dialec
 	if appliedAt == nil {
 		appliedAt = func(t time.Time) any { return t.UnixMilli() }
 	}
+	verType := d.VersionType
+	if verType == "" {
+		verType = "INTEGER"
+	}
 	if d.Lock != nil {
 		release, err := d.Lock(ctx)
 		if err != nil {
@@ -106,11 +138,16 @@ func UpDialect(ctx context.Context, db *sql.DB, fsys fs.FS, dir string, d Dialec
 		defer release()
 	}
 	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
-		version INTEGER PRIMARY KEY,
+		version `+verType+` PRIMARY KEY,
 		name TEXT NOT NULL,
 		applied_at `+colType+` NOT NULL
 	)`); err != nil {
 		return nil, fmt.Errorf("create schema_migrations: %w", err)
+	}
+	if d.AfterCreate != "" {
+		if _, err := db.ExecContext(ctx, d.AfterCreate); err != nil {
+			return nil, fmt.Errorf("upgrade schema_migrations: %w", err)
+		}
 	}
 	done, err := recorded(ctx, db)
 	if err != nil {
@@ -131,7 +168,7 @@ func UpDialect(ctx context.Context, db *sql.DB, fsys fs.FS, dir string, d Dialec
 		}
 		if _, err := tx.ExecContext(ctx, m.SQL); err != nil {
 			tx.Rollback()
-			return applied, fmt.Errorf("migration %04d_%s: %w", m.Version, m.Name, err)
+			return applied, fmt.Errorf("migration %s: %w", fileStem(m), err)
 		}
 		if _, err := tx.ExecContext(ctx, rebind(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`),
 			m.Version, m.Name, appliedAt(time.Now())); err != nil {
@@ -144,6 +181,14 @@ func UpDialect(ctx context.Context, db *sql.DB, fsys fs.FS, dir string, d Dialec
 		applied = append(applied, m.Version)
 	}
 	return applied, nil
+}
+
+// fileStem is the migration's file name without .sql, padded as on disk.
+func fileStem(m Migration) string {
+	if m.Version >= 1e13 {
+		return fmt.Sprintf("%d_%s", m.Version, m.Name)
+	}
+	return fmt.Sprintf("%04d_%s", m.Version, m.Name)
 }
 
 func recorded(ctx context.Context, db *sql.DB) (map[int]string, error) {

@@ -43,7 +43,7 @@ func TestMigrationParity(t *testing.T) {
 	}
 	for i := range sq {
 		if sq[i].Version != pg[i].Version || sq[i].Name != pg[i].Name {
-			t.Errorf("migration %d: sqlite %04d_%s, postgres %04d_%s",
+			t.Errorf("migration %d: sqlite %d_%s, postgres %d_%s",
 				i, sq[i].Version, sq[i].Name, pg[i].Version, pg[i].Name)
 		}
 	}

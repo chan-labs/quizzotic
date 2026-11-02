@@ -87,3 +87,59 @@ func TestUpDetectsRenamedMigration(t *testing.T) {
 		t.Fatal("renamed migration accepted")
 	}
 }
+
+func TestLoadOrdersLegacyBeforeTimestamps(t *testing.T) {
+	fsys := fstest.MapFS{
+		"d/20261102120000_later.sql":   {},
+		"d/0014_last_legacy.sql":       {},
+		"d/20261101090000_earlier.sql": {},
+		"d/0002_b.sql":                 {},
+	}
+	got, err := Load(fsys, "d")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vs []int
+	for _, m := range got {
+		vs = append(vs, m.Version)
+	}
+	want := []int{2, 14, 20261101090000, 20261102120000}
+	if !reflect.DeepEqual(vs, want) {
+		t.Fatalf("order = %v, want %v", vs, want)
+	}
+}
+
+func TestLoadRejectsAmbiguousVersionWidths(t *testing.T) {
+	for _, name := range []string{"d/20261102_x.sql", "d/00001_x.sql", "d/202611021200000_x.sql"} {
+		if _, err := Load(fstest.MapFS{name: {}}, "d"); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
+// A database that applied the legacy numbers keeps them as recorded, and a
+// timestamped migration added later applies after them, once.
+func TestUpAppliesTimestampedAfterLegacy(t *testing.T) {
+	db := openDB(t)
+	ctx := context.Background()
+	legacy := fstest.MapFS{"d/0001_a.sql": {Data: []byte(`CREATE TABLE a (n INTEGER);`)}}
+	if _, err := Up(ctx, db, legacy, "d"); err != nil {
+		t.Fatal(err)
+	}
+	both := fstest.MapFS{
+		"d/0001_a.sql":               legacy["d/0001_a.sql"],
+		"d/20261102120000_b.sql":     {Data: []byte(`INSERT INTO a VALUES (2);`)},
+		"d/20261102120500_c_two.sql": {Data: []byte(`INSERT INTO a VALUES (3);`)},
+	}
+	got, err := Up(ctx, db, both, "d")
+	if err != nil || !reflect.DeepEqual(got, []int{20261102120000, 20261102120500}) {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	var v int
+	if err := db.QueryRow(`SELECT version FROM schema_migrations WHERE name='a'`).Scan(&v); err != nil || v != 1 {
+		t.Fatalf("legacy version = %d, %v", v, err)
+	}
+	if got, err = Up(ctx, db, both, "d"); err != nil || len(got) != 0 {
+		t.Fatalf("rerun = %v, %v", got, err)
+	}
+}
