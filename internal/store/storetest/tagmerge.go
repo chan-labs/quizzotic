@@ -129,6 +129,34 @@ func runTagMerge(t *testing.T, newStore NewStore) {
 		}
 	})
 
+	t.Run("chained merges A into B into C resolve A to C", func(t *testing.T) {
+		s, a, _ := setup(t)
+		ta, tb, tc := mk(t, s, a, "chain-a"), mk(t, s, a, "chain-b"), mk(t, s, a, "chain-c")
+		p := mkProblem(t, s, a, ta.ID)
+		if err := s.Tags().Merge(ctx, a.ID, []domain.ID{ta.ID}, tb.ID, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Tags().Merge(ctx, a.ID, []domain.ID{tb.ID}, tc.ID, now.Add(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+		if got := tagIDsOf(t, s, a, p); !slices.Equal(got, []string{"chain-c"}) {
+			t.Fatalf("problem tags = %v", got)
+		}
+		for _, ref := range []string{ta.ID.String(), tb.ID.String(), "chain-a", "chain-b"} {
+			got, err := tags.Resolve(ctx, s.Tags(), a.ID, ref)
+			if err != nil {
+				t.Fatalf("resolve %q: %v", ref, err)
+			}
+			final, err := tags.FollowMerged(ctx, s.Tags(), a.ID, got)
+			if err != nil || final.ID != tc.ID || final.Status != tags.StatusActive {
+				t.Fatalf("%q -> %+v, %v; want C", ref, final, err)
+			}
+		}
+		if at, err := s.Tags().GetByAlias(ctx, a.ID, "chain-a"); err != nil || at.ID != tc.ID {
+			t.Fatalf("alias chain-a -> %+v, %v", at, err)
+		}
+	})
+
 	t.Run("merge refuses another owner's tag and changes nothing", func(t *testing.T) {
 		s, a, b := setup(t)
 		src, dst, foreign := mk(t, s, a, "x"), mk(t, s, a, "y"), mk(t, s, b, "z")
