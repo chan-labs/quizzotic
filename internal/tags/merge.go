@@ -36,7 +36,7 @@ type MergeResult struct {
 // and target must be active, distinct tags of the owner.
 func (s *Service) Merge(ctx context.Context, ownerID domain.ID, in MergeInput) (MergeResult, error) {
 	var out MergeResult
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err := s.mutate(ctx, ownerID, func(r Repos) error {
 		var err error
 		out, err = s.merge(ctx, r, ownerID, in)
 		return err
