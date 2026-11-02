@@ -11,3 +11,5 @@ SETUP.md
 /bin/
 /dist/
 /deploy/.env
+# Local dev stack state (mise run dev)
+/.dev/
