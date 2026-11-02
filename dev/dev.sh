@@ -5,7 +5,8 @@
 #
 # Environment:
 #   QUIZZOTIC_DEV_PORT         server port (default 8089)
-#   QUIZZOTIC_DEV_ISSUER_PORT  fake issuer port (default 8099)
+#   QUIZZOTIC_DEV_ISSUER_PORT  fake issuer port (default 8099); the database is
+#                              .dev/quizzotic-<issuer port>.db
 # Needs Docker: the issuer is navikt/mock-oauth2-server (config in
 # dev/mock-oauth2.json), issuer URL http://localhost:<port>/dev.
 set -euo pipefail
@@ -25,7 +26,12 @@ mkdir -p "$STATE/bin"
 export QUIZZOTIC_SERVER_LISTEN="127.0.0.1:${PORT}"
 export QUIZZOTIC_SERVER_PUBLIC_URL="http://localhost:${PORT}"
 export QUIZZOTIC_AUTH_ISSUERS_0_ISSUER="http://localhost:${ISSUER_PORT}/dev"
-
+# A user is keyed by (issuer, subject) and the issuer URL carries the port, so
+# a database signed into under another issuer port would hold a second user and
+# `admin seed` ("the only user") would refuse. Keep one database per issuer
+# port: changing the port starts a fresh, correctly seeded database.
+DB="$STATE/quizzotic-${ISSUER_PORT}.db"
+export QUIZZOTIC_STORAGE_URL="sqlite://${DB}"
 wait_for() { # url
 	for _ in $(seq 1 100); do
 		curl -fsS -o /dev/null "$1" 2>/dev/null && return 0
@@ -75,8 +81,8 @@ server)
 	run_server
 	;;
 reset)
-	rm -f "$STATE"/quizzotic.db "$STATE"/quizzotic.db-shm "$STATE"/quizzotic.db-wal
-	echo "dev: removed $STATE/quizzotic.db"
+	rm -f "$STATE"/quizzotic*.db "$STATE"/quizzotic*.db-shm "$STATE"/quizzotic*.db-wal
+	echo "dev: removed $STATE/quizzotic*.db"
 	;;
 all)
 	build

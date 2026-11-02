@@ -36,9 +36,9 @@ func TestGoldenToolList(t *testing.T) {
 	}
 	want, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("%v (run `make golden` to create it)", err)
+		t.Fatalf("%v (run `mise run golden` to create it)", err)
 	}
 	if string(want) != string(got) {
-		t.Errorf("%s is out of date; run `make golden` and review the diff.", path)
+		t.Errorf("%s is out of date; run `mise run golden` and review the diff.", path)
 	}
 }

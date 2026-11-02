@@ -22,6 +22,10 @@ run = "go test -race ./..."
 description = "go vet"
 run = "go vet ./..."
 
+[tasks.gofmt]
+description = "Fail if any Go file is not gofmt-formatted"
+run = 'out="$(gofmt -l .)"; if [ -n "$out" ]; then echo "gofmt needed:" >&2; echo "$out" >&2; exit 1; fi'
+
 [tasks.staticcheck]
 description = "staticcheck"
 run = "staticcheck ./..."
@@ -32,8 +36,8 @@ description = "Redocly lint of api/openapi.yaml"
 run = "npx --yes @redocly/cli@1.34.5 lint api/openapi.yaml"
 
 [tasks.lint]
-description = "go vet + staticcheck + Redocly lint"
-depends = ["vet", "staticcheck", "openapi-lint"]
+description = "gofmt check + go vet + staticcheck + Redocly lint"
+depends = ["gofmt", "vet", "staticcheck", "openapi-lint"]
 
 # Regenerate the CLI help and MCP tool-list golden files after an intentional
 # change to api/openapi.yaml or the generators. Review the diff before committing.
@@ -56,7 +60,7 @@ description = "Run only the dev server (needs dev-issuer running)"
 run = "dev/dev.sh server"
 
 [tasks.dev-reset]
-description = "Delete the dev database (.dev/quizzotic.db)"
+description = "Delete the dev databases (.dev/quizzotic*.db)"
 run = "dev/dev.sh reset"
 
 [tasks.release-check]
@@ -107,6 +111,9 @@ for goos in linux darwin windows; do
   echo "go build ./... (GOOS=$goos GOARCH=amd64 CGO_ENABLED=0)"
   CGO_ENABLED=0 GOOS=$goos GOARCH=amd64 go build ./...
 done
+# 32-bit guard: 14-digit migration versions must not overflow int.
+echo "go vet ./internal/store/... (GOOS=linux GOARCH=386 CGO_ENABLED=0)"
+CGO_ENABLED=0 GOOS=linux GOARCH=386 go vet ./internal/store/...
 '''
 
 [tasks.ci]

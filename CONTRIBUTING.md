@@ -26,8 +26,6 @@ mise run ci           # everything CI runs: lint, test, test-postgres, build-all
 mise run test ::: lint  # several tasks in one go
 ```
 
-The old `make <task>` targets still work; they are a thin shim over `mise run <task>`.
-
 ## Run it locally
 
 ```sh
@@ -38,8 +36,8 @@ Prerequisite: Docker. Then open <http://localhost:8089/>. The fake issuer is
 [navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server)
 (image pinned in `dev/dev.sh`, config in `dev/mock-oauth2.json`, issuer URL
 `http://localhost:8099/dev`). It signs in a fixed test user (`dev@example.com`)
-with no password, so the browser lands straight on the Today page. The database is `.dev/quizzotic.db`
-(gitignored), seeded with the starter pack plus `dev/seed.yaml`. Ports come
+with no password, so the browser lands straight on the Today page. The database is `.dev/quizzotic-<issuer port>.db`
+(gitignored; one per issuer port, so changing the port starts a fresh, seeded one), seeded with the starter pack plus `dev/seed.yaml`. Ports come
 from `QUIZZOTIC_DEV_PORT` (8089) and `QUIZZOTIC_DEV_ISSUER_PORT` (8099).
 `mise run dev-issuer` and `mise run dev-server` run the halves separately, and
 `mise run dev-reset` deletes the database. `.claude/launch.json` lets an agent
