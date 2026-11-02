@@ -1,0 +1,44 @@
+{{define "frame"}}<title id="{{.ID}}-title">{{.Title}}</title>
+<desc id="{{.ID}}-desc">{{.Desc}}</desc>
+<g class="grid" aria-hidden="true">
+{{range .YTicks}}<line x1="{{$.Left}}" x2="{{$.Right}}" y1="{{.Y}}" y2="{{.Y}}"/>
+<text x="{{$.Left}}" y="{{.Y}}" dx="-6" dy="4" text-anchor="end">{{.Label}}</text>
+{{end}}</g>
+<g class="xlabels" aria-hidden="true">
+{{range .XLabels}}<text x="{{.X}}" y="{{$.H}}" dy="-8" text-anchor="{{.Anchor}}">{{.Text}}</text>
+{{end}}</g>{{end}}
+
+{{define "datatable"}}<details class="chart-data">
+<summary>Show data as a table</summary>
+<table>
+  <caption class="muted">{{.Title}}</caption>
+  <thead><tr>{{range .Table.Head}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
+  <tbody>
+  {{range .Table.Rows}}<tr>{{range $i, $c := .}}{{if eq $i 0}}<th scope="row">{{$c}}</th>{{else}}<td>{{$c}}</td>{{end}}{{end}}</tr>
+  {{end}}</tbody>
+</table>
+</details>{{end}}
+
+{{define "barchart"}}<figure class="chart">
+<figcaption>{{.Title}}</figcaption>
+{{if .Legend}}<ul class="legend" aria-label="Legend">{{range $i, $n := .Legend}}<li><span class="swatch s{{$i}}" aria-hidden="true"></span>{{$n}}</li>{{end}}</ul>{{end}}
+<svg viewBox="0 0 {{.W}} {{.H}}" role="img" aria-labelledby="{{.ID}}-title {{.ID}}-desc" preserveAspectRatio="xMidYMid meet">
+{{template "frame" .}}
+<g class="bars">
+{{range .Bars}}<rect class="bar s{{.Series}}" x="{{.X}}" y="{{.Y}}" width="{{.W}}" height="{{.H}}"><title>{{.Tip}}</title></rect>
+{{end}}</g>
+</svg>
+{{template "datatable" .}}
+</figure>{{end}}
+
+{{define "linechart"}}<figure class="chart">
+<figcaption>{{.Title}}</figcaption>
+<svg viewBox="0 0 {{.W}} {{.H}}" role="img" aria-labelledby="{{.ID}}-title {{.ID}}-desc" preserveAspectRatio="xMidYMid meet">
+{{template "frame" .}}
+{{if .Path}}<path class="line" d="{{.Path}}"/>{{end}}
+<g class="points">
+{{range .Points}}<circle class="dot" cx="{{.X}}" cy="{{.Y}}" r="3.5"><title>{{.Tip}}</title></circle>
+{{end}}</g>
+</svg>
+{{template "datatable" .}}
+</figure>{{end}}

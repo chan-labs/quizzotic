@@ -5,6 +5,7 @@ package server
 import (
 	"github.com/chan-labs/quizzotic/internal/metrics"
 	"github.com/chan-labs/quizzotic/internal/platform"
+	"github.com/chan-labs/quizzotic/internal/web"
 )
 
 func init() {
@@ -15,5 +16,6 @@ func init() {
 			w.queries = w.mastery.Queries(w.st, w.ho.tagsResolver())
 		},
 		Routes: func(w *wiring, rt *platform.Router) { metrics.NewHandler(w.queries, w.logger).Register(rt) },
+		Site:   func(w *wiring, site *web.Web) { site.UseMetrics(w.queries) },
 	})
 }
