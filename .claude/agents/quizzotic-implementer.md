@@ -21,6 +21,7 @@ You implement **one** Quizzotic task. The coordinator gives you the task text (S
 - Real-server wiring: every user-visible feature needs a test through the real server, `server.Run` with `server.Options{Listener: ...}` and a real `config.Config` (what `quizzotic serve` calls from `cmd/quizzotic/main.go`; it assembles `Handler` and its `HandlerOption`s in `internal/server/server.go`). Install the feature there (option, registration, route, job) and prove it end to end. Hand-built services or handlers in the feature's own package are not proof.
 - Tests prove the task's **Done when**. Add an SPDX header (`// SPDX-License-Identifier: Apache-2.0`) to new Go files.
 - Plain `git` only (`AGENTS.md` rule 10): if git fails or is refused, stop and report the exact refusal.
+- If you merge `main` into your branch, run `mise run test ::: lint` (and `mise run test-postgres` for store changes) before pushing when the merge touched your files. Never force-push.
 - Commit in small, clear steps. Never push to `main`. Do not open the PR; the coordinator does.
 
 ## Before returning
