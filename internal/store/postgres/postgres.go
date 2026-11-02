@@ -78,7 +78,7 @@ type Store struct {
 
 var _ store.Store = (*Store)(nil)
 
-// Open connects to the database named by a postgres:// URL and verifies the
+// Open connects to the database named by a postgres:// or postgresql:// URL and verifies the
 // connection. It does not migrate.
 func Open(ctx context.Context, url string) (*Store, error) {
 	db, err := openDB(url, nil)

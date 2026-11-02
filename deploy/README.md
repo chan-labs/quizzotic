@@ -48,7 +48,7 @@ The issuer URL must be reachable from the Quizzotic container at the same URL br
 | `pocket-id-data` | Pocket ID database, keys, uploads | Yes, together with `POCKET_ID_ENCRYPTION_KEY`. |
 | `caddy-data` | Issued certificates | Optional. |
 
-A one-shot `quizzotic-data-init` service makes `quizzotic-data` writable for the image's non-root user (uid 65532). To use PostgreSQL instead, set `storage.url` to a `postgres://` URL and drop the volume.
+A one-shot `quizzotic-data-init` service makes `quizzotic-data` writable for the image's non-root user (uid 65532). To use PostgreSQL instead, set `storage.url` to a `postgres://` or `postgresql://` URL and drop the volume.
 
 ## Health checks
 

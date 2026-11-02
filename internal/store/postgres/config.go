@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// pgxParse parses a postgres:// URL. The parser's error can quote the URL, so
+// pgxParse parses a postgres:// or postgresql:// URL. The parser's error can quote the URL, so
 // it is replaced by one that never carries the password.
 func pgxParse(url string) (*pgx.ConnConfig, error) {
 	cfg, err := pgx.ParseConfig(url)

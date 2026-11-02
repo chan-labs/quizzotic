@@ -328,7 +328,7 @@ Storage is one Go interface, `store.Store`, with SQLite as the default and Postg
 - **SQLite**: single file, WAL mode, `busy_timeout` 5 s, timestamps as Unix milliseconds, JSON as TEXT.
 - **Postgres**: timestamps as `timestamptz`, JSON as `jsonb`.
 - **Migrations**: plain SQL per dialect, embedded with `embed`, numbered, recorded in `schema_migrations`, applied by `quizzotic admin migrate` or on `serve` start when `storage.auto_migrate` is true.
-- **Driver selection**: the scheme of `storage.url` picks the backend — `sqlite://path/to/file.db` or `postgres://user:pass@host/db`. An unknown scheme refuses to start.
+- **Driver selection**: the scheme of `storage.url` picks the backend — `sqlite://path/to/file.db` or `postgres://user:pass@host/db` (`postgresql://` is accepted too). An unknown scheme refuses to start.
 - **Seeding**: `quizzotic admin seed <file>` and `storage.seed` (applied on start) load tags, problems and quizzes from YAML. Every item has a stable `key`, so re-running updates in place instead of duplicating. Seeded rows belong to `--owner` (default: the only user), are recorded with actor kind `system`, and are `live` unless the file says `draft`. Built-in packs are embedded and referenced as `builtin:<name>`.
 - **Starter pack**: `builtin:fsrs-basics` ships about 40 problems on spaced repetition and FSRS — the forgetting curve, stability, difficulty, retrievability, ratings, desired retention — plus how to use Quizzotic. It also serves as the end-to-end test fixture.
 - **Conformance suite**: `storetest.Run(t, newStore)` runs the same behavioral tests against each backend. CI runs SQLite always and Postgres in a service container.
@@ -343,7 +343,7 @@ server:
   public_url: "https://quizzotic.example.com"
   session_ttl: "720h"
 storage:
-  url: "sqlite://quizzotic.db"  # scheme picks the driver: sqlite:// or postgres://
+  url: "sqlite://quizzotic.db"  # scheme picks the driver: sqlite://, postgres:// or postgresql://
   seed: ["builtin:fsrs-basics"]  # loaded on start; keyed, so safe to re-run
   auto_migrate: true
 auth:
