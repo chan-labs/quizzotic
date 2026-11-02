@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="t">
+  <title id="t">Quizzotic logomark: a stack of flashcards with a check mark and a spark, with a faint forgetting curve on the front card</title>
+  <rect x="9" y="14" width="28" height="38" rx="5" transform="rotate(-13 23 33)" fill="#134E4A" stroke="#E2E8F0" stroke-width="2.5"/>
+  <rect x="14" y="12" width="28" height="38" rx="5" transform="rotate(-3 28 31)" fill="#0F766E" stroke="#E2E8F0" stroke-width="2.5"/>
+  <rect x="20" y="11" width="28" height="38" rx="5" transform="rotate(8 34 30)" fill="#0F172A" stroke="#E2E8F0" stroke-width="2.5"/>
+  <path d="M25 18 C27 36 33 42 45 43.5" transform="rotate(8 34 30)" fill="none" stroke="#0F766E" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M28 31 L34 37.5 L44 24" fill="none" stroke="#5EEAD4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M53 6 L55 12 L61 14 L55 16 L53 22 L51 16 L45 14 L51 12 Z" fill="#FBBF24" stroke="#E2E8F0" stroke-width="1.6" stroke-linejoin="round"/>
+</svg>

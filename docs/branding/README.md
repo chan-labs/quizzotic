@@ -25,6 +25,10 @@ Three stacked flashcards with a teal check on the front card and an amber spark 
 
 Colors: ink `#0F172A`, teal `#0F766E` / `#5EEAD4` / `#99F6E4`, spark `#F59E0B`; wordmark `#0F172A`. Dark: ink `#E2E8F0`, front card `#0F172A`, check `#5EEAD4`, spark `#FBBF24`; wordmark `#E2E8F0`.
 
+### B-curve. Card stack with a forgetting-curve easter egg
+
+Option B, unchanged in silhouette, plus a thin forgetting curve (steep exponential decay flattening out, the Ebbinghaus shape) drawn on the front card behind the check. It is a 1.6-unit line in a pale teal, so at 16-32 px it disappears into the card and the mark reads exactly as B; at larger sizes it shows up as a quiet nod to spaced repetition. Same colors as B, with the curve in `#5EEAD4` (light) and `#0F766E` (dark). Files live in `option-b-curve/`.
+
 ### C. Review Q
 
 A bold monogram Q in a single color. The tail is an arrow, so the letter itself reads as "go again". Strongest as a favicon and app icon; one color keeps it easiest to reproduce.
@@ -37,6 +41,7 @@ Colors: burnt orange `#C2410C`; wordmark `#7C2D12`. Dark: `#FB923C`; wordmark `#
 | --- | --- | --- | --- | --- |
 | A | <img src="option-a/logomark.svg" width="64" alt="Option A logomark"> | <img src="option-a/logo.svg" width="220" alt="Option A logo"> | <img src="option-a/logomark-dark.svg" width="64" alt="Option A logomark, dark"> | <img src="option-a/logo-dark.svg" width="220" alt="Option A logo, dark"> |
 | B | <img src="option-b/logomark.svg" width="64" alt="Option B logomark"> | <img src="option-b/logo.svg" width="220" alt="Option B logo"> | <img src="option-b/logomark-dark.svg" width="64" alt="Option B logomark, dark"> | <img src="option-b/logo-dark.svg" width="220" alt="Option B logo, dark"> |
+| B-curve | <img src="option-b-curve/logomark.svg" width="64" alt="Option B-curve logomark"> | <img src="option-b-curve/logo.svg" width="220" alt="Option B-curve logo"> | <img src="option-b-curve/logomark-dark.svg" width="64" alt="Option B-curve logomark, dark"> | <img src="option-b-curve/logo-dark.svg" width="220" alt="Option B-curve logo, dark"> |
 | C | <img src="option-c/logomark.svg" width="64" alt="Option C logomark"> | <img src="option-c/logo.svg" width="220" alt="Option C logo"> | <img src="option-c/logomark-dark.svg" width="64" alt="Option C logomark, dark"> | <img src="option-c/logo-dark.svg" width="220" alt="Option C logo, dark"> |
 
 The dark variants have transparent backgrounds, so on a light page (such as GitHub's light theme) they appear washed out in this table; view them on a dark background.
