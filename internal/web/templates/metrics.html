@@ -1,0 +1,22 @@
+{{define "content"}}<link rel="stylesheet" href="/static/metrics.css">
+<h1>Metrics</h1>
+{{with .Data}}
+<section aria-labelledby="overview-h">
+  <h2 id="overview-h">Overview</h2>
+  <dl class="stats">
+    <div><dt>Recall now</dt><dd id="recall">{{.Recall}}</dd><dd class="muted">mean over {{.CardsStudied}} studied cards</dd></div>
+    <div><dt>True retention</dt><dd id="retention">{{.Retention}}</dd><dd class="muted">{{.RetentionReviews}} reviews in {{.WindowDays}} days, desired {{.DesiredRetention}}</dd></div>
+    <div><dt>Tags studied</dt><dd id="tags-studied">{{.TagsStudied}} <span class="muted">of {{.Tags}}</span></dd><dd class="muted"><a href="/tags">Mastery by tag</a></dd></div>
+    <div><dt>Due this week</dt><dd id="due-total">{{.DueTotal}}</dd><dd class="muted">cards, today and the next {{.ForecastDays}} days</dd></div>
+  </dl>
+</section>
+<section aria-labelledby="due-h">
+  <h2 id="due-h">Due forecast</h2>
+  {{template "barchart" .Due}}
+</section>
+<section aria-labelledby="activity-h">
+  <h2 id="activity-h">Activity</h2>
+  {{template "barchart" .Activity}}
+</section>
+{{end}}
+{{end}}
