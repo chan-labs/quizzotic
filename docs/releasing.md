@@ -29,6 +29,8 @@ Both run GoReleaser through `go run`, so no separate install is needed;
 
 ## Running the image
 
+The image runs as the numeric user `65532:65532` (distroless `nonroot`), so it starts under Kubernetes `runAsNonRoot: true` with no `runAsUser` override. A mounted data volume must be writable by uid/gid 65532 (for example `fsGroup: 65532`).
+
 ```sh
 docker run --rm -p 8080:8080 \
   -v "$PWD/quizzotic.yaml:/etc/quizzotic/quizzotic.yaml:ro" \
