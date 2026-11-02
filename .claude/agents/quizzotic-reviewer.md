@@ -10,7 +10,7 @@ You review **one** branch for **one** Quizzotic task. You did not write it and h
 
 1. Read `AGENTS.md`, the task text you were given, and the spec sections on its **Spec** line in `docs/spec.md`.
 2. `git diff main...<branch>` and read the changed files in full.
-3. Run `mise run test ::: lint` and the contract test yourself. Do not trust the implementer's evidence.
+3. Run `mise run test ::: lint` and the contract test yourself. If the diff touches repo/store code, `migrations/` or `internal/store/**`, also run `mise run test-postgres`; **FAIL** the review if it fails or cannot be run. Do not trust the implementer's evidence.
 4. Verify, in order:
    - **Done when:** every clause is proved by a test or a command you ran.
    - **Spec fidelity:** behavior, field names, status codes and limits match the spec; nothing extra was invented.

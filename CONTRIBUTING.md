@@ -8,7 +8,7 @@ Thanks for helping. Please read the [Code of Conduct](CODE_OF_CONDUCT.md). The d
 2. **Layering.** Feature packages (`internal/<feature>`) go `handler.go` -> `service.go` -> `repo.go`. Handlers do HTTP only; services hold rules and transactions; repos are interfaces implemented in `internal/store/<backend>`. Features call each other only through services. `internal/fsrs` and `internal/grading` are pure leaf packages with no I/O.
 3. **Dependencies.** Only those in [`docs/dependencies.md`](docs/dependencies.md). Anything else needs maintainer approval and an entry there.
 4. **Data rules.** Attempts are append-only. Every repo method takes the owner user ID. Register new endpoints with the owner-scoping test helper.
-5. **Tests.** New repo behavior gets conformance cases in `internal/store/storetest`. Run `mise run test ::: lint` before opening a PR.
+5. **Tests.** New repo behavior gets conformance cases in `internal/store/storetest`. Run `mise run test ::: lint` before opening a PR; if you touch repo/store code, `migrations/` or `internal/store/**`, also run `mise run test-postgres`.
 6. **SPDX headers.** New Go files start with `// SPDX-License-Identifier: Apache-2.0`.
 7. **One change, one PR**, with a clear description. Add notable changes to [CHANGELOG.md](CHANGELOG.md) under "Unreleased".
 
@@ -20,6 +20,9 @@ mise run build        # build the quizzotic binary
 mise run test         # go test -race ./...
 mise run lint         # go vet + staticcheck + Redocly lint of api/openapi.yaml
 mise run golden       # regenerate CLI help and MCP tool-list goldens
+mise run test-postgres  # Postgres store suite in a throwaway postgres:17 container (needs docker)
+mise run build-all    # cross-compile for linux, darwin, windows (CGO_ENABLED=0)
+mise run ci           # everything CI runs: lint, test, test-postgres, build-all, release-check
 mise run test ::: lint  # several tasks in one go
 ```
 
