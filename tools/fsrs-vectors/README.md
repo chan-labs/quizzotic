@@ -6,17 +6,21 @@ Dev-only tool. It exports FSRS-6 reference test vectors from
 is checked against that file. Nothing here ships in the Quizzotic binary or
 runs in CI.
 
-py-fsrs is pinned in `requirements.txt` (`fsrs==6.3.2`, FSRS-6 default
+py-fsrs is pinned in the script's inline metadata (PEP 723; `fsrs==6.3.2`, FSRS-6 default
 parameters, desired retention 0.90, learning and relearning steps both 1 m and
 10 m as the spec requires, fuzzing off).
 
 ## Regenerate
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -r tools/fsrs-vectors/requirements.txt
-.venv/bin/python tools/fsrs-vectors/generate.py
+uv run tools/fsrs-vectors/generate.py
+# or
+mise run fsrs-vectors
 ```
+
+`uv` is installed by `mise install` (see `mise.toml`). It resolves the pinned
+dependency from the script's inline metadata, so there is no venv or
+requirements file to manage.
 
 Output is deterministic (fixed seed, no fuzzing), so regenerating with the same
 pinned version produces a byte-identical file. Bump the pin only deliberately,
