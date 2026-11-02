@@ -1,0 +1,60 @@
+{{define "content"}}<link rel="stylesheet" href="/static/metrics.css">
+<link rel="stylesheet" href="/static/tagops.css">
+<h1>Tag operations</h1>
+<p><a href="/tag-operations/rename">Rename</a> · <a href="/tag-operations/merge">Merge</a> · <a href="/tag-operations/split">Split</a> · <a href="/tags">Back to tags</a></p>
+{{with .Data}}
+{{if .Notice}}<p class="notice" role="status">{{.Notice}}</p>{{end}}
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+<section aria-labelledby="pending-h">
+<h2 id="pending-h">Waiting for approval</h2>
+{{if .Pending}}
+{{range .Pending}}<article class="op{{if .Highlight}} highlight{{end}}" id="op-{{.ID}}" aria-labelledby="op-{{.ID}}-h">
+  <h3 id="op-{{.ID}}-h">{{.Summary}}</h3>
+  <p class="muted">Proposed by {{.By}} on {{.Created}}.</p>
+  {{if .PreviewError}}<p class="error" role="alert">This operation no longer applies: {{.PreviewError}}. Reject it.</p>
+  {{else if .HasPreview}}
+  <table class="tags">
+    <caption>Preview: {{.Affected}} problem{{if ne .Affected 1}}s{{end}} change tags. No attempt history changes.</caption>
+    <thead><tr><th scope="col">Tag</th><th scope="col">Status afterwards</th><th scope="col">Problems before</th><th scope="col">Problems after</th></tr></thead>
+    <tbody>{{range .Effects}}<tr>
+      <th scope="row">{{.Name}} <span class="muted">({{.Slug}}){{if .Created}} new{{end}}</span></th>
+      <td>{{.Status}}</td><td>{{.Before}}</td><td>{{.After}}</td></tr>
+    {{end}}</tbody>
+  </table>{{end}}
+  <div class="actions">
+    {{if not .PreviewError}}<form method="post" action="/tag-operations/{{.ID}}/apply">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <button type="submit" class="primary">Apply<span class="sr-only"> {{.Summary}}</span></button>
+    </form>{{end}}
+    <form method="post" action="/tag-operations/{{.ID}}/reject">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <button type="submit">Reject<span class="sr-only"> {{.Summary}}</span></button>
+    </form>
+  </div>
+</article>
+{{end}}
+{{else}}<p class="muted">Nothing is waiting. Agents propose splits, merges and renames here, and so do the forms above.</p>{{end}}
+</section>
+
+<section aria-labelledby="applied-h">
+<h2 id="applied-h">Applied</h2>
+{{if .Applied}}
+<table class="tags">
+  <caption class="sr-only">Applied tag operations, newest first</caption>
+  <thead><tr><th scope="col">Operation</th><th scope="col">Proposed by</th><th scope="col">Applied (UTC)</th><th scope="col">Revert</th></tr></thead>
+  <tbody>{{range .Applied}}<tr id="op-{{.ID}}">
+    <th scope="row">{{.Summary}}</th>
+    <td>{{.By}}</td>
+    <td>{{.Decided}}</td>
+    <td>{{if .Reverted}}Reverted {{.Reverted}}{{else}}<form method="post" action="/tag-operations/{{.ID}}/revert">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <button type="submit">Revert<span class="sr-only"> {{.Summary}}</span></button>
+    </form>{{end}}</td>
+  </tr>
+  {{end}}</tbody>
+</table>
+{{else}}<p class="muted">No operation has been applied yet.</p>{{end}}
+</section>
+{{end}}
+{{end}}

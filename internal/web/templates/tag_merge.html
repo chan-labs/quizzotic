@@ -1,0 +1,24 @@
+{{define "content"}}<link rel="stylesheet" href="/static/tagops.css">
+<h1>Merge tags</h1>
+<p class="muted">Move every problem of the source tags onto the target. The sources' slugs become aliases of the target. This proposes the merge; you review its preview and apply it on the <a href="/tag-operations">operations page</a>.</p>
+{{with .Data}}
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+<form method="post" action="/tag-operations/merge" class="tagop">
+  <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+  <fieldset>
+    <legend>Source tags (merged away)</legend>
+    {{range .Tags}}<label class="check"><input type="checkbox" name="sources" value="{{.ID}}"{{if .Checked}} checked{{end}}> {{.Name}} <span class="muted">({{.Slug}})</span></label>
+    {{end}}
+  </fieldset>
+  <label>Target tag (kept)
+    <select name="target" required>
+      <option value="">Choose a tag</option>
+      {{$sel := .Target}}{{range .Tags}}<option value="{{.ID}}"{{if eq .ID $sel}} selected{{end}}>{{.Name}} ({{.Slug}})</option>
+      {{end}}
+    </select>
+  </label>
+  <button type="submit" class="primary">Propose merge</button>
+  <a href="/tags">Cancel</a>
+</form>
+{{end}}
+{{end}}

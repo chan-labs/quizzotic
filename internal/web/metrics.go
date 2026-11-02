@@ -186,7 +186,10 @@ func (w *Web) tagsPage(rw http.ResponseWriter, r *http.Request) {
 		w.fail(rw, err)
 		return
 	}
-	w.render(rw, r, "tags", page{Title: "Tags", Data: struct{ Rows []tagRow }{rows}})
+	w.render(rw, r, "tags", page{Title: "Tags", Data: struct {
+		Rows []tagRow
+		Ops  bool
+	}{rows, w.tagops != nil}})
 }
 
 type tagDetail struct {

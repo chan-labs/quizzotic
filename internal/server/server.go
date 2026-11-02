@@ -411,6 +411,9 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		ho.site.UseReview(sessionsSvc, attemptsSvc, problemsSvc)
 		ho.site.UseSettings(cards.SettingsService(st, review.WithLogger(logger)))
 		ho.site.UseMetrics(mastery.Queries(st, ho.tagsResolver()))
+		if ho.tags != nil {
+			ho.site.UseTagOps(ho.tags)
+		}
 		ho.site.Register(mux)
 	}
 

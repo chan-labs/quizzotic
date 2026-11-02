@@ -1,0 +1,70 @@
+{{define "content"}}<link rel="stylesheet" href="/static/metrics.css">
+<link rel="stylesheet" href="/static/tagops.css">
+<h1>Split a tag</h1>
+{{with .Data}}
+<p class="muted" id="split-step">Step {{.Step}} of 3: {{if eq .Step 1}}choose the tag to split{{else if eq .Step 2}}choose where its problems can go{{else}}assign each problem{{end}}.</p>
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+
+{{if eq .Step 1}}
+<form method="get" action="/tag-operations/split" class="tagop">
+  <label>Tag to split
+    <select name="source" required>
+      <option value="">Choose a tag</option>
+      {{range .Tags}}<option value="{{.ID}}">{{.Name}} ({{.Slug}})</option>
+      {{end}}
+    </select>
+  </label>
+  <button type="submit" class="primary">Next</button>
+  <a href="/tags">Cancel</a>
+</form>
+
+{{else if eq .Step 2}}
+<form method="get" action="/tag-operations/split" class="tagop">
+  <input type="hidden" name="source" value="{{.Source.ID}}">
+  <input type="hidden" name="step" value="assign">
+  <p>Splitting <strong>{{.Source.Name}}</strong> ({{.Source.Slug}}).</p>
+  {{if .Others}}<fieldset>
+    <legend>Existing tags to move problems to</legend>
+    {{range .Others}}<label class="check"><input type="checkbox" name="existing" value="{{.ID}}"{{if .Checked}} checked{{end}}> {{.Name}} <span class="muted">({{.Slug}})</span></label>
+    {{end}}
+  </fieldset>{{end}}
+  <fieldset>
+    <legend>New tags to create</legend>
+    {{range .NewRows}}<div class="row">
+      <label>Name <input name="new_name" value="{{.Name}}" autocomplete="off"></label>
+      <label>Slug (optional) <input name="new_slug" value="{{.Slug}}" autocomplete="off"></label>
+    </div>
+    {{end}}
+  </fieldset>
+  <label class="check"><input type="checkbox" name="retire_source" value="1"{{if .Retire}} checked{{end}}> Retire {{.Source.Name}} after the split</label>
+  <button type="submit" class="primary">Next</button>
+  <a href="/tag-operations/split">Back</a>
+</form>
+
+{{else}}
+<form method="post" action="/tag-operations/split" class="tagop wide">
+  <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+  <input type="hidden" name="source" value="{{.Source.ID}}">
+  {{range .Targets}}{{if .ID}}<input type="hidden" name="existing" value="{{.ID}}">{{end}}{{end}}
+  {{range .NewRows}}<input type="hidden" name="new_name" value="{{.Name}}"><input type="hidden" name="new_slug" value="{{.Slug}}">
+  {{end}}
+  <p>Splitting <strong>{{.Source.Name}}</strong> ({{.Source.Slug}}). Tick the tags each problem should carry. A problem with no tick keeps {{.Source.Name}}.</p>
+  {{if .Problems}}
+  <table class="tags">
+    <caption class="sr-only">Assign the problems of {{.Source.Name}} to the targets</caption>
+    <thead><tr><th scope="col">Problem</th>{{range .Targets}}<th scope="col">{{.Label}}</th>{{end}}</tr></thead>
+    <tbody>
+    {{range .Problems}}{{$p := .}}<tr>
+      <th scope="row">{{.Snippet}}</th>
+      {{range .Cells}}<td><input type="checkbox" name="assign" value="{{$p.ID}}|{{.Key}}"{{if .Checked}} checked{{end}} aria-label="{{$p.Snippet}}: {{.Label}}"></td>
+      {{end}}</tr>
+    {{end}}</tbody>
+  </table>
+  {{else}}<p class="muted">{{.Source.Name}} has no problems to assign.</p>{{end}}
+  <label class="check"><input type="checkbox" name="retire_source" value="1"{{if .Retire}} checked{{end}}> Retire {{.Source.Name}} after the split (every problem must then be assigned)</label>
+  <button type="submit" class="primary">Propose split</button>
+  <a href="/tag-operations/split?source={{.Source.ID}}">Back</a>
+</form>
+{{end}}
+{{end}}
+{{end}}
