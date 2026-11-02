@@ -8,22 +8,26 @@ Thanks for helping. Please read the [Code of Conduct](CODE_OF_CONDUCT.md). The d
 2. **Layering.** Feature packages (`internal/<feature>`) go `handler.go` -> `service.go` -> `repo.go`. Handlers do HTTP only; services hold rules and transactions; repos are interfaces implemented in `internal/store/<backend>`. Features call each other only through services. `internal/fsrs` and `internal/grading` are pure leaf packages with no I/O.
 3. **Dependencies.** Only those in [`docs/dependencies.md`](docs/dependencies.md). Anything else needs maintainer approval and an entry there.
 4. **Data rules.** Attempts are append-only. Every repo method takes the owner user ID. Register new endpoints with the owner-scoping test helper.
-5. **Tests.** New repo behavior gets conformance cases in `internal/store/storetest`. Run `make test lint` before opening a PR.
+5. **Tests.** New repo behavior gets conformance cases in `internal/store/storetest`. Run `mise run test ::: lint` before opening a PR.
 6. **SPDX headers.** New Go files start with `// SPDX-License-Identifier: Apache-2.0`.
 7. **One change, one PR**, with a clear description. Add notable changes to [CHANGELOG.md](CHANGELOG.md) under "Unreleased".
 
 ## Development
 
 ```sh
-make build   # build the quizzotic binary
-make test    # go test -race ./...
-make lint    # go vet + staticcheck
-make golden  # regenerate CLI help and MCP tool-list goldens
+mise install          # once: Go, Node and staticcheck at the pinned versions
+mise run build        # build the quizzotic binary
+mise run test         # go test -race ./...
+mise run lint         # go vet + staticcheck + Redocly lint of api/openapi.yaml
+mise run golden       # regenerate CLI help and MCP tool-list goldens
+mise run test ::: lint  # several tasks in one go
 ```
+
+The old `make <task>` targets still work; they are a thin shim over `mise run <task>`.
 
 ## Golden files
 
-The generated CLI help (`internal/cli/testdata`, `cmd/quizzotic/testdata`) and the MCP tool list (`internal/mcp/testdata`) are checked against golden files. Changing an operation summary, description or schema in `api/openapi.yaml` fails `make test` until you run `make golden` and commit the reviewed diff.
+The generated CLI help (`internal/cli/testdata`, `cmd/quizzotic/testdata`) and the MCP tool list (`internal/mcp/testdata`) are checked against golden files. Changing an operation summary, description or schema in `api/openapi.yaml` fails `mise run test` until you run `mise run golden` and commit the reviewed diff.
 
 ## Owner-scoping tests
 

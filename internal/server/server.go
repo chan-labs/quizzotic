@@ -352,19 +352,22 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 	if ho.cards != nil {
 		cards = *ho.cards
 	}
-	problemsSvc := problems.NewService(st.Problems(), store.ProblemsEditTx(st, cards.MajorEdit), clock, domain.NewIDGenerator(clock), popts...)
+	// Mastery rides on the same card parameters, so cards project first and
+	// the mastery rows follow in the attempt's transaction.
+	mastery := store.NewMastery(cards, clock)
+	problemsSvc := problems.NewService(st.Problems(), store.ProblemsEditTx(st, mastery.MajorEdit), clock, domain.NewIDGenerator(clock), popts...)
 	problemsH := problems.NewHandler(problemsSvc, logger)
 	quizzesSvc := quizzes.NewService(store.QuizzesTx(st), problemsSvc, clock, domain.NewIDGenerator(clock))
 	quizzesH := quizzes.NewHandler(quizzesSvc, logger)
-	aopts := []attempts.Option{attempts.WithReader(st.Attempts()), attempts.WithAttemptRecorder(ho.metrics)}
+	// ho.metrics may be nil: Metrics methods tolerate a nil receiver.
+	sessionsSvc := review.NewSessionService(mastery.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock))
+	aopts := []attempts.Option{attempts.WithReader(st.Attempts()), attempts.WithAttemptRecorder(ho.metrics), attempts.WithSessions(sessionsSvc)}
 	if ho.tags != nil {
 		aopts = append(aopts, attempts.WithTagResolver(ho.tags))
 	}
-	attemptsSvc := attempts.NewService(store.AttemptsCardTx(st, cards.CardUpdater), problemsSvc, clock,
+	attemptsSvc := attempts.NewService(store.AttemptsCardTx(st, mastery.CardUpdater), problemsSvc, clock,
 		domain.NewIDGenerator(clock), aopts...)
 	attemptsH := attempts.NewHandler(attemptsSvc, logger)
-	// ho.metrics may be nil: Metrics methods tolerate a nil receiver.
-	sessionsSvc := review.NewSessionService(cards.SessionTx(st), problemsSvc, ho.metrics, clock, domain.NewIDGenerator(clock))
 	sessionsH := review.NewSessionHandler(sessionsSvc, logger)
 	var cardTags review.TagResolver
 	if ho.tags != nil {
@@ -393,7 +396,7 @@ func Handler(logger *slog.Logger, st store.Store, idp *auth.Provider, opts ...Ha
 		}
 		ho.site.UseDrafts(problemsSvc)
 		ho.site.UseQuizzes(quizzesSvc, problemsSvc, sessionsSvc)
-		ho.site.UseToday(cards.Builder(st), sessionsSvc, clock.Now)
+		ho.site.UseToday(mastery.Builder(st), sessionsSvc, clock.Now)
 		ho.site.UseReview(sessionsSvc, attemptsSvc, problemsSvc)
 		ho.site.UseSettings(cards.SettingsService(st, review.WithLogger(logger)))
 		ho.site.Register(mux)

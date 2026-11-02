@@ -36,7 +36,11 @@ info:
       exposed as an MCP tool named after its `operationId` with dots replaced
       by underscores.
     - `x-quizzotic-mcp-hint` (optional, string): authoring guidance appended
-      to the MCP tool description.
+      to the MCP tool description. Write operations as dotted `operationId`s
+      (`problems.similar`); the MCP server rewrites them to tool names
+      (`problems_similar`). Only reference operations that are MCP-exposed,
+      and only arguments a tool has: tools take path, query and body
+      arguments plus `if_match` (the `If-Match` header); no other header.
 
     ## Server-relative paths
 
@@ -291,8 +295,7 @@ paths:
         Prefer this over many problems.create calls when adding a set of
         problems. Call problems.similar for each item first to avoid
         duplicates. Default each item to status draft, tag every item with
-        existing tags (call tags.list first; aliases resolve), and send an
-        Idempotency-Key so a retry cannot duplicate the batch.
+        existing tags (call tags.list first; aliases resolve).
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -391,7 +394,8 @@ paths:
       x-quizzotic-scopes: [problems:write]
       x-quizzotic-mcp: true
       x-quizzotic-mcp-hint: >-
-        Read the problem first and send its ETag as If-Match. Use major only
+        Read the problem first (problems.get) and pass the ETag it returns as
+        if_match. Use major only
         when the correct answer or the question itself changes.
       parameters:
         - name: id
@@ -599,6 +603,11 @@ paths:
         is right: it returns 422 with an error on the `rating` field. An
         attempt is never edited afterwards, except that a missing rating may
         be filled in once.
+
+        When `session_id` is sent it must name one of the caller's own review
+        or quiz sessions. An unknown session and another user's session are
+        indistinguishable: both return 422 with an error on the `session_id`
+        field. The session's completion state is not checked.
 
         Humans only: agent clients never hold `attempts:write` and get 403.
       security:
@@ -1217,7 +1226,9 @@ paths:
       description: |
         Starts the OIDC Authorization Code + PKCE flow. Generates and stores
         state, nonce and the PKCE verifier server-side, then redirects the
-        browser to the issuer's authorization endpoint.
+        browser to the issuer's authorization endpoint. Also sets the
+        `__Host-quizzotic_login` cookie (HttpOnly, Secure, Path=/, SameSite=Lax,
+        no Domain, 10-minute lifetime) binding the state to this browser.
       security: []
       x-quizzotic-scopes: []
       parameters:
@@ -1235,6 +1246,10 @@ paths:
             Location:
               schema:
                 type: string
+            Set-Cookie:
+              description: The `__Host-quizzotic_login` pre-login cookie.
+              schema:
+                type: string
         default:
           $ref: "#/components/responses/Problem"
   /auth/callback:
@@ -1245,8 +1260,10 @@ paths:
       tags: [auth]
       summary: Complete a web login
       description: |
-        The redirect URI registered with the issuer. Consumes the one-time
-        state, exchanges the code, verifies the ID token (signature, `iss`,
+        The redirect URI registered with the issuer. Requires the
+        `__Host-quizzotic_login` cookie set by `/auth/login` to match `state`
+        (a state issued to another browser is rejected with 400 and the cookie
+        is cleared), then consumes the one-time state, exchanges the code, verifies the ID token (signature, `iss`,
         `aud`, `exp`, `nonce`), provisions the user on first login, creates a
         server-side session and sets the session cookie (HttpOnly, Secure,
         SameSite=Lax, 30-day sliding expiry).
@@ -1756,7 +1773,10 @@ paths:
         - sessionCookie: []
       x-quizzotic-scopes: [quizzes:write]
       x-quizzotic-mcp: true
-      x-quizzotic-mcp-hint: Send the complete desired problem list in order; omitted problems are removed.
+      x-quizzotic-mcp-hint: >-
+        Read the quiz first (quizzes.get) and pass the ETag it returns as
+        if_match. Send the complete desired problem list in order; omitted
+        problems are removed.
       parameters:
         - $ref: "#/components/parameters/IfMatch"
       requestBody:
@@ -2619,7 +2639,10 @@ components:
           description: Milliseconds from showing the prompt to submitting.
         session_id:
           type: string
-          description: Review or quiz session the answer belongs to.
+          description: >-
+            Review or quiz session the answer belongs to. Must be one of the
+            caller's own sessions; an unknown or foreign ID is a 422 on this
+            field.
         rating:
           type: integer
           minimum: 1

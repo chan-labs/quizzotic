@@ -14,7 +14,7 @@ See [`docs/spec.md`](docs/spec.md) for the full design.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: see [SECURITY.md](SECURITY.md).
+Tooling is managed with [mise](https://mise.jdx.dev): `mise install`, then `mise run test ::: lint`. See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: see [SECURITY.md](SECURITY.md).
 
 ## License
 

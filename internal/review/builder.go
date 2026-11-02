@@ -152,7 +152,7 @@ func (b *Builder) Build(ctx context.Context, userID, sessionID domain.ID, now ti
 			continue // not live, or a stale-epoch row: never reviewed
 		}
 		hasCard[c.ProblemID] = true
-		if !c.Due.After(now) {
+		if isDue(c, now) {
 			due = append(due, dueCard{c, params.Retrievability(c.Card, now)})
 		}
 	}
@@ -186,6 +186,12 @@ func (b *Builder) Build(ctx context.Context, userID, sessionID domain.ID, now ti
 	// 4. Interleave.
 	return Plan{Items: interleave(reviews, news, cfg.NewInterval), Day: day, Used: used}, nil
 }
+
+// isDue is the one rule for "due" shared by the session builder and the Today
+// summary: a card is due at or before now (due <= now), so a card due exactly
+// at now is due. GET /cards?due_before= is deliberately different (strictly
+// before) and is not used for these counts.
+func isDue(c Card, now time.Time) bool { return !c.Due.After(now) }
 
 // AppendDue returns the learning-step cards that have come due at now and are
 // not already waiting in the session, ordered by due time. The session service

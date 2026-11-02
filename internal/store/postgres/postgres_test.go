@@ -109,11 +109,13 @@ func TestProblemVersionsAreImmutable(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE problem_versions SET prompt = 'changed'`); err == nil {
-		t.Fatal("update of a version succeeded")
-	}
-	if _, err := db.ExecContext(ctx, `DELETE FROM problem_versions`); err == nil {
-		t.Fatal("delete of a version succeeded")
+	for _, q := range []string{
+		`UPDATE problem_versions SET prompt = 'changed'`,
+		`DELETE FROM problem_versions`,
+	} {
+		if _, err := db.ExecContext(ctx, q); err == nil || !strings.Contains(err.Error(), "immutable") {
+			t.Fatalf("%s: want immutable trigger error, got %v", q, err)
+		}
 	}
 }
 

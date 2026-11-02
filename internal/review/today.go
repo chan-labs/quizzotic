@@ -13,8 +13,10 @@ import (
 // TodayView is what the Today page shows: the user's workload for the current
 // study day, measured the same way the session builder measures it.
 type TodayView struct {
-	// Due is how many cards are due before now: the count GET /cards with
-	// due_before=now would list.
+	// Due is how many cards the session builder would consider due at now
+	// (due <= now, live problems only), before the daily review cap. Note GET
+	// /cards?due_before=now is strictly before, so it excludes a card due
+	// exactly at now.
 	Due int
 	// ReviewsDone and NewDone are the answers already given in the study day.
 	ReviewsDone, NewDone int
@@ -40,12 +42,23 @@ func (b *Builder) Today(ctx context.Context, userID domain.ID, now time.Time) (T
 	if err != nil {
 		return TodayView{}, err
 	}
-	due, err := b.src.Cards.Query(ctx, userID, CardFilter{DueBefore: now})
+	live, err := b.liveEpochs(ctx, userID)
 	if err != nil {
 		return TodayView{}, err
 	}
+	cards, err := b.src.Cards.List(ctx, userID)
+	if err != nil {
+		return TodayView{}, err
+	}
+	due := 0
+	for _, c := range cards {
+		// Same selection as Build: live problem at the card's epoch, due <= now.
+		if e, ok := live[c.ProblemID]; ok && e == c.Epoch && isDue(c, now) {
+			due++
+		}
+	}
 	return TodayView{
-		Due:         len(due),
+		Due:         due,
 		ReviewsDone: used.Reviews, NewDone: used.NewCards,
 		MaxReviews: cfg.MaxReviewsPerDay, NewPerDay: cfg.NewPerDay,
 		ReviewsLeft: max(0, cfg.MaxReviewsPerDay-used.Reviews),

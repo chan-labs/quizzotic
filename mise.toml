@@ -1,0 +1,49 @@
+# Tool versions and tasks. Run `mise install` once, then `mise run <task>`.
+# CI uses the same file (jdx/mise-action), so local and CI results match.
+
+[tools]
+go = "1.26.3"
+node = "22" # Redocly (openapi-lint)
+"go:honnef.co/go/tools/cmd/staticcheck" = "2025.1.1" # built with the pinned go, as the old CI did
+
+[tasks.build]
+description = "Build bin/quizzotic (version from git describe, or VERSION)"
+run = '''
+VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
+go build -ldflags "-X main.version=${VERSION}" -o bin/quizzotic ./cmd/quizzotic
+'''
+
+[tasks.test]
+description = "Run all tests with the race detector"
+run = "go test -race ./..."
+
+[tasks.vet]
+description = "go vet"
+run = "go vet ./..."
+
+[tasks.staticcheck]
+description = "staticcheck"
+run = "staticcheck ./..."
+
+# Pinned so local and CI results match. Needs Node.js (provided by mise).
+[tasks.openapi-lint]
+description = "Redocly lint of api/openapi.yaml"
+run = "npx --yes @redocly/cli@1.34.5 lint api/openapi.yaml"
+
+[tasks.lint]
+description = "go vet + staticcheck + Redocly lint"
+depends = ["vet", "staticcheck", "openapi-lint"]
+
+# Regenerate the CLI help and MCP tool-list golden files after an intentional
+# change to api/openapi.yaml or the generators. Review the diff before committing.
+[tasks.golden]
+description = "Regenerate CLI help and MCP tool-list golden files"
+run = "go test ./internal/cli ./internal/mcp ./cmd/quizzotic -run Golden -update"
+
+[tasks.release-check]
+description = "Validate the GoReleaser config (publishes nothing)"
+run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 check"
+
+[tasks.snapshot]
+description = "Local build of archives, checksums and images (publishes nothing)"
+run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 release --snapshot --clean --skip=publish"
