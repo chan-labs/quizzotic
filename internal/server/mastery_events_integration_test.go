@@ -56,7 +56,7 @@ func startRunEnvWith(t *testing.T, idp *fakeIdP, dbPath string, seeds []string, 
 	cfg.Storage.URL = "sqlite://" + dbPath
 	cfg.Storage.Seed = seeds
 	cfg.Auth.Issuers = []config.Issuer{{
-		Name: "test", Issuer: idp.srv.URL, Audience: itAudience,
+		Name: "test", Issuer: idp.srv.URL, Audiences: []string{itAudience},
 		Scopes: []string{"openid", "profile", "email"},
 		Clients: []config.Client{
 			{ID: itWebClient, Kind: "human", Secret: itWebSecret},

@@ -24,6 +24,30 @@ const EnvPrefix = "QUIZZOTIC_"
 // envIgnored lists QUIZZOTIC_* variables that are not config keys.
 var envIgnored = map[string]bool{"QUIZZOTIC_CONFIG": true, "QUIZZOTIC_TOKEN": true}
 
+// StringList is a list of strings that YAML may also spell as one scalar.
+type StringList []string
+
+// UnmarshalYAML accepts "a" (a one-item list) or ["a", "b"].
+func (l *StringList) UnmarshalYAML(n *yaml.Node) error {
+	switch n.Kind {
+	case yaml.ScalarNode:
+		var s string
+		if err := n.Decode(&s); err != nil {
+			return err
+		}
+		*l = StringList{s}
+		return nil
+	case yaml.SequenceNode:
+		var out []string
+		if err := n.Decode(&out); err != nil {
+			return err
+		}
+		*l = StringList(out)
+		return nil
+	}
+	return &yaml.TypeError{Errors: []string{fmt.Sprintf("line %d: must be a string or a list of strings", n.Line)}}
+}
+
 // Duration is a time.Duration that reads Go duration strings ("720h", "10m").
 type Duration time.Duration
 
@@ -89,11 +113,14 @@ type Auth struct {
 
 // Issuer is one OIDC issuer and the clients allowed to use it.
 type Issuer struct {
-	Name     string   `yaml:"name"`
-	Issuer   string   `yaml:"issuer"`
-	Audience string   `yaml:"audience"`
-	Scopes   []string `yaml:"scopes"`
-	Clients  []Client `yaml:"clients"`
+	Name   string `yaml:"name"`
+	Issuer string `yaml:"issuer"`
+	// Audiences are the accepted access-token audiences. The YAML key stays
+	// "audience" and takes a single string or a list, so each OAuth client
+	// may carry its own aud (Pocket ID sets aud to the client ID).
+	Audiences StringList `yaml:"audience"`
+	Scopes    []string   `yaml:"scopes"`
+	Clients   []Client   `yaml:"clients"`
 }
 
 // Client is an OAuth client registered for an issuer.

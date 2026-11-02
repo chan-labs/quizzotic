@@ -11,7 +11,8 @@ auth:
   issuers:
     - name: "pocketid"
       issuer: "https://auth.example.com"
-      audience: "quizzotic"
+      # Pocket ID sets aud to the client ID: list the generated IDs of the clients below.
+      audience: ["quizzotic-web", "quizzotic-cli", "quizzotic-agent"]
       scopes: ["openid", "profile", "email"]
       clients:
         - id: "quizzotic-web"

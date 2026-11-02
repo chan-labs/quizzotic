@@ -259,7 +259,7 @@ func newLoginEnv(t *testing.T) *loginEnv {
 	cfg := config.Default()
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
 	cfg.Auth.Issuers = []config.Issuer{{
-		Name: "test", Issuer: idp.srv.URL, Audience: itAudience,
+		Name: "test", Issuer: idp.srv.URL, Audiences: []string{itAudience},
 		Scopes: []string{"openid", "profile", "email"},
 		Clients: []config.Client{
 			{ID: itWebClient, Kind: "human", Secret: itWebSecret},

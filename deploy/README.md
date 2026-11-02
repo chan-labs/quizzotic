@@ -28,7 +28,7 @@ Quizzotic needs a Pocket ID client secret that only exists after Pocket ID is ru
 
 ### Audience requirement
 
-Quizzotic accepts only access tokens whose `aud` is `quizzotic` (`auth.issuers[0].audience`). Configure each client in Pocket ID so its access-token audience is `quizzotic`, then verify as described in [docs/pocket-id.md](../docs/pocket-id.md) section 2 and 4. Tokens with any other audience are rejected.
+Quizzotic accepts only access tokens whose `aud` matches one of `auth.issuers[0].audience`. Pocket ID sets a token's `aud` to the OAuth client ID, so list the client ID of every client you use there (placeholders in `quizzotic.yaml`), then verify as described in [docs/pocket-id.md](../docs/pocket-id.md) sections 2 and 4. Tokens with any other audience are rejected.
 
 ### Using other clients
 
