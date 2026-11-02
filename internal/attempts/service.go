@@ -41,6 +41,13 @@ type ProblemSource interface {
 	ForAnswer(ctx context.Context, ownerID, id domain.ID) (problems.AnswerSubject, error)
 }
 
+// SessionChecker tells whether a review or quiz session belongs to the user.
+// The review sessions service implements it. A session that does not exist and
+// one owned by another user are both reported as false.
+type SessionChecker interface {
+	Exists(ctx context.Context, ownerID, id domain.ID) (bool, error)
+}
+
 // CardUpdater is called inside the attempt's transaction, after the attempt is
 // stored (or its missing rating filled) and only when it is scheduled, with the
 // rating that applies. It returns the card's next due time, or nil when it has
@@ -115,6 +122,7 @@ type Result struct {
 type Service struct {
 	tx       Transactor
 	problems ProblemSource
+	sessions SessionChecker
 	cards    CardUpdater
 	rec      AttemptRecorder
 	reads    Repo
@@ -139,6 +147,10 @@ type Option func(*Service)
 // WithAttemptRecorder sets who is told about each stored attempt.
 func WithAttemptRecorder(r AttemptRecorder) Option { return func(s *Service) { s.rec = r } }
 
+// WithSessions sets the check that a session_id names one of the actor's own
+// sessions. Without it a session_id is only validated as an ID.
+func WithSessions(c SessionChecker) Option { return func(s *Service) { s.sessions = c } }
+
 // inTx runs fn in a transaction with the card updater for it.
 func (s *Service) inTx(ctx context.Context, fn func(Repo, CardUpdater) error) error {
 	if ct, ok := s.tx.(CardTransactor); ok {
@@ -162,6 +174,19 @@ func (s *Service) Answer(ctx context.Context, actor domain.Actor, in AnswerInput
 	var sessionID domain.ID
 	if fields := validateInput(in, &sessionID); len(fields) > 0 {
 		return Result{}, platform.Validation("the attempt is invalid", fields...)
+	}
+
+	// An unknown session and another user's look the same: a 422 on session_id.
+	// The spec has no rule on completed sessions, so none is added here.
+	if s.sessions != nil && !sessionID.IsNil() {
+		ok, err := s.sessions.Exists(ctx, actor.UserID, sessionID)
+		if err != nil {
+			return Result{}, err
+		}
+		if !ok {
+			return Result{}, platform.Validation("the attempt is invalid",
+				platform.FieldError{Field: "session_id", Detail: "no such session"})
+		}
 	}
 
 	subj, err := s.problems.ForAnswer(ctx, actor.UserID, in.ProblemID)
