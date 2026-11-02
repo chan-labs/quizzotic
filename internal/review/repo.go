@@ -19,6 +19,13 @@ var ErrNotFound = errors.New("review: not found")
 // Repo persists cards. Every method is scoped to the owner it names; another
 // owner's rows are indistinguishable from missing ones.
 type Repo interface {
+	// LockOwner takes the owner's lock for the rest of the transaction, the
+	// same one tags.Repo.LockOwner takes. The projection takes it before it
+	// reads the attempt log or a problem's epoch to write a card, so
+	// concurrent attempts, edits and rebuilds of one owner cannot each miss
+	// the other's change. It must run inside store.WithTx.
+	LockOwner(ctx context.Context, ownerID domain.ID) error
+
 	// Get returns the owner's card for the problem, or ErrNotFound.
 	Get(ctx context.Context, ownerID, problemID domain.ID) (Card, error)
 
