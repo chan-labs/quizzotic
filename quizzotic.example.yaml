@@ -16,7 +16,9 @@ auth:
   issuers:                       # v1: exactly one
     - name: "example-idp"
       issuer: "https://auth.example.com"
-      audience: "quizzotic"
+      # Accepted access-token audiences: one string, or a list. Pocket ID sets
+      # aud to the OAuth client ID, so list every client's ID here.
+      audience: ["quizzotic-web", "quizzotic-cli", "quizzotic-agent", "quizzotic-headless"]
       scopes: ["openid", "profile", "email"]
       clients:
         - id: "quizzotic-web"
