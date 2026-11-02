@@ -420,6 +420,125 @@ flags:
 Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
 or the stored login from "quizzotic login" (--agent for the agent login).
 
+=== quizzotic metrics --help ===
+usage: quizzotic metrics <action> [flags]
+actions:
+  overview         Get the mastery overview
+  problems         List the weakest problems
+  tag-history      Get a tag's mastery history
+  tags             List per-tag mastery
+
+=== quizzotic metrics overview --help ===
+usage: quizzotic metrics overview [flags]
+
+Get the mastery overview
+
+Returns the caller's user-level mastery metrics as of now: the mean
+predicted recall of every studied card, true retention over the last
+30 days next to the desired retention, the number of cards due today
+and in each of the next 7 study days (overdue cards count as due
+today), and reviews and new cards per study day for the last 30 days,
+oldest first. Study days follow the caller's time zone and rollover
+hour. Agents with `metrics:read` may read.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic metrics problems --help ===
+usage: quizzotic metrics problems [flags]
+
+List the weakest problems
+
+Lists the caller's studied live problems with their predicted recall
+now, weakest first (ties by problem ID), at most `limit` of them. It is
+a top-N, not a paged list: there is no cursor. Problems never answered
+are not included. Agents with `metrics:read` may read.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --limit
+      How many problems to return.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
+  --sort
+      Sort order. Only `recall` (lowest first) is supported. (one of: recall)
+
+table columns: problem_id, recall, lapses, prompt
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic metrics tag-history --help ===
+usage: quizzotic metrics tag-history <tag> [flags]
+
+Get a tag's mastery history
+
+Returns the tag's daily mastery snapshots, oldest first, one per study
+day on which it was active. `from` and `to` are inclusive study dates
+as `YYYY-MM-DD` in the caller's time zone, the dates the snapshots are
+stored under; an omitted bound is open. The tag is an ID, slug or alias
+of one of the caller's active tags; anything else is 404. Agents with
+`metrics:read` may read.
+
+arguments:
+  <tag>  A tag ID, slug or alias.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --from
+      First study date to include, as YYYY-MM-DD.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
+  --to
+      Last study date to include, as YYYY-MM-DD.
+
+table columns: date, recall, cards_seen
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
+=== quizzotic metrics tags --help ===
+usage: quizzotic metrics tags [flags]
+
+List per-tag mastery
+
+Lists the caller's active tags with their mastery as of now, ordered by
+tag ID. A tag's recall is the mean predicted recall of the cards studied
+under it (null when none has been studied); coverage is studied cards
+over live problems with the tag; lapse rate is lapses over reviews.
+Agents with `metrics:read` may read.
+
+flags:
+  --agent
+      authenticate with the stored agent login (see quizzotic login --agent) (default false)
+  --cursor
+      Opaque cursor from a previous page's `next_cursor`.
+  --limit
+      Page size.
+  --output
+      output format: json or table (default json)
+  --server
+      server base URL (default $QUIZZOTIC_SERVER, then config.yaml, then http://localhost:8080)
+
+table columns: slug, recall, coverage, cards_seen, cards_total
+
+Authentication: QUIZZOTIC_TOKEN, a headless client (QUIZZOTIC_CLIENT_ID + QUIZZOTIC_CLIENT_SECRET),
+or the stored login from "quizzotic login" (--agent for the agent login).
+
 === quizzotic problems --help ===
 usage: quizzotic problems <action> [flags]
 actions:

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Metrics endpoints (scope `metrics:read`, also exposed to agents as MCP tools `metrics_overview`, `metrics_tags`, `metrics_tagHistory` and `metrics_problems`): `GET /api/v1/metrics/overview` (mean recall, true retention against desired retention, due load for the next 7 days, daily activity), `GET /api/v1/metrics/tags` (per-tag recall, coverage, median stability, lapse rate and true retention, paged), `GET /api/v1/metrics/tags/{tag}/history?from=&to=` (daily mastery snapshots, filed under the study-day dates the snapshot job writes) and `GET /api/v1/metrics/problems?sort=recall&limit=` (weakest studied problems). Recall is predicted at request time. `metrics.Repo` gains `TagLabels` and `StudiedCards`; no schema change.
 - `quizzotic admin rebuild [--user ID]` and `POST /api/v1/admin/rebuild` (scope `admin`, humans only) recompute every card from the attempt log, in batches with progress logs; `auth.UserRepo` gains a paged `ListIDs` for it.
 - `quizzotic admin rebuild --history [--user ID [--tag ID|slug]]` rewrites the mastery snapshot history by replaying the attempt log, and the stored problem lifecycle, to the start of every past study day, using the daily job's date convention; `metrics.Backfill` does the work inside a caller's transaction for tag operations.
 - Golden tests for the generated CLI help and MCP tool list; `mise run golden` regenerates them.

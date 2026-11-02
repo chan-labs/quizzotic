@@ -83,6 +83,8 @@ tags:
     description: Review and quiz sessions, the frozen lists a client works through.
   - name: cards
     description: Per-user scheduling state of each problem.
+  - name: metrics
+    description: Mastery metrics derived from cards and snapshots.
 paths:
   /me:
     get:
@@ -1055,6 +1057,181 @@ paths:
         "403":
           $ref: "#/components/responses/Problem"
         "404":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /metrics/overview:
+    get:
+      operationId: metrics.overview
+      tags: [metrics]
+      summary: Get the mastery overview
+      description: |
+        Returns the caller's user-level mastery metrics as of now: the mean
+        predicted recall of every studied card, true retention over the last
+        30 days next to the desired retention, the number of cards due today
+        and in each of the next 7 study days (overdue cards count as due
+        today), and reviews and new cards per study day for the last 30 days,
+        oldest first. Study days follow the caller's time zone and rollover
+        hour. Agents with `metrics:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [metrics:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: |
+        Use it to see how the learner is doing overall and how many cards are
+        coming due. For per-tag figures call `metrics.tags`; for the weakest
+        problems call `metrics.problems`.
+      responses:
+        "200":
+          description: The overview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsOverview"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /metrics/tags:
+    get:
+      operationId: metrics.tags
+      tags: [metrics]
+      summary: List per-tag mastery
+      description: |
+        Lists the caller's active tags with their mastery as of now, ordered by
+        tag ID. A tag's recall is the mean predicted recall of the cards studied
+        under it (null when none has been studied); coverage is studied cards
+        over live problems with the tag; lapse rate is lapses over reviews.
+        Agents with `metrics:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [metrics:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: |
+        Sort by `recall` yourself to find weak tags. Pass a tag's `slug` to
+        `metrics.tagHistory` to see its trend.
+      x-quizzotic-cli-columns: [slug, recall, coverage, cards_seen, cards_total]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of per-tag mastery.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagMasteryPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /metrics/tags/{tag}/history:
+    parameters:
+      - $ref: "#/components/parameters/TagRef"
+    get:
+      operationId: metrics.tagHistory
+      tags: [metrics]
+      summary: Get a tag's mastery history
+      description: |
+        Returns the tag's daily mastery snapshots, oldest first, one per study
+        day on which it was active. `from` and `to` are inclusive study dates
+        as `YYYY-MM-DD` in the caller's time zone, the dates the snapshots are
+        stored under; an omitted bound is open. The tag is an ID, slug or alias
+        of one of the caller's active tags; anything else is 404. Agents with
+        `metrics:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [metrics:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-cli-columns: [date, recall, cards_seen]
+      parameters:
+        - name: from
+          in: query
+          description: First study date to include, as YYYY-MM-DD.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: Last study date to include, as YYYY-MM-DD.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: The tag's snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagHistory"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /metrics/problems:
+    get:
+      operationId: metrics.problems
+      tags: [metrics]
+      summary: List the weakest problems
+      description: |
+        Lists the caller's studied live problems with their predicted recall
+        now, weakest first (ties by problem ID), at most `limit` of them. It is
+        a top-N, not a paged list: there is no cursor. Problems never answered
+        are not included. Agents with `metrics:read` may read.
+      security:
+        - bearer: []
+        - sessionCookie: []
+      x-quizzotic-scopes: [metrics:read]
+      x-quizzotic-mcp: true
+      x-quizzotic-mcp-hint: |
+        Use it to pick problems worth revising or rewriting; each item carries
+        its prompt and the slugs of its tags.
+      x-quizzotic-cli-columns: [problem_id, recall, lapses, prompt]
+      parameters:
+        - name: sort
+          in: query
+          description: Sort order. Only `recall` (lowest first) is supported.
+          schema:
+            type: string
+            enum: [recall]
+            default: recall
+        - name: limit
+          in: query
+          description: How many problems to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 20
+      responses:
+        "200":
+          description: The weakest problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeakProblemList"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
           $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
@@ -2928,6 +3105,190 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Card"
+    RetentionRate:
+      type: object
+      required: [reviews, retained, rate]
+      properties:
+        reviews:
+          type: integer
+          description: Reviews of cards in the review state in the window.
+        retained:
+          type: integer
+          description: Of those, the reviews rated Hard or better.
+        rate:
+          type: [number, "null"]
+          description: retained / reviews; null when there were no reviews.
+    MetricsOverview:
+      type: object
+      required: [as_of, study_day, tags, tags_studied, cards_studied, recall, true_retention, due_load, activity]
+      properties:
+        as_of:
+          type: string
+          format: date-time
+        study_day:
+          type: string
+          format: date
+          description: The caller's current study day.
+        tags:
+          type: integer
+          description: Number of active tags.
+        tags_studied:
+          type: integer
+          description: Active tags with at least one studied card.
+        cards_studied:
+          type: integer
+          description: Live problems with a card that has been reviewed.
+        recall:
+          type: [number, "null"]
+          description: Mean predicted recall of the studied cards now; null when none.
+        true_retention:
+          allOf:
+            - $ref: "#/components/schemas/RetentionRate"
+            - type: object
+              required: [window_days, desired_retention]
+              properties:
+                window_days:
+                  type: integer
+                desired_retention:
+                  type: number
+                  description: The caller's desired retention, to compare `rate` with.
+        due_load:
+          type: array
+          description: Cards due today and in each of the next 7 study days.
+          items:
+            type: object
+            required: [date, cards]
+            properties:
+              date:
+                type: string
+                format: date
+              cards:
+                type: integer
+        activity:
+          type: array
+          description: Reviews and new cards per study day, oldest first, ending today.
+          items:
+            type: object
+            required: [date, reviews, new_cards]
+            properties:
+              date:
+                type: string
+                format: date
+              reviews:
+                type: integer
+              new_cards:
+                type: integer
+    TagMastery:
+      type: object
+      required: [tag_id, slug, name, recall, coverage, stability_median, lapse_rate, cards_total, cards_seen, reviews, lapses, true_retention, last_attempt_at]
+      properties:
+        tag_id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        recall:
+          type: [number, "null"]
+          description: Mean predicted recall of the studied cards now; null when none.
+        coverage:
+          type: number
+          description: Studied cards over live problems with the tag.
+        stability_median:
+          type: number
+          description: Median card stability in days; 0 when none studied.
+        lapse_rate:
+          type: number
+          description: Total lapses over total reviews.
+        cards_total:
+          type: integer
+          description: Live problems with the tag.
+        cards_seen:
+          type: integer
+          description: Of those, how many have been studied.
+        reviews:
+          type: integer
+        lapses:
+          type: integer
+        true_retention:
+          $ref: "#/components/schemas/RetentionRate"
+        last_attempt_at:
+          type: [string, "null"]
+          format: date-time
+    TagMasteryPage:
+      allOf:
+        - $ref: "#/components/schemas/PageResult"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/TagMastery"
+    TagHistory:
+      type: object
+      required: [tag_id, slug, name, from, to, items]
+      properties:
+        tag_id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        from:
+          type: [string, "null"]
+          format: date
+        to:
+          type: [string, "null"]
+          format: date
+        items:
+          type: array
+          items:
+            type: object
+            required: [date, recall, cards_seen]
+            properties:
+              date:
+                type: string
+                format: date
+                description: The study day, in the caller's time zone.
+              recall:
+                type: number
+              cards_seen:
+                type: integer
+    WeakProblem:
+      type: object
+      required: [problem_id, type, prompt, recall, stability, due, reps, lapses, tags]
+      properties:
+        problem_id:
+          type: string
+        type:
+          type: string
+        prompt:
+          type: string
+        recall:
+          type: number
+          description: Predicted recall now.
+        stability:
+          type: number
+        due:
+          type: string
+          format: date-time
+        reps:
+          type: integer
+        lapses:
+          type: integer
+        tags:
+          type: array
+          description: Slugs of the problem's active tags.
+          items:
+            type: string
+    WeakProblemList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeakProblem"
     TagStatus:
       type: string
       enum: [active, merged, retired]

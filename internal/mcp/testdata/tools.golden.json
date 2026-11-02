@@ -99,6 +99,84 @@
     "name": "cards_list"
   },
   {
+    "description": "Get the mastery overview\n\nReturns the caller's user-level mastery metrics as of now: the mean\npredicted recall of every studied card, true retention over the last\n30 days next to the desired retention, the number of cards due today\nand in each of the next 7 study days (overdue cards count as due\ntoday), and reviews and new cards per study day for the last 30 days,\noldest first. Study days follow the caller's time zone and rollover\nhour. Agents with `metrics:read` may read.\n\nUse it to see how the learner is doing overall and how many cards are\ncoming due. For per-tag figures call `metrics_tags`; for the weakest\nproblems call `metrics_problems`.",
+    "inputSchema": {
+      "properties": {},
+      "type": "object"
+    },
+    "name": "metrics_overview"
+  },
+  {
+    "description": "List the weakest problems\n\nLists the caller's studied live problems with their predicted recall\nnow, weakest first (ties by problem ID), at most `limit` of them. It is\na top-N, not a paged list: there is no cursor. Problems never answered\nare not included. Agents with `metrics:read` may read.\n\nUse it to pick problems worth revising or rewriting; each item carries\nits prompt and the slugs of its tags.",
+    "inputSchema": {
+      "properties": {
+        "limit": {
+          "default": 20,
+          "description": "How many problems to return.",
+          "maximum": 200,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sort": {
+          "default": "recall",
+          "description": "Sort order. Only `recall` (lowest first) is supported.",
+          "enum": [
+            "recall"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "metrics_problems"
+  },
+  {
+    "description": "Get a tag's mastery history\n\nReturns the tag's daily mastery snapshots, oldest first, one per study\nday on which it was active. `from` and `to` are inclusive study dates\nas `YYYY-MM-DD` in the caller's time zone, the dates the snapshots are\nstored under; an omitted bound is open. The tag is an ID, slug or alias\nof one of the caller's active tags; anything else is 404. Agents with\n`metrics:read` may read.",
+    "inputSchema": {
+      "properties": {
+        "from": {
+          "description": "First study date to include, as YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "tag": {
+          "description": "A tag ID, slug or alias.",
+          "type": "string"
+        },
+        "to": {
+          "description": "Last study date to include, as YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tag"
+      ],
+      "type": "object"
+    },
+    "name": "metrics_tagHistory"
+  },
+  {
+    "description": "List per-tag mastery\n\nLists the caller's active tags with their mastery as of now, ordered by\ntag ID. A tag's recall is the mean predicted recall of the cards studied\nunder it (null when none has been studied); coverage is studied cards\nover live problems with the tag; lapse rate is lapses over reviews.\nAgents with `metrics:read` may read.\n\nSort by `recall` yourself to find weak tags. Pass a tag's `slug` to\n`metrics_tagHistory` to see its trend.",
+    "inputSchema": {
+      "properties": {
+        "cursor": {
+          "description": "Opaque cursor from a previous page's `next_cursor`.",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Page size.",
+          "maximum": 200,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "metrics_tags"
+  },
+  {
     "description": "Create a problem\n\nCreates a problem and its first version. `status` is `draft` (the\ndefault) or `live`. The payload is validated against the type; every\nfailure is listed in `errors` of a 422 response.\n\nCheck for duplicates first (call problems_similar before creating), default to status draft so a human can review, and always tag the problem. List tags first (tags_list) and prefer existing tags; an alias resolves to its tag.",
     "inputSchema": {
       "properties": {
