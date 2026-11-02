@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" role="img" aria-labelledby="t">
+  <title id="t">Quizzotic logo (mark with wordmark): a bold Q whose tail is a review arrow</title>
+  <g>
+  <path d="M34.2 44.9 A18 18 0 1 1 44.9 34.2" fill="none" stroke="#C2410C" stroke-width="9"/>
+  <path d="M28 28 L50 50" fill="none" stroke="#C2410C" stroke-width="9" stroke-linecap="round"/>
+  <path d="M43 59 L59 59 L59 43 Z" transform="rotate(0)" fill="#C2410C" stroke="#C2410C" stroke-width="3" stroke-linejoin="round"/>
+  </g>
+  <text x="80" y="45" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-0.5" fill="#7C2D12" textLength="176" lengthAdjust="spacingAndGlyphs">Quizzotic</text>
+</svg>
