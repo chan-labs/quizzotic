@@ -75,7 +75,14 @@ func resolveTag(ctx context.Context, st store.Store, user domain.ID, ref string)
 		return domain.ID{}, err
 	}
 	if t.Status == tags.StatusMerged && !t.MergedInto.IsNil() {
-		return t.MergedInto, nil
+		final, err := tags.FollowMerged(ctx, repo, user, t)
+		if err != nil {
+			return domain.ID{}, err
+		}
+		if final.Status == tags.StatusActive {
+			return final.ID, nil
+		}
+		t = final
 	}
 	if t.Status != tags.StatusActive {
 		return domain.ID{}, fmt.Errorf("tag %q is %s, so it has no snapshot history to rewrite", ref, t.Status)

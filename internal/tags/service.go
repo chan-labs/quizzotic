@@ -286,10 +286,8 @@ func (s *Service) ResolveTagFilter(ctx context.Context, ownerID domain.ID, ref s
 		if err != nil {
 			return err
 		}
-		if t.Status == StatusMerged {
-			if t, err = r.Tags.Get(ctx, ownerID, t.MergedInto); err != nil {
-				return err
-			}
+		if t, err = FollowMerged(ctx, r.Tags, ownerID, t); err != nil {
+			return err
 		}
 		id = t.ID
 		return nil
@@ -345,6 +343,26 @@ func Resolve(ctx context.Context, r Repo, ownerID domain.ID, ref string) (Tag, e
 		return t, err
 	}
 	return r.GetByAlias(ctx, ownerID, slug)
+}
+
+// maxMergeHops bounds FollowMerged so corrupt data cannot loop forever.
+const maxMergeHops = 64
+
+// FollowMerged returns the tag t finally stands for: while t is merged it
+// moves to the tag it was merged into, so a chain A into B into C resolves A
+// to C. Tags that are not merged are returned as they are.
+func FollowMerged(ctx context.Context, r Repo, ownerID domain.ID, t Tag) (Tag, error) {
+	for hops := 0; t.Status == StatusMerged && !t.MergedInto.IsNil(); hops++ {
+		if hops >= maxMergeHops {
+			return Tag{}, fmt.Errorf("tag %s: merge chain too long", t.ID)
+		}
+		next, err := r.Get(ctx, ownerID, t.MergedInto)
+		if err != nil {
+			return Tag{}, err
+		}
+		t = next
+	}
+	return t, nil
 }
 
 // Slugify derives a slug from a name: lowercase letters and digits, runs of

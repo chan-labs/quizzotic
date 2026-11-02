@@ -54,10 +54,8 @@ func resolveRefs(ctx context.Context, r Repo, ownerID domain.ID, refs []string) 
 		if err != nil {
 			return nil, nil, err
 		}
-		if t.Status == StatusMerged {
-			if t, err = r.Get(ctx, ownerID, t.MergedInto); err != nil {
-				return nil, nil, err
-			}
+		if t, err = FollowMerged(ctx, r, ownerID, t); err != nil {
+			return nil, nil, err
 		}
 		if t.Status != StatusActive {
 			fe = append(fe, platform.FieldError{Field: field, Detail: "tag is " + string(t.Status)})
