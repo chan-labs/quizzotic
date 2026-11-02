@@ -52,6 +52,7 @@ func startRunEnv(t *testing.T, idp *fakeIdP, dbPath string, seeds []string) (*pr
 		Name: "test", Issuer: idp.srv.URL, Audience: itAudience,
 		Scopes: []string{"openid", "profile", "email"},
 		Clients: []config.Client{
+			{ID: itWebClient, Kind: "human", Secret: itWebSecret},
 			{ID: "quizzotic-cli", Kind: "human"},
 			{ID: "quizzotic-agent", Kind: "agent", AllowedScopes: []string{"problems:read", "problems:write"}},
 		},
