@@ -25,7 +25,6 @@ func TestTagOpsQueueShowsResultsAndRejected(t *testing.T) {
 	idp := newFakeIdP(t)
 	pe, _ := startRunEnvWith(t, idp, filepath.Join(t.TempDir(), "q.db"), nil, func(cfg *config.Config) {
 		cfg.Auth.Issuers[0].Clients = append(cfg.Auth.Issuers[0].Clients,
-			config.Client{ID: itWebClient, Kind: "human", Secret: itWebSecret},
 			config.Client{ID: itTagAgent, Kind: "agent", AllowedScopes: []string{"tags:read", "tags:write", "problems:read"}})
 	})
 	e := pe.itEnv
