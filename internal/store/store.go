@@ -9,6 +9,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/export"
 	"github.com/chan-labs/quizzotic/internal/metrics"
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
@@ -75,6 +76,10 @@ type Store interface {
 
 	// SeedKeys maps seed-file keys to the rows they created.
 	SeedKeys() seed.KeyRepo
+
+	// Export reads and writes whole rows of a user's source-of-truth tables
+	// for `quizzotic admin export` and `admin import`.
+	Export() export.Repo
 
 	// Idempotency stores POST responses for Idempotency-Key replay.
 	Idempotency() platform.IdempotencyRepo
