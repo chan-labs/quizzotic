@@ -3,6 +3,7 @@
 
 [tools]
 go = "1.26.3"
+uv = "0.9"  # Python scripts (tools/fsrs-vectors)
 node = "22" # Redocly (openapi-lint)
 "go:honnef.co/go/tools/cmd/staticcheck" = "2025.1.1" # built with the pinned go, as the old CI did
 
@@ -65,3 +66,8 @@ run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 check"
 [tasks.snapshot]
 description = "Local build of archives, checksums and images (publishes nothing)"
 run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 release --snapshot --clean --skip=publish"
+
+# Dev-only: regenerate internal/fsrs/testdata/vectors.json from py-fsrs (not run in CI).
+[tasks.fsrs-vectors]
+description = "Regenerate FSRS reference vectors with py-fsrs (via uv)"
+run = "uv run tools/fsrs-vectors/generate.py"
