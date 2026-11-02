@@ -461,7 +461,23 @@ func (e *itEnv) webLogin(t *testing.T) string {
 	e.idp.mu.Lock()
 	e.idp.nonces["code-1"] = q.Get("nonce")
 	e.idp.mu.Unlock()
-	cb := e.do(t, "GET", "/auth/callback?"+url.Values{"code": {"code-1"}, "state": {q.Get("state")}}.Encode(), nil, "")
+	var login *http.Cookie
+	for _, c := range (&http.Response{Header: r.header}).Cookies() {
+		if c.Name == auth.LoginCookieName {
+			login = c
+		}
+	}
+	if login == nil || !login.Secure || !login.HttpOnly || login.Path != "/" || login.Domain != "" || login.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("login cookie = %+v, want a __Host- style cookie", login)
+	}
+	cbPath := "/auth/callback?" + url.Values{"code": {"code-1"}, "state": {q.Get("state")}}.Encode()
+	// Another browser (no cookie, or a different state) is rejected.
+	for name, hdr := range map[string]map[string]string{"none": nil, "wrong": {"Cookie": auth.LoginCookieName + "=other"}} {
+		if x := e.do(t, "GET", cbPath, hdr, ""); x.code != http.StatusBadRequest {
+			t.Fatalf("callback with %s login cookie = %d, want 400", name, x.code)
+		}
+	}
+	cb := e.do(t, "GET", cbPath, map[string]string{"Cookie": auth.LoginCookieName + "=" + login.Value}, "")
 	if cb.code != http.StatusSeeOther {
 		t.Fatalf("callback = %d (%s)", cb.code, cb.body)
 	}
