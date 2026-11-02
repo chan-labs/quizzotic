@@ -66,8 +66,14 @@ func (s *Service) Split(ctx context.Context, ownerID domain.ID, actor domain.Act
 	}
 	var res SplitResult
 	err := s.mutate(ctx, ownerID, func(r Repos) (err error) {
-		res, err = s.applySplit(ctx, r, ownerID, actor, in, &splitRun{})
-		return err
+		if res, err = s.applySplit(ctx, r, ownerID, actor, in, &splitRun{}); err != nil {
+			return err
+		}
+		ids := []domain.ID{res.Source.ID}
+		for _, t := range res.Targets {
+			ids = append(ids, t.ID)
+		}
+		return r.rebuild(ctx, ownerID, ids)
 	})
 	if err != nil {
 		return SplitResult{}, err

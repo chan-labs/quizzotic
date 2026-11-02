@@ -38,8 +38,14 @@ func (s *Service) Merge(ctx context.Context, ownerID domain.ID, in MergeInput) (
 	var out MergeResult
 	err := s.mutate(ctx, ownerID, func(r Repos) error {
 		var err error
-		out, err = s.merge(ctx, r, ownerID, in)
-		return err
+		if out, err = s.merge(ctx, r, ownerID, in); err != nil {
+			return err
+		}
+		ids := []domain.ID{out.Target.ID}
+		for _, t := range out.Sources {
+			ids = append(ids, t.ID)
+		}
+		return r.rebuild(ctx, ownerID, ids)
 	})
 	return out, err
 }

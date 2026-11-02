@@ -301,6 +301,37 @@ func Backfill(ctx context.Context, sc SnapshotScope, now time.Time, userID domai
 	return res, nil
 }
 
+// RebuildTags recomputes the mastery rows of tagIDs (rows of tags that are no
+// longer active are removed) and rewrites their snapshot history by replay
+// (Backfill), all inside sc's transaction. It is what a tag operation runs for
+// the tags it involved, so mastery and history agree with the new mappings
+// atomically with the operation itself. No tags is a no-op, not "all tags".
+func RebuildTags(ctx context.Context, sc SnapshotScope, clock domain.Clock, userID domain.ID, tagIDs []domain.ID) error {
+	if len(tagIDs) == 0 {
+		return nil
+	}
+	if err := NewProjector(sc.Scope, clock).UpdateTags(ctx, userID, tagIDs); err != nil {
+		return err
+	}
+	_, err := Backfill(ctx, sc, clock.Now(), userID, tagIDs)
+	return err
+}
+
+// ForgetTags removes the mastery rows and snapshots of tagIDs inside sc's
+// transaction. A tag operation's revert runs it for the tags the operation
+// created, before those tags are deleted: both tables reference tags.
+func ForgetTags(ctx context.Context, sc SnapshotScope, userID domain.ID, tagIDs []domain.ID) error {
+	if len(tagIDs) == 0 {
+		return nil
+	}
+	for _, id := range tagIDs {
+		if err := sc.Scope.Repo.Delete(ctx, userID, id); err != nil {
+			return err
+		}
+	}
+	return sc.Snapshots.DeleteTags(ctx, userID, tagIDs)
+}
+
 func minTime(a, b time.Time) time.Time {
 	if b.Before(a) {
 		return b

@@ -50,6 +50,15 @@ type Effect struct {
 	Tags             []TagEffect
 }
 
+// tagIDs lists the tags the operation touched, those it created included.
+func (e Effect) tagIDs() []domain.ID {
+	ids := make([]domain.ID, len(e.Tags))
+	for i, t := range e.Tags {
+		ids[i] = t.ID
+	}
+	return ids
+}
+
 // OpDetail is an operation with its effect: Preview for a proposed one,
 // Result when this call applied it. PreviewError is set instead of Preview
 // when a proposed operation no longer validates against the current state.
@@ -90,6 +99,9 @@ func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.A
 			}
 			op.Payload, op.Status, op.DecidedBy, op.DecidedAt, op.AppliedAt, op.Snapshot = out.payload, OpApplied, actor, now, now, &out.snap
 			if err := r.Ops.Create(ctx, ownerID, op); err != nil {
+				return err
+			}
+			if err := r.rebuild(ctx, ownerID, out.effect.tagIDs()); err != nil {
 				return err
 			}
 			d = OpDetail{Operation: op, Result: &out.effect}
@@ -213,6 +225,9 @@ func (s *Service) ApplyOperation(ctx context.Context, ownerID domain.ID, actor d
 		now := s.clock.Now()
 		if err := r.Ops.Decide(ctx, ownerID, id, Decision{Status: OpApplied, DecidedBy: actor, DecidedAt: now,
 			AppliedAt: now, Snapshot: &out.snap}); err != nil {
+			return err
+		}
+		if err := r.rebuild(ctx, ownerID, out.effect.tagIDs()); err != nil {
 			return err
 		}
 		if op, err = r.Ops.Get(ctx, ownerID, id); err != nil {

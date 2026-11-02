@@ -174,13 +174,21 @@ func (a settingsTx) InTx(ctx context.Context, fn func(settings.Repos) error) err
 }
 
 // TagsTx adapts a Store to tags.Transactor.
-func TagsTx(s Store) tags.Transactor { return tagsTx{s} }
+// Operations through it do not rebuild mastery; see Mastery.TagsTx.
+func TagsTx(s Store) tags.Transactor { return tagsTx{s: s} }
 
-type tagsTx struct{ s Store }
+type tagsTx struct {
+	s Store
+	m *Mastery // nil: operations do not rebuild mastery
+}
 
 func (a tagsTx) InTx(ctx context.Context, fn func(tags.Repos) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
-		return fn(tags.Repos{Tags: tx.Tags(), Ops: tx.TagOperations(), Problems: problems.NewReader(tx.Problems())})
+		r := tags.Repos{Tags: tx.Tags(), Ops: tx.TagOperations(), Problems: problems.NewReader(tx.Problems())}
+		if a.m != nil {
+			r.Mastery = tagMastery{tx: tx, m: *a.m}
+		}
+		return fn(r)
 	})
 }
 

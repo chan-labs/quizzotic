@@ -30,6 +30,38 @@ type Repos struct {
 	Tags     Repo
 	Ops      OpRepo
 	Problems ProblemReader
+	// Mastery rebuilds mastery and history for the tags an operation
+	// involved. Nil skips the rebuild (tests of the tag rules alone).
+	Mastery MasteryRebuilder
+}
+
+// MasteryRebuilder is the part of the metrics projection this feature needs.
+// Features call each other only through services, so tags never touches
+// metrics directly. The store binds it to the same transaction as the other
+// repositories, so the rebuild is atomic with the operation.
+type MasteryRebuilder interface {
+	// RebuildTags recomputes the mastery rows of the tags (removing those of
+	// tags that are no longer active) and rewrites their snapshot history
+	// from the attempt log. It never writes attempts.
+	RebuildTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error
+	// ForgetTags removes the mastery rows and history of tags that are about
+	// to be deleted (a revert removes the tags a split created).
+	ForgetTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error
+}
+
+func (r Repos) forget(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
+	if r.Mastery == nil || len(tagIDs) == 0 {
+		return nil
+	}
+	return r.Mastery.ForgetTags(ctx, ownerID, tagIDs)
+}
+
+// rebuild runs the mastery rebuild for tagIDs inside the open transaction.
+func (r Repos) rebuild(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
+	if r.Mastery == nil || len(tagIDs) == 0 {
+		return nil
+	}
+	return r.Mastery.RebuildTags(ctx, ownerID, tagIDs)
 }
 
 // ProblemReader is the part of the problems service this feature needs: the
