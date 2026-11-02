@@ -56,6 +56,13 @@ func (m Mastery) MajorEdit(tx Store) problems.MajorEditHandler {
 	return problemHooks{cards: m.cards.Projector(tx), mastery: m.Projector(tx)}
 }
 
+// ProblemsBatchTx is the package-level ProblemsBatchTx whose batch creates
+// also refresh the mastery rows of the tags they attach, in the batch's own
+// transaction.
+func (m Mastery) ProblemsBatchTx(s Store) problems.BatchTransactor {
+	return problemsBatchTx{s: s, m: &m}
+}
+
 // Snapshotter is the daily snapshot writer over s: each user is snapshotted in
 // one transaction, using the user's effective settings (the configured defaults
 // with the user's overrides) for the time zone and rollover hour.
@@ -81,6 +88,10 @@ func (t tagMastery) RebuildTags(ctx context.Context, ownerID domain.ID, tagIDs [
 		Settings:  effectiveSettings{tx: t.tx, c: t.m.cards},
 	}
 	return metrics.RebuildTags(ctx, sc, t.m.clock, ownerID, tagIDs)
+}
+
+func (t tagMastery) UpdateTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
+	return t.m.Projector(t.tx).UpdateTags(ctx, ownerID, tagIDs)
 }
 
 func (t tagMastery) ForgetTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
@@ -167,5 +178,11 @@ func (h problemHooks) ProblemRetired(ctx context.Context, ownerID, problemID dom
 	if err := h.cards.ProblemRetired(ctx, ownerID, problemID); err != nil {
 		return err
 	}
+	return h.mastery.UpdateProblem(ctx, ownerID, problemID)
+}
+
+// ProblemPublished implements problems.PublishedHandler: a problem that went
+// live now counts in the cards of its tags.
+func (h problemHooks) ProblemPublished(ctx context.Context, ownerID, problemID domain.ID) error {
 	return h.mastery.UpdateProblem(ctx, ownerID, problemID)
 }

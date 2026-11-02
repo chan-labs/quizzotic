@@ -31,9 +31,18 @@ type Repos struct {
 	Ops      OpRepo
 	Problems ProblemReader
 	// Mastery rebuilds mastery and history for the tags an operation
-	// involved. Nil skips the rebuild (tests of the tag rules alone).
+	// involved. Nil is an error (ErrNoMastery) unless SkipMastery is set, so
+	// a production wiring that forgets it fails loudly instead of leaving
+	// mastery stale until the next snapshot.
 	Mastery MasteryRebuilder
+	// SkipMastery lets Mastery be nil. Only tests of the tag rules alone set
+	// it (store.TagsTx).
+	SkipMastery bool
 }
+
+// ErrNoMastery is returned when an operation needs a mastery rebuild but the
+// Repos carry none and did not opt out with SkipMastery.
+var ErrNoMastery = errors.New("tags: no mastery rebuilder configured")
 
 // MasteryRebuilder is the part of the metrics projection this feature needs.
 // Features call each other only through services, so tags never touches
@@ -44,13 +53,20 @@ type MasteryRebuilder interface {
 	// tags that are no longer active) and rewrites their snapshot history
 	// from the attempt log. It never writes attempts.
 	RebuildTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error
+	// UpdateTags recomputes only the mastery rows of the tags, leaving
+	// snapshot history alone. It is for changes to which cards a tag has (a
+	// problem tagged or untagged), where the daily job owns history.
+	UpdateTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error
 	// ForgetTags removes the mastery rows and history of tags that are about
 	// to be deleted (a revert removes the tags a split created).
 	ForgetTags(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error
 }
 
 func (r Repos) forget(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
-	if r.Mastery == nil || len(tagIDs) == 0 {
+	if r.Mastery == nil {
+		return r.noMastery()
+	}
+	if len(tagIDs) == 0 {
 		return nil
 	}
 	return r.Mastery.ForgetTags(ctx, ownerID, tagIDs)
@@ -58,10 +74,31 @@ func (r Repos) forget(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID
 
 // rebuild runs the mastery rebuild for tagIDs inside the open transaction.
 func (r Repos) rebuild(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
-	if r.Mastery == nil || len(tagIDs) == 0 {
+	if r.Mastery == nil {
+		return r.noMastery()
+	}
+	if len(tagIDs) == 0 {
 		return nil
 	}
 	return r.Mastery.RebuildTags(ctx, ownerID, tagIDs)
+}
+
+// refresh runs the incremental mastery update for tagIDs.
+func (r Repos) refresh(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) error {
+	if r.Mastery == nil {
+		return r.noMastery()
+	}
+	if len(tagIDs) == 0 {
+		return nil
+	}
+	return r.Mastery.UpdateTags(ctx, ownerID, tagIDs)
+}
+
+func (r Repos) noMastery() error {
+	if r.SkipMastery {
+		return nil
+	}
+	return ErrNoMastery
 }
 
 // ProblemReader is the part of the problems service this feature needs: the
@@ -318,11 +355,19 @@ func (s *Service) SetProblemTags(ctx context.Context, ownerID, problemID domain.
 		if len(fe) > 0 {
 			return platform.Validation("invalid tags", fe...)
 		}
+		before, err := r.Tags.ProblemTags(ctx, ownerID, problemID)
+		if err != nil {
+			return err
+		}
 		if err := r.Tags.SetProblemTags(ctx, ownerID, problemID, ids); err != nil {
 			return err
 		}
 		out, err = r.Tags.ProblemTags(ctx, ownerID, problemID)
-		return err
+		if err != nil {
+			return err
+		}
+		// A problem joining or leaving a tag changes that tag's cards.
+		return r.refresh(ctx, ownerID, changedTags(before, out))
 	})
 	return out, err
 }
@@ -427,4 +472,23 @@ func parseCursor(c string) (domain.ID, error) {
 		return domain.Nil, platform.BadRequest("invalid cursor")
 	}
 	return id, nil
+}
+
+// changedTags is the tags in exactly one of before and after.
+func changedTags(before, after []Tag) []domain.ID {
+	n := map[domain.ID]int{}
+	for _, t := range before {
+		n[t.ID]++
+	}
+	for _, t := range after {
+		n[t.ID]--
+	}
+	var out []domain.ID
+	for _, t := range append(append([]Tag(nil), before...), after...) {
+		if c, ok := n[t.ID]; ok && c != 0 {
+			out = append(out, t.ID)
+			delete(n, t.ID)
+		}
+	}
+	return out
 }
