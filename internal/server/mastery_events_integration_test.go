@@ -4,13 +4,17 @@ package server_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,14 +33,21 @@ import (
 // the same file, for reading what the server wrote.
 func newRunEnv(t *testing.T) *probEnv {
 	t.Helper()
+	e, _ := startRunEnv(t, newFakeIdP(t), filepath.Join(t.TempDir(), "q.db"), nil)
+	return e
+}
+
+// startRunEnv is newRunEnv over a given IdP and database file, with specs as
+// storage.seed. The returned stop shuts the server down (it also runs at
+// cleanup, once).
+func startRunEnv(t *testing.T, idp *fakeIdP, dbPath string, seeds []string) (*probEnv, func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	idp := newFakeIdP(t)
-	dbPath := filepath.Join(t.TempDir(), "q.db")
 
 	cfg := config.Default()
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
 	cfg.Storage.URL = "sqlite://" + dbPath
-	cfg.Storage.Seed = nil
+	cfg.Storage.Seed = seeds
 	cfg.Auth.Issuers = []config.Issuer{{
 		Name: "test", Issuer: idp.srv.URL, Audience: itAudience,
 		Scopes: []string{"openid", "profile", "email"},
@@ -54,17 +65,21 @@ func newRunEnv(t *testing.T) *probEnv {
 	go func() {
 		done <- server.Run(ctx, &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), server.Options{Listener: ln})
 	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Errorf("Run returned %v", err)
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Errorf("Run returned %v", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Error("server did not shut down")
 			}
-		case <-time.After(10 * time.Second):
-			t.Error("server did not shut down")
-		}
-	})
+		})
+	}
+	t.Cleanup(stop)
 	base := "http://" + ln.Addr().String()
 	for i := 0; ; i++ {
 		resp, err := http.Get(base + "/healthz")
@@ -87,7 +102,7 @@ func newRunEnv(t *testing.T) *probEnv {
 		itEnv: &itEnv{idp: idp, srv: &httptest.Server{URL: base}, st: st},
 		human: idp.access("quizzotic-cli", "author-sub", with("name", "Author"), with("email", "author@example.com")),
 		agent: idp.access("quizzotic-agent", "author-sub"),
-	}
+	}, stop
 }
 
 // total returns the tag's cards_total from the mastery row the server keeps.
@@ -185,5 +200,97 @@ func TestSeedRefreshesMastery(t *testing.T) {
 	}
 	if got := e.total(t, owner, tag.ID); got != 1 {
 		t.Errorf("cards_total after seed = %d, want 1", got)
+	}
+}
+
+const lifecyclePack = `
+version: 1
+tags:
+  - {key: t.life, slug: life, name: Life}
+problems:
+  - key: p.life
+    type: open
+    status: %s
+    change: %s
+    prompt: %s
+    payload: {reference_answer: one}
+    tags: [t.life]
+`
+
+func lifecycle(t *testing.T, status, change, prompt string) *seed.File {
+	t.Helper()
+	f, err := seed.Parse(strings.NewReader(fmt.Sprintf(lifecyclePack, status, change, prompt)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// A re-applied seed file that publishes a draft, or major-edits a studied
+// problem, refreshes mastery in the seed's own transaction. Both fail if the
+// seed transaction only has the card-only major-edit hook.
+func TestSeedPublishAndMajorEditRefreshMastery(t *testing.T) {
+	e := newRunEnv(t)
+	ctx := context.Background()
+	owner := e.owner(t)
+	apply := func(f *seed.File) {
+		t.Helper()
+		if _, err := seedrun.ApplyFile(ctx, e.st, owner, f); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	apply(lifecycle(t, "draft", "minor", "Life one?"))
+	tag, err := e.st.Tags().GetBySlug(ctx, owner, "life")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := e.total(t, owner, tag.ID); got != 0 {
+		t.Fatalf("cards_total with a seeded draft = %d, want 0", got)
+	}
+	apply(lifecycle(t, "live", "minor", "Life one?"))
+	if got := e.total(t, owner, tag.ID); got != 1 {
+		t.Errorf("cards_total after the seed published the draft = %d, want 1", got)
+	}
+
+	p := e.list(t, e.human, url.Values{"tag": {"life"}}).Items[0]
+	if r := e.answer(t, e.human, attemptBody(p, map[string]any{"text": "x"}, map[string]any{"rating": 3})); r.code != http.StatusCreated {
+		t.Fatalf("answer = %d (%s)", r.code, r.body)
+	}
+	if m, err := e.st.Mastery().Get(ctx, owner, tag.ID); err != nil || m.CardsSeen != 1 {
+		t.Fatalf("mastery after answering = %+v (%v)", m, err)
+	}
+	apply(lifecycle(t, "live", "major", "Life one, reworded?"))
+	if m, err := e.st.Mastery().Get(ctx, owner, tag.ID); err != nil || m.CardsSeen != 0 || m.CardsTotal != 1 {
+		t.Errorf("mastery after a seeded major edit = %+v (%v), want the card back to unstudied", m, err)
+	}
+}
+
+// The seed server.Run applies at start-up (storage.seed) refreshes mastery:
+// the user exists from an earlier run, the restart seeds a live tagged
+// problem, and the running server's metrics show it with no attempt.
+func TestStartupSeedRefreshesMastery(t *testing.T) {
+	idp := newFakeIdP(t)
+	dbPath := filepath.Join(t.TempDir(), "q.db")
+	first, stop := startRunEnv(t, idp, dbPath, nil)
+	first.owner(t) // the user is created on first sign-in
+	stop()
+
+	specPath := filepath.Join(t.TempDir(), "pack.yaml")
+	if err := os.WriteFile(specPath, []byte(httpSeedPack), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := startRunEnv(t, idp, dbPath, []string{specPath})
+	owner := e.owner(t)
+	tag, err := e.st.Tags().GetBySlug(context.Background(), owner, "basics")
+	if err != nil {
+		t.Fatalf("start-up seed did not create its tag: %v", err)
+	}
+	if got := e.total(t, owner, tag.ID); got != 1 {
+		t.Errorf("cards_total after start-up seed = %d, want 1", got)
+	}
+	r := e.req(t, "GET", "/metrics/tags", e.human, nil, nil)
+	if r.code != http.StatusOK || !strings.Contains(string(r.body), `"cards_total":1`) {
+		t.Errorf("GET /metrics/tags = %d (%s), want the seeded tag with one card", r.code, r.body)
 	}
 }
