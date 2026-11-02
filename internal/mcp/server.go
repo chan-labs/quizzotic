@@ -10,7 +10,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
+	"sort"
 	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -43,6 +45,19 @@ type Options struct {
 // ToolName is the MCP tool name for an operation: its operationId with dots
 // replaced by underscores.
 func ToolName(op openapi.Operation) string { return strings.ReplaceAll(op.ID, ".", "_") }
+
+// argName is the tool argument that carries a parameter. Path and query
+// parameters keep their names. The only header an agent can set is If-Match,
+// exposed as "if_match"; every other header is invisible to a tool.
+func argName(p openapi.Parameter) (string, bool) {
+	switch {
+	case p.In == "path" || p.In == "query":
+		return p.Name, true
+	case p.In == "header" && strings.EqualFold(p.Name, "If-Match"):
+		return "if_match", true
+	}
+	return "", false
+}
 
 // Exposed returns the operations that become tools: those marked
 // x-quizzotic-mcp, minus any needing a scope an agent can never hold.
@@ -77,22 +92,46 @@ func New(o Options) (*sdk.Server, error) {
 		o.Version = "dev"
 	}
 	srv := sdk.NewServer(&sdk.Implementation{Name: "quizzotic", Version: o.Version}, nil)
-	for _, op := range Exposed(ops) {
+	exposed := Exposed(ops)
+	refs := idRewriter(exposed)
+	for _, op := range exposed {
 		t := &tool{op: op, opts: o}
 		t.layout()
 		srv.AddTool(&sdk.Tool{
 			Name:        ToolName(op),
-			Description: description(op),
+			Description: description(op, refs),
 			InputSchema: t.schema(),
 		}, t.call)
 	}
 	return srv, nil
 }
 
-func description(op openapi.Operation) string {
+// idRewriter returns a function that rewrites exposed operationIds written in
+// dotted form (as hints in openapi.yaml are) to the tool names an agent sees.
+func idRewriter(ops []openapi.Operation) func(string) string {
+	var ids []string
+	for _, op := range ops {
+		ids = append(ids, regexp.QuoteMeta(op.ID))
+	}
+	if len(ids) == 0 {
+		return func(s string) string { return s }
+	}
+	// Longest first so problems.createBatch is not read as problems.create.
+	sort.Slice(ids, func(i, j int) bool { return len(ids[i]) > len(ids[j]) })
+	re := regexp.MustCompile(`\b(?:` + strings.Join(ids, "|") + `)\b`)
+	return func(s string) string {
+		return re.ReplaceAllStringFunc(s, func(m string) string { return strings.ReplaceAll(m, ".", "_") })
+	}
+}
+
+// ToolRefs rewrites dotted operationIds in text to the tool names of ops.
+func ToolRefs(ops []openapi.Operation, text string) string { return idRewriter(ops)(text) }
+
+func description(op openapi.Operation, rewrite func(string) string) string {
 	var parts []string
 	for _, s := range []string{op.Summary, op.Description, op.MCPHint} {
 		if s = strings.TrimSpace(s); s != "" {
+			s = rewrite(s)
 			parts = append(parts, s)
 		}
 	}
@@ -120,7 +159,7 @@ func (t *tool) layout() {
 		return
 	}
 	for name := range props {
-		if name == bodyKey || slices.ContainsFunc(t.op.Params, func(p openapi.Parameter) bool { return p.Name == name }) {
+		if name == bodyKey || slices.ContainsFunc(t.op.Params, func(p openapi.Parameter) bool { n, _ := argName(p); return n == name }) {
 			return
 		}
 	}
@@ -131,7 +170,8 @@ func (t *tool) schema() map[string]any {
 	props := map[string]any{}
 	var required []any
 	for _, p := range t.op.Params {
-		if p.In != "path" && p.In != "query" {
+		name, ok := argName(p)
+		if !ok {
 			continue
 		}
 		ps := map[string]any{}
@@ -141,9 +181,9 @@ func (t *tool) schema() map[string]any {
 		if p.Description != "" {
 			ps["description"] = strings.Join(strings.Fields(p.Description), " ")
 		}
-		props[p.Name] = ps
+		props[name] = ps
 		if p.Required {
-			required = append(required, p.Name)
+			required = append(required, name)
 		}
 	}
 	if b := t.op.Body; b != nil {
@@ -186,18 +226,24 @@ func (t *tool) call(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToo
 	path := op.Path
 	q := url.Values{}
 	used := map[string]bool{}
+	hdr := http.Header{}
 	for _, p := range op.Params {
-		if p.In != "path" && p.In != "query" {
+		name, ok := argName(p)
+		if !ok {
 			continue
 		}
-		v, ok := args[p.Name]
+		v, ok := args[name]
 		if !ok || v == nil {
 			if p.Required {
-				return toolError("missing required argument %q", p.Name), nil
+				return toolError("missing required argument %q", name), nil
 			}
 			continue
 		}
-		used[p.Name] = true
+		used[name] = true
+		if p.In == "header" {
+			hdr.Set(p.Name, scalar(v))
+			continue
+		}
 		if p.In == "path" {
 			path = strings.ReplaceAll(path, "{"+p.Name+"}", url.PathEscape(scalar(v)))
 			continue
@@ -254,6 +300,9 @@ func (t *tool) call(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToo
 		return toolError("%v", err), nil
 	}
 	hr.Header.Set("Accept", "application/json")
+	for k, v := range hdr {
+		hr.Header[k] = v
+	}
 	if body != nil {
 		hr.Header.Set("Content-Type", "application/json")
 	}
@@ -282,7 +331,12 @@ func (t *tool) call(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToo
 	if text == "" {
 		text = fmt.Sprintf(`{"status":%d}`, resp.StatusCode)
 	}
-	return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: text}}}, nil
+	content := []sdk.Content{&sdk.TextContent{Text: text}}
+	if etag := resp.Header.Get("ETag"); etag != "" {
+		// Tools see no headers; surface the ETag so it can be sent back as if_match.
+		content = append(content, &sdk.TextContent{Text: "ETag: " + etag})
+	}
+	return &sdk.CallToolResult{Content: content}, nil
 }
 
 func scalar(v any) string {

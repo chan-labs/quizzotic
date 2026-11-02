@@ -157,8 +157,10 @@ usage: quizzotic auth callback [flags]
 
 Complete a web login
 
-The redirect URI registered with the issuer. Consumes the one-time
-state, exchanges the code, verifies the ID token (signature, `iss`,
+The redirect URI registered with the issuer. Requires the
+`__Host-quizzotic_login` cookie set by `/auth/login` to match `state`
+(a state issued to another browser is rejected with 400 and the cookie
+is cleared), then consumes the one-time state, exchanges the code, verifies the ID token (signature, `iss`,
 `aud`, `exp`, `nonce`), provisions the user on first login, creates a
 server-side session and sets the session cookie (HttpOnly, Secure,
 SameSite=Lax, 30-day sliding expiry).
@@ -187,7 +189,9 @@ Start a web login
 
 Starts the OIDC Authorization Code + PKCE flow. Generates and stores
 state, nonce and the PKCE verifier server-side, then redirects the
-browser to the issuer's authorization endpoint.
+browser to the issuer's authorization endpoint. Also sets the
+`__Host-quizzotic_login` cookie (HttpOnly, Secure, Path=/, SameSite=Lax,
+no Domain, 10-minute lifetime) binding the state to this browser.
 
 flags:
   --agent
