@@ -18,6 +18,7 @@ You implement **one** Quizzotic task. The coordinator gives you the task text (S
 - Stdlib-first; only the dependencies listed in `AGENTS.md`.
 - Every repo method takes the owner user ID; register new endpoints with the owner-scoping test helper; add conformance cases for new repo behavior.
 - Attempts are never updated except the one-time rating fill.
+- Real-server wiring: every user-visible feature needs a test through the real server, `server.Run` with `server.Options{Listener: ...}` and a real `config.Config` (what `quizzotic serve` calls from `cmd/quizzotic/main.go`; it assembles `Handler` and its `HandlerOption`s in `internal/server/server.go`). Install the feature there (option, registration, route, job) and prove it end to end. Hand-built services or handlers in the feature's own package are not proof.
 - Tests prove the task's **Done when**. Add an SPDX header (`// SPDX-License-Identifier: Apache-2.0`) to new Go files.
 - Commit in small, clear steps. Never push to `main`. Do not open the PR; the coordinator does.
 
