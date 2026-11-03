@@ -23,6 +23,10 @@ auth:
         - id: "quizzotic-agent"
           kind: "agent"
           allowed_scopes: ["problems:read", "problems:write", "tags:read", "tags:write", "quizzes:read", "quizzes:write", "metrics:read"]
+scheduling:
+  # Default time zone for users who have not set their own in Settings. Change
+  # it any time and restart; per-user zones and stored data are unaffected.
+  default_timezone: "America/New_York"
 logging:
   level: "info"
   format: "json"

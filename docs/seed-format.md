@@ -74,5 +74,10 @@ Running the same file twice therefore creates no new rows or versions.
 `builtin:<name>` names a pack embedded in the binary (`internal/seed/builtin`).
 `storage.seed: ["builtin:fsrs-basics"]` applies it on every start. When the
 store does not yet have exactly one user (a user is created on first sign-in),
-start-up seeding is skipped with a warning; run `quizzotic admin seed` with
-`--owner`, or restart once the user exists.
+start-up seeding is skipped with a warning (startup itself succeeds). On a
+fresh instance, seeding therefore runs after the first sign-in on the next
+restart, or immediately with `quizzotic admin seed builtin:fsrs-basics --owner <user id>`
+(`--owner` may be omitted while there is exactly one user; with several users it
+is required). Looking up the sole user and writing as the `system` actor are
+deliberate exceptions to the owner-ID rule, see
+[ADR 0008](adr/0008-seeding-system-actor.md).

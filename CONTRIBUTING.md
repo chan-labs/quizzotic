@@ -89,7 +89,7 @@ The store is the only place that knows about a database. Features depend on `Rep
 
 Quizzotic works with any standards-compliant OIDC issuer; nothing is IdP-specific in code. Pocket ID is only the documented example. Supporting a new IdP is normally configuration, not code:
 
-1. Set the issuer under `auth.issuers` in `quizzotic.yaml` (v1 allows exactly one) and declare each client ID under `auth.clients` as `human` or `agent`, with `allowed_scopes` (and `acts_for` for client-credentials clients).
+1. Set the issuer under `auth.issuers` in `quizzotic.yaml` (v1 allows exactly one) and declare each client ID under `auth.issuers[0].clients` as `human` or `agent`, with `allowed_scopes` (and `acts_for` for client-credentials clients).
 2. Verify discovery (`/.well-known/openid-configuration`), JWKS signing algorithms (RS256, ES256 or EdDSA), and that access tokens are JWTs carrying the claims Quizzotic checks (`iss`, `aud`, `exp`, `nbf`, client ID, `scope`).
 3. If the IdP needs quirks handled (for example a non-standard claim for the client ID), add a narrowly scoped, tested option to `internal/auth` driven by config. Do not hard-code provider names.
 4. Add a deployment example under `deploy/` and a short note in the docs.
