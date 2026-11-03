@@ -40,7 +40,10 @@
     {{range $i, $b := $f.Blanks}}<div class="row blank-row">
       <input type="text" name="blank_id" value="{{$b.ID}}" placeholder="id" aria-label="Blank id" size="8">
       <textarea name="blank_accepted" rows="2" placeholder="accepted answers" aria-label="Accepted answers">{{$b.Accepted}}</textarea>
-      <label><input type="checkbox" name="blank_case" value="{{$i}}"{{if $b.CaseSensitive}} checked{{end}}> case-sensitive</label>
+      <label>match <select name="blank_match" aria-label="How a response is matched">
+        <option value="relaxed"{{if ne $b.Match "case-insensitive"}} selected{{end}}>relaxed: ignore case, extra spaces and trailing punctuation</option>
+        <option value="case-insensitive"{{if eq $b.Match "case-insensitive"}} selected{{end}}>case-insensitive: ignore case only; spaces and punctuation must match</option>
+      </select></label>
       <label>max edits <input type="number" name="blank_edits" value="{{$b.MaxEdits}}" min="0" max="3"></label>
     </div>
     {{end}}

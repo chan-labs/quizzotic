@@ -352,7 +352,7 @@ func sameContent(cur problems.View, p Problem, payload json.RawMessage) bool {
 		return false
 	}
 	var a, b any
-	if json.Unmarshal(cur.Payload, &a) != nil || json.Unmarshal(payload, &b) != nil {
+	if json.Unmarshal(cur.Payload, &a) != nil || json.Unmarshal(problems.CanonicalPayload(p.Type, payload), &b) != nil {
 		return false
 	}
 	return reflect.DeepEqual(a, b)

@@ -104,7 +104,7 @@ func gradeCloze(subj problems.AnswerSubject, raw json.RawMessage) (graded, error
 	for _, b := range p.Blanks {
 		known[b.ID] = true
 		blanks = append(blanks, grading.ClozeBlank{ID: b.ID, Accepted: b.Accepted,
-			CaseSensitive: b.CaseSensitive, MaxEdits: b.MaxEdits})
+			Match: b.Match, MaxEdits: b.MaxEdits})
 	}
 	for id := range r.Answers {
 		if !known[id] {

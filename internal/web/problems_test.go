@@ -175,6 +175,39 @@ func TestCreateEachTypeThroughUI(t *testing.T) {
 	}
 }
 
+func TestClozeMatchModeThroughUI(t *testing.T) {
+	e := newProbEnv(t)
+
+	// No blank_match (an old form): relaxed, and the legacy checkbox is ignored.
+	legacy := clozeForm()
+	legacy["blank_case"] = []string{"0"}
+	v := e.view(e.create(legacy))
+	if !strings.Contains(string(v.Payload), `"match":"relaxed"`) || strings.Contains(string(v.Payload), "case_sensitive") {
+		t.Fatalf("legacy form payload %s", v.Payload)
+	}
+
+	f := clozeForm()
+	f["blank_match"] = []string{"case-insensitive", "relaxed"}
+	id := e.create(f)
+	v = e.view(id)
+	if !strings.Contains(string(v.Payload), `"match":"case-insensitive"`) {
+		t.Fatalf("payload %s", v.Payload)
+	}
+	page := e.do("GET", "/problems/"+id.String(), nil, false).Body.String()
+	if !strings.Contains(page, `<option value="case-insensitive" selected>`) {
+		t.Errorf("edit page does not preselect case-insensitive:\n%s", page)
+	}
+	if strings.Contains(page, `name="blank_case"`) {
+		t.Error("the case-sensitive checkbox is still rendered")
+	}
+
+	// The default for a fresh row is relaxed.
+	fresh := e.do("GET", "/problems/new?type=cloze", nil, false).Body.String()
+	if !strings.Contains(fresh, `<option value="relaxed" selected>`) || strings.Contains(fresh, `<option value="case-insensitive" selected>`) {
+		t.Errorf("new cloze form should default to relaxed:\n%s", fresh)
+	}
+}
+
 func TestMCQCorrectChoiceFollowsRowIndex(t *testing.T) {
 	e := newProbEnv(t)
 	id := e.create(mcqForm())

@@ -176,6 +176,8 @@ func (s *Service) Edit(ctx context.Context, actor domain.Actor, id domain.ID, if
 			return platform.Validation("the problem is invalid", fields...)
 		}
 
+		next.Payload = CanonicalPayload(next.Type, next.Payload)
+
 		stored, err := r.AppendVersion(ctx, actor.UserID, id, next)
 		if err != nil {
 			return notFound(err)
@@ -202,7 +204,7 @@ func (s *Service) Versions(ctx context.Context, ownerID, id domain.ID) ([]Versio
 	}
 	out := make([]VersionView, 0, len(vs))
 	for _, v := range vs {
-		out = append(out, VersionView{Version: v.Version, Type: v.Type, Prompt: v.Prompt, Payload: v.Payload,
+		out = append(out, VersionView{Version: v.Version, Type: v.Type, Prompt: v.Prompt, Payload: CanonicalPayload(v.Type, v.Payload),
 			Explanation: v.Explanation, Source: v.Source, ChangeKind: v.ChangeKind,
 			CreatedBy: actorView(v.CreatedBy), CreatedAt: v.CreatedAt})
 	}

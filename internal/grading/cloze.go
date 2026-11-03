@@ -7,12 +7,22 @@ import (
 	"unicode"
 )
 
+// Cloze match modes.
+const (
+	// MatchRelaxed trims, lowercases, collapses internal whitespace to one
+	// space and strips trailing .,;:!?
+	MatchRelaxed = "relaxed"
+	// MatchCaseInsensitive lowercases only: whitespace and punctuation must
+	// match exactly.
+	MatchCaseInsensitive = "case-insensitive"
+)
+
 // ClozeBlank is one blank of a cloze problem as stored in its payload.
 type ClozeBlank struct {
-	ID            string
-	Accepted      []string
-	CaseSensitive bool
-	MaxEdits      int // 0 (exact) to 3
+	ID       string
+	Accepted []string
+	Match    string // MatchRelaxed (also for ""), or MatchCaseInsensitive
+	MaxEdits int    // 0 (exact) to 3
 }
 
 // ClozeResult is the outcome of grading a cloze response.
@@ -26,11 +36,14 @@ type ClozeResult struct {
 // AllCorrect reports whether every blank was answered correctly.
 func (r ClozeResult) AllCorrect() bool { return r.Score == 1 }
 
-// NormalizeCloze normalizes an answer: trim, lowercase (unless caseSensitive),
-// collapse internal whitespace to one space, strip trailing .,;:!?
-func NormalizeCloze(s string, caseSensitive bool) string {
-	if !caseSensitive {
-		s = strings.ToLower(s)
+// NormalizeCloze normalizes an answer for the match mode. MatchCaseInsensitive
+// only lowercases. Any other mode (MatchRelaxed, or an unknown or empty value
+// read from an old row) trims, lowercases, collapses internal whitespace to
+// one space and strips trailing .,;:!?
+func NormalizeCloze(s, match string) string {
+	s = strings.ToLower(s)
+	if match == MatchCaseInsensitive {
+		return s
 	}
 	s = strings.Join(strings.FieldsFunc(s, unicode.IsSpace), " ")
 	s = strings.TrimRight(s, ".,;:!?")
@@ -57,13 +70,13 @@ func GradeCloze(blanks []ClozeBlank, answers map[string]string) ClozeResult {
 }
 
 func clozeBlankCorrect(b ClozeBlank, answer string) bool {
-	got := NormalizeCloze(answer, b.CaseSensitive)
-	if got == "" {
+	got := NormalizeCloze(answer, b.Match)
+	if got == "" || strings.TrimSpace(got) == "" {
 		return false
 	}
 	maxEdits := min(max(b.MaxEdits, 0), 3)
 	for _, acc := range b.Accepted {
-		want := NormalizeCloze(acc, b.CaseSensitive)
+		want := NormalizeCloze(acc, b.Match)
 		if got == want {
 			return true
 		}

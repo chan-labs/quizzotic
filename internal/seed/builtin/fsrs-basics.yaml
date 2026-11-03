@@ -57,7 +57,7 @@ problems:
     prompt: "In FSRS, stability is the number of days it takes retrievability to fall from 100 percent to {{pct}} percent."
     payload:
       blanks:
-        - {id: pct, accepted: ["90", "90%"], case_sensitive: false, max_edits: 0}
+        - {id: pct, accepted: ["90", "90%"], match: relaxed, max_edits: 0}
     explanation: A card with a stability of 10 days has a 90 percent chance of being recalled 10 days after its last review. Higher stability means slower forgetting.
     tags: [tag.fsrs, tag.memory-models]
 
@@ -66,8 +66,8 @@ problems:
     prompt: "FSRS difficulty runs from {{low}} to {{high}}, and a higher value means the item is harder."
     payload:
       blanks:
-        - {id: low, accepted: ["1", "one"], case_sensitive: false, max_edits: 0}
-        - {id: high, accepted: ["10", "ten"], case_sensitive: false, max_edits: 0}
+        - {id: low, accepted: ["1", "one"], match: relaxed, max_edits: 0}
+        - {id: high, accepted: ["10", "ten"], match: relaxed, max_edits: 0}
     explanation: Difficulty is clamped to the range 1 to 10. Rating a card Again raises its difficulty and rating it Easy lowers it, so hard items grow their intervals more slowly.
     tags: [tag.fsrs, tag.memory-models]
 
@@ -106,7 +106,7 @@ problems:
     prompt: "FSRS-6 has {{n}} model parameters."
     payload:
       blanks:
-        - {id: n, accepted: ["21", "twenty-one", "twenty one"], case_sensitive: false, max_edits: 0}
+        - {id: n, accepted: ["21", "twenty-one", "twenty one"], match: relaxed, max_edits: 0}
     explanation: The default FSRS-6 weights are a list of 21 numbers. Fitting them to your own review history is what personalizes the scheduler.
     tags: [tag.fsrs]
 
@@ -131,10 +131,10 @@ problems:
     prompt: "The four FSRS ratings are numbered Again = {{a}}, Hard = {{h}}, Good = {{g}} and Easy = {{e}}."
     payload:
       blanks:
-        - {id: a, accepted: ["1"], case_sensitive: false, max_edits: 0}
-        - {id: h, accepted: ["2"], case_sensitive: false, max_edits: 0}
-        - {id: g, accepted: ["3"], case_sensitive: false, max_edits: 0}
-        - {id: e, accepted: ["4"], case_sensitive: false, max_edits: 0}
+        - {id: a, accepted: ["1"], match: relaxed, max_edits: 0}
+        - {id: h, accepted: ["2"], match: relaxed, max_edits: 0}
+        - {id: g, accepted: ["3"], match: relaxed, max_edits: 0}
+        - {id: e, accepted: ["4"], match: relaxed, max_edits: 0}
     explanation: Every problem type in Quizzotic ends in one of these four ratings, so the scheduler never needs to know how a problem was answered.
     tags: [tag.fsrs, tag.quizzotic-usage]
 
@@ -198,7 +198,7 @@ problems:
     prompt: "The default FSRS desired retention is {{r}}, which Quizzotic also uses per user."
     payload:
       blanks:
-        - {id: r, accepted: ["0.9", "0.90", ".9", "90%", "90"], case_sensitive: false, max_edits: 0}
+        - {id: r, accepted: ["0.9", "0.90", ".9", "90%", "90"], match: relaxed, max_edits: 0}
     explanation: Desired retention is the recall probability FSRS aims for at the time you review. 0.9 means about nine reviews in ten should succeed.
     tags: [tag.fsrs, tag.quizzotic-usage]
 
@@ -245,8 +245,8 @@ problems:
     prompt: "The default steps for same-day learning and relearning are {{s1}} minute and {{s2}} minutes."
     payload:
       blanks:
-        - {id: s1, accepted: ["1", "one"], case_sensitive: false, max_edits: 0}
-        - {id: s2, accepted: ["10", "ten"], case_sensitive: false, max_edits: 0}
+        - {id: s1, accepted: ["1", "one"], match: relaxed, max_edits: 0}
+        - {id: s2, accepted: ["10", "ten"], match: relaxed, max_edits: 0}
     explanation: Again returns the card after 1 minute. Good moves it to the 10-minute step, and Good after that graduates it to day-long intervals. The steps are configurable.
     tags: [tag.fsrs, tag.spaced-repetition]
 
@@ -285,7 +285,7 @@ problems:
     prompt: "Forgetting a card that was in the review state is counted as a {{term}}."
     payload:
       blanks:
-        - {id: term, accepted: ["lapse", "lapses", "lapsed"], case_sensitive: false, max_edits: 0}
+        - {id: term, accepted: ["lapse", "lapses", "lapsed"], match: relaxed, max_edits: 0}
     explanation: Lapses are tallied per card. Quizzotic's lapse rate for a tag is its total lapses divided by its total reviews.
     tags: [tag.fsrs, tag.quizzotic-usage]
 
@@ -332,7 +332,7 @@ problems:
     prompt: "The forgetting curve was first described in the 1880s by the psychologist Hermann {{name}}."
     payload:
       blanks:
-        - {id: name, accepted: ["Ebbinghaus"], case_sensitive: false, max_edits: 2}
+        - {id: name, accepted: ["Ebbinghaus"], match: relaxed, max_edits: 2}
     explanation: Ebbinghaus measured how quickly he forgot lists of nonsense syllables. FSRS uses a power-law forgetting curve fitted to modern review data.
     tags: [tag.spaced-repetition, tag.memory-models]
 
@@ -387,20 +387,20 @@ problems:
     prompt: "If you did not rate an attempt when you answered, you can set the rating once within {{m}} minutes."
     payload:
       blanks:
-        - {id: m, accepted: ["15", "fifteen"], case_sensitive: false, max_edits: 0}
+        - {id: m, accepted: ["15", "fifteen"], match: relaxed, max_edits: 0}
     explanation: After the window the default rating stands. The rating can be filled in only once, because attempts are never edited.
     tags: [tag.quizzotic-usage]
 
   - key: qz.cloze-normalize
     type: open
-    prompt: How does Quizzotic compare your answer to a cloze blank when the blank is not case sensitive?
+    prompt: How does Quizzotic compare your answer to a cloze blank in the default relaxed match mode?
     payload:
       reference_answer: "It trims the text, lowercases it, collapses repeated whitespace to one space and strips trailing punctuation such as . , ; : ! ?. The result must match an accepted answer exactly, or be within the blank's max_edits edit distance."
       rubric:
         - Trims, lowercases and collapses whitespace
         - Strips trailing punctuation
         - Accepts an exact match or a small edit distance (max_edits)
-    explanation: Case-sensitive blanks skip the lowercasing. This normalization is also what lets a typo of a letter or two pass when max_edits allows it.
+    explanation: The case-insensitive match mode only ignores case; it leaves whitespace and punctuation exact. This normalization is also what lets a typo of a letter or two pass when max_edits allows it.
     tags: [tag.quizzotic-usage]
 
   - key: qz.cloze-max-edits
@@ -408,7 +408,7 @@ problems:
     prompt: "A cloze blank can accept typos with max_edits, which can be at most {{n}}."
     payload:
       blanks:
-        - {id: n, accepted: ["3", "three"], case_sensitive: false, max_edits: 0}
+        - {id: n, accepted: ["3", "three"], match: relaxed, max_edits: 0}
     explanation: max_edits is a Levenshtein distance between 0 and 3, and it defaults to 0, which means an exact match after normalization.
     tags: [tag.quizzotic-usage]
 
@@ -417,7 +417,7 @@ problems:
     prompt: "By default a review session introduces at most {{n}} new problems per day."
     payload:
       blanks:
-        - {id: n, accepted: ["20", "twenty"], case_sensitive: false, max_edits: 0}
+        - {id: n, accepted: ["20", "twenty"], match: relaxed, max_edits: 0}
     explanation: The limit is the new_per_day setting. Due cards come first and new problems are interleaved after every few reviews.
     tags: [tag.quizzotic-usage]
 
@@ -426,7 +426,7 @@ problems:
     prompt: "By default a day's reviews are capped at {{n}} (max_reviews_per_day)."
     payload:
       blanks:
-        - {id: n, accepted: ["200", "two hundred"], case_sensitive: false, max_edits: 0}
+        - {id: n, accepted: ["200", "two hundred"], match: relaxed, max_edits: 0}
     explanation: Cards due beyond the cap are not served that day. Each session serves the cards you are least likely to remember first.
     tags: [tag.quizzotic-usage]
 
