@@ -39,7 +39,7 @@ func checkVersionDigits(file, digits string) error {
 
 // Migration is one SQL file.
 type Migration struct {
-	Version int
+	Version int64
 	Name    string
 	SQL     string
 }
@@ -53,7 +53,7 @@ func Load(fsys fs.FS, dir string) ([]Migration, error) {
 		return nil, fmt.Errorf("read migrations: %w", err)
 	}
 	var out []Migration
-	seen := map[int]string{}
+	seen := map[int64]string{}
 	for _, e := range entries {
 		if e.IsDir() || e.Name() == ".gitkeep" {
 			continue
@@ -65,7 +65,10 @@ func Load(fsys fs.FS, dir string) ([]Migration, error) {
 		if err := checkVersionDigits(e.Name(), m[1]); err != nil {
 			return nil, err
 		}
-		v, _ := strconv.Atoi(m[1])
+		v, err := strconv.ParseInt(m[1], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("migration file %q: %w", e.Name(), err)
+		}
 		if prev, dup := seen[v]; dup {
 			return nil, fmt.Errorf("migration version %d used by %q and %q", v, prev, e.Name())
 		}
@@ -84,7 +87,7 @@ func Load(fsys fs.FS, dir string) ([]Migration, error) {
 // recorded, each in its own transaction, in version order. It returns the
 // versions applied; a second run applies nothing. A migration already
 // recorded under a different name is an error (the history was edited).
-func Up(ctx context.Context, db *sql.DB, fsys fs.FS, dir string) ([]int, error) {
+func Up(ctx context.Context, db *sql.DB, fsys fs.FS, dir string) ([]int64, error) {
 	return UpDialect(ctx, db, fsys, dir, Dialect{})
 }
 
@@ -109,7 +112,7 @@ type Dialect struct {
 }
 
 // UpDialect is Up for a backend with its own bookkeeping dialect.
-func UpDialect(ctx context.Context, db *sql.DB, fsys fs.FS, dir string, d Dialect) ([]int, error) {
+func UpDialect(ctx context.Context, db *sql.DB, fsys fs.FS, dir string, d Dialect) ([]int64, error) {
 	migs, err := Load(fsys, dir)
 	if err != nil {
 		return nil, err
@@ -154,7 +157,7 @@ func UpDialect(ctx context.Context, db *sql.DB, fsys fs.FS, dir string, d Dialec
 		return nil, err
 	}
 
-	var applied []int
+	var applied []int64
 	for _, m := range migs {
 		if n, ok := done[m.Version]; ok {
 			if n != m.Name {
@@ -191,15 +194,15 @@ func fileStem(m Migration) string {
 	return fmt.Sprintf("%04d_%s", m.Version, m.Name)
 }
 
-func recorded(ctx context.Context, db *sql.DB) (map[int]string, error) {
+func recorded(ctx context.Context, db *sql.DB) (map[int64]string, error) {
 	rows, err := db.QueryContext(ctx, `SELECT version, name FROM schema_migrations`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	done := map[int]string{}
+	done := map[int64]string{}
 	for rows.Next() {
-		var v int
+		var v int64
 		var n string
 		if err := rows.Scan(&v, &n); err != nil {
 			return nil, err

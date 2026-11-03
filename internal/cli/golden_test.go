@@ -32,10 +32,10 @@ func checkGolden(t *testing.T, name, got string) {
 	}
 	want, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("%v (run `make golden` to create it)", err)
+		t.Fatalf("%v (run `mise run golden` to create it)", err)
 	}
 	if string(want) != got {
-		t.Errorf("%s is out of date; run `make golden` and review the diff.\n--- want\n%s\n--- got\n%s", path, want, got)
+		t.Errorf("%s is out of date; run `mise run golden` and review the diff.\n--- want\n%s\n--- got\n%s", path, want, got)
 	}
 }
 

@@ -69,7 +69,7 @@ func TestMigrateConcurrent(t *testing.T) {
 	ctx := context.Background()
 	var wg sync.WaitGroup
 	errs := make([]error, 4)
-	applied := make([][]int, 4)
+	applied := make([][]int64, 4)
 	for i := range errs {
 		wg.Add(1)
 		go func() {

@@ -33,7 +33,7 @@ func TestUpAppliesOnceInOrder(t *testing.T) {
 	db := openDB(t)
 	ctx := context.Background()
 	got, err := Up(ctx, db, fsys, "d")
-	if err != nil || !reflect.DeepEqual(got, []int{1, 2, 3}) {
+	if err != nil || !reflect.DeepEqual(got, []int64{1, 2, 3}) {
 		t.Fatalf("first: %v %v", got, err)
 	}
 	got, err = Up(ctx, db, fsys, "d")
@@ -54,7 +54,7 @@ func TestUpFailedMigrationRollsBackAndIsNotRecorded(t *testing.T) {
 	}
 	db := openDB(t)
 	got, err := Up(context.Background(), db, fsys, "d")
-	if err == nil || !reflect.DeepEqual(got, []int{1}) {
+	if err == nil || !reflect.DeepEqual(got, []int64{1}) {
 		t.Fatalf("got %v err %v", got, err)
 	}
 	var n int
@@ -99,11 +99,11 @@ func TestLoadOrdersLegacyBeforeTimestamps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var vs []int
+	var vs []int64
 	for _, m := range got {
 		vs = append(vs, m.Version)
 	}
-	want := []int{2, 14, 20261101090000, 20261102120000}
+	want := []int64{2, 14, 20261101090000, 20261102120000}
 	if !reflect.DeepEqual(vs, want) {
 		t.Fatalf("order = %v, want %v", vs, want)
 	}
@@ -132,7 +132,7 @@ func TestUpAppliesTimestampedAfterLegacy(t *testing.T) {
 		"d/20261102120500_c_two.sql": {Data: []byte(`INSERT INTO a VALUES (3);`)},
 	}
 	got, err := Up(ctx, db, both, "d")
-	if err != nil || !reflect.DeepEqual(got, []int{20261102120000, 20261102120500}) {
+	if err != nil || !reflect.DeepEqual(got, []int64{20261102120000, 20261102120500}) {
 		t.Fatalf("got %v, %v", got, err)
 	}
 	var v int
@@ -141,5 +141,14 @@ func TestUpAppliesTimestampedAfterLegacy(t *testing.T) {
 	}
 	if got, err = Up(ctx, db, both, "d"); err != nil || len(got) != 0 {
 		t.Fatalf("rerun = %v, %v", got, err)
+	}
+}
+
+// Timestamp versions have 14 digits and do not fit a 32-bit int; they must
+// parse to their exact value on every platform.
+func TestLoadParsesFourteenDigitVersion(t *testing.T) {
+	got, err := Load(fstest.MapFS{"d/20261102120000_x.sql": {}}, "d")
+	if err != nil || len(got) != 1 || got[0].Version != 20261102120000 {
+		t.Fatalf("got %+v, %v", got, err)
 	}
 }
