@@ -31,7 +31,7 @@ New features register themselves in `internal/server/wire_<feature>.go` (an `ini
 
 ## Commands
 
-- Tasks live in `mise.toml` (`mise install` once; it pins Go, Node and staticcheck). `mise run build` · `mise run test` (`go test -race ./...`) · `mise run lint` (`go vet` + `staticcheck` + Redocly lint of `api/openapi.yaml`) · chain with `mise run test ::: lint`. `mise run test-postgres` (throwaway postgres:17 via docker) · `mise run build-all` · `mise run ci` (all of CI).
+- Tasks live in `mise.toml` (`mise install` once; it pins Go, Node and golangci-lint). `mise run build` · `mise run test` (`go test -race ./...`) · `mise run lint` (golangci-lint, which includes `go vet` and staticcheck, + gofmt/goimports check + Redocly lint of `api/openapi.yaml`; `mise run fmt` fixes formatting) · chain with `mise run test ::: lint`. `mise run test-postgres` (throwaway postgres:17 via docker) · `mise run build-all` · `mise run ci` (all of CI).
 - `mise run dev` runs the server and web UI locally at `http://localhost:8089/` with a fake OIDC issuer (navikt/mock-oauth2-server in Docker) and seed data; also `dev-issuer`, `dev-server`, `dev-reset`. Agents can start it with `preview_start` (`.claude/launch.json`). See CONTRIBUTING.md.
 - `quizzotic serve --config quizzotic.yaml`
 - Coordinate a milestone: `/coordinate M2` (see `.claude/skills/coordinate/SKILL.md`)

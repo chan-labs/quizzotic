@@ -13,4 +13,4 @@ Adding any other dependency needs the maintainer's approval and a new entry here
 | `github.com/yuin/goldmark` | Markdown rendering for prompts and explanations, with raw HTML disabled. |
 | `go.opentelemetry.io/otel` (+ SDK and `contrib/exporters/autoexport`) | Tracing that honors the standard `OTEL_*` environment variables. |
 
-Build tooling (GoReleaser, staticcheck) is run via `go run` or `go install` at pinned versions and is not part of `go.mod`, so it is outside the runtime-dependency rule above.
+Build tooling (GoReleaser, golangci-lint) is run via `go run` or `go install` at pinned versions and is not part of `go.mod`, so it is outside the runtime-dependency rule above.
