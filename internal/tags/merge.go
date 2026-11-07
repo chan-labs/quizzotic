@@ -34,9 +34,11 @@ type MergeResult struct {
 // (deduplicated), marks the sources merged into the target and makes their
 // slugs and aliases aliases of the target, all in one transaction. Source
 // and target must be active, distinct tags of the owner.
-func (s *Service) Merge(ctx context.Context, ownerID domain.ID, in MergeInput) (MergeResult, error) {
+func (s *Service) Merge(ctx context.Context, ownerID domain.ID, in MergeInput) (_ MergeResult, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.Merge")
+	defer end(&err)
 	var out MergeResult
-	err := s.mutate(ctx, ownerID, func(r Repos) error {
+	err = s.mutate(ctx, ownerID, func(r Repos) error {
 		var err error
 		if out, err = s.merge(ctx, r, ownerID, in); err != nil {
 			return err

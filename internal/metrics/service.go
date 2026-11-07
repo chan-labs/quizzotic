@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/settings"
 )
 
@@ -152,9 +153,11 @@ type UserStats struct {
 // UserStats computes the user's true retention, due load and daily activity as
 // of the service clock, in the day boundaries of cfg (the user's effective
 // settings), reading one consistent snapshot.
-func (s *Service) UserStats(ctx context.Context, userID domain.ID, cfg settings.Settings, opts StatsOptions) (UserStats, error) {
+func (s *Service) UserStats(ctx context.Context, userID domain.ID, cfg settings.Settings, opts StatsOptions) (_ UserStats, err error) {
+	ctx, end := platform.TraceMethod(ctx, "metrics.UserStats")
+	defer end(&err)
 	var st UserStats
-	err := s.tx.InTx(ctx, func(sc Scope) (err error) {
+	err = s.tx.InTx(ctx, func(sc Scope) (err error) {
 		st, err = userStatsIn(ctx, sc, s.clock.Now(), userID, cfg, opts)
 		return err
 	})
@@ -211,6 +214,8 @@ func userStatsIn(ctx context.Context, sc Scope, now time.Time, userID domain.ID,
 }
 
 // RebuildUser drops and recomputes all of one user's mastery rows.
-func (s *Service) RebuildUser(ctx context.Context, userID domain.ID) error {
+func (s *Service) RebuildUser(ctx context.Context, userID domain.ID) (err error) {
+	ctx, end := platform.TraceMethod(ctx, "metrics.RebuildUser")
+	defer end(&err)
 	return s.tx.InTx(ctx, func(sc Scope) error { return NewProjector(sc, s.clock).Rebuild(ctx, userID) })
 }

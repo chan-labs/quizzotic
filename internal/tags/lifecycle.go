@@ -80,7 +80,9 @@ type runOut struct {
 // Propose stores a proposed operation after validating it against the current
 // state, or with in.Apply applies it in one transaction and stores it applied.
 // Invalid input is a validation error and stores nothing.
-func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.Actor, in ProposeInput) (OpDetail, error) {
+func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.Actor, in ProposeInput) (_ OpDetail, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.Propose")
+	defer end(&err)
 	if err := actor.Validate(); err != nil {
 		return OpDetail{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
 	}
@@ -115,7 +117,7 @@ func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.A
 	// Validate and preview by running the operation in a transaction that is
 	// rolled back, so the rules are exactly the apply-time rules.
 	var out runOut
-	err := s.tx.InTx(ctx, func(r Repos) (err error) {
+	err = s.tx.InTx(ctx, func(r Repos) (err error) {
 		if out, err = s.run(ctx, r, ownerID, actor, in.Kind, in.Payload, false); err != nil {
 			return err
 		}
@@ -135,9 +137,11 @@ func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.A
 // computed against the current state, or PreviewError when it no longer
 // validates. An applied one carries the Result recorded when it was applied
 // (nil for one applied before results were recorded).
-func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (OpDetail, error) {
+func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (_ OpDetail, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.GetOperation")
+	defer end(&err)
 	var d OpDetail
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err = s.tx.InTx(ctx, func(r Repos) error {
 		op, err := r.Ops.Get(ctx, ownerID, id)
 		if err != nil {
 			return err
@@ -171,7 +175,9 @@ func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (OpDe
 // one. Each preview runs in its own rolled-back transaction, because a
 // preview executes the operation and earlier ones must not leak into later
 // ones.
-func (s *Service) ListOperationDetails(ctx context.Context, ownerID domain.ID, status OpStatus, p platform.Page) ([]OpDetail, string, error) {
+func (s *Service) ListOperationDetails(ctx context.Context, ownerID domain.ID, status OpStatus, p platform.Page) (_ []OpDetail, _ string, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.ListOperationDetails")
+	defer end(&err)
 	ops, next, err := s.ListOperations(ctx, ownerID, status, p)
 	if err != nil {
 		return nil, "", err
@@ -209,7 +215,9 @@ func previewError(err error) string {
 
 // ListOperations returns one page of the owner's operations, optionally only
 // those with status, and the cursor for the next page ("" on the last one).
-func (s *Service) ListOperations(ctx context.Context, ownerID domain.ID, status OpStatus, p platform.Page) ([]Operation, string, error) {
+func (s *Service) ListOperations(ctx context.Context, ownerID domain.ID, status OpStatus, p platform.Page) (_ []Operation, _ string, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.ListOperations")
+	defer end(&err)
 	if status != "" && !status.Valid() {
 		return nil, "", platform.Validation("invalid status", platform.FieldError{
 			Field: "status", Detail: "must be proposed, applied or rejected"})
@@ -237,12 +245,14 @@ func (s *Service) ListOperations(ctx context.Context, ownerID domain.ID, status 
 // ApplyOperation applies a proposed operation in one transaction: it captures
 // the before-snapshot, runs the operation against the current state and
 // records actor as the decider. A decided operation returns ErrOpNotProposed.
-func (s *Service) ApplyOperation(ctx context.Context, ownerID domain.ID, actor domain.Actor, id domain.ID) (OpDetail, error) {
+func (s *Service) ApplyOperation(ctx context.Context, ownerID domain.ID, actor domain.Actor, id domain.ID) (_ OpDetail, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.ApplyOperation")
+	defer end(&err)
 	if err := actor.Validate(); err != nil {
 		return OpDetail{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
 	}
 	var d OpDetail
-	err := s.mutate(ctx, ownerID, func(r Repos) error {
+	err = s.mutate(ctx, ownerID, func(r Repos) error {
 		op, err := r.Ops.Get(ctx, ownerID, id)
 		if err != nil {
 			return err
@@ -273,12 +283,14 @@ func (s *Service) ApplyOperation(ctx context.Context, ownerID domain.ID, actor d
 
 // RejectOperation marks a proposed operation rejected by actor and changes
 // nothing else. A decided operation returns ErrOpNotProposed.
-func (s *Service) RejectOperation(ctx context.Context, ownerID domain.ID, actor domain.Actor, id domain.ID) (OpDetail, error) {
+func (s *Service) RejectOperation(ctx context.Context, ownerID domain.ID, actor domain.Actor, id domain.ID) (_ OpDetail, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.RejectOperation")
+	defer end(&err)
 	if err := actor.Validate(); err != nil {
 		return OpDetail{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
 	}
 	var d OpDetail
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err = s.tx.InTx(ctx, func(r Repos) error {
 		if err := r.Ops.Decide(ctx, ownerID, id, Decision{Status: OpRejected, DecidedBy: actor, DecidedAt: s.clock.Now()}); err != nil {
 			return err
 		}
