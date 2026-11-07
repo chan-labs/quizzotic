@@ -41,6 +41,10 @@ func tracingEnabled() bool {
 // flush spans.
 func SetupTracing(ctx context.Context) (shutdown func(context.Context) error, err error) {
 	noop := func(context.Context) error { return nil }
+	// Always install the W3C propagator, so an incoming or inherited span
+	// context is injected into outbound requests even with no exporter.
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{}, propagation.Baggage{}))
 	if !tracingEnabled() {
 		return noop, nil
 	}
@@ -49,9 +53,10 @@ func SetupTracing(ctx context.Context) (shutdown func(context.Context) error, er
 		return noop, err
 	}
 	res, err := sdkresource.New(ctx,
+		// The default service name goes first so OTEL_SERVICE_NAME wins.
+		sdkresource.WithAttributes(semconv.ServiceName("quizzotic")),
 		sdkresource.WithFromEnv(),
 		sdkresource.WithTelemetrySDK(),
-		sdkresource.WithAttributes(semconv.ServiceName("quizzotic")),
 	)
 	if err != nil {
 		return noop, err
@@ -59,8 +64,6 @@ func SetupTracing(ctx context.Context) (shutdown func(context.Context) error, er
 	// The sampler comes from OTEL_TRACES_SAMPLER via the SDK defaults.
 	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exp), sdktrace.WithResource(res))
 	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{}, propagation.Baggage{}))
 	return tp.Shutdown, nil
 }
 
