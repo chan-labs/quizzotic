@@ -4,7 +4,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
@@ -19,9 +18,9 @@ import (
 // is re-entrant within a transaction and never blocks other owners. See
 // docs/adr/0007-owner-tag-lock.md.
 func lockOwner(ctx context.Context, q execer, ownerID domain.ID) error {
-	if rb, ok := q.(rebinder); !ok {
+	if _, ok := q.(rebinder); !ok {
 		return errors.New("postgres: LockOwner needs a transaction")
-	} else if _, ok := rb.q.(*sql.Tx); !ok {
+	} else if !inTx(q) {
 		// An advisory xact lock outside a transaction is released at once.
 		return errors.New("postgres: LockOwner must run inside WithTx")
 	}
