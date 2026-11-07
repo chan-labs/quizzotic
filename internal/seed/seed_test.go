@@ -4,6 +4,7 @@ package seed_test
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -416,5 +417,41 @@ func TestResolveOwner(t *testing.T) {
 	e2user(t, e.st, "second")
 	if _, err := seedrun.ResolveOwner(ctx, e.st, ""); err == nil {
 		t.Error("ambiguous owner accepted")
+	}
+}
+
+// A seed file written before the match mode (case_sensitive, true or false)
+// still loads: it is stored as match: relaxed, re-applying it changes nothing,
+// and a file using match works as is.
+func TestClozeLegacyCaseSensitiveSeed(t *testing.T) {
+	const legacy = `
+version: 1
+problems:
+  - key: p.cloze
+    type: cloze
+    prompt: "Capital of France: {{a}}, of Italy: {{b}}, of Norway: {{c}}"
+    payload:
+      blanks:
+        - {id: a, accepted: [Paris], case_sensitive: true}
+        - {id: b, accepted: [Rome], case_sensitive: false, max_edits: 1}
+        - {id: c, accepted: [Oslo], match: case-insensitive}
+`
+	e := newEnv(t)
+	e.apply(legacy)
+	v := e.problemByPrompt("Capital of France")
+	var p problems.ClozePayload
+	if err := json.Unmarshal(v.Payload, &p); err != nil {
+		t.Fatal(err)
+	}
+	if got := []string{p.Blanks[0].Match, p.Blanks[1].Match, p.Blanks[2].Match}; got[0] != "relaxed" || got[1] != "relaxed" || got[2] != "case-insensitive" {
+		t.Errorf("modes = %v", got)
+	}
+	if strings.Contains(string(v.Payload), "case_sensitive") {
+		t.Errorf("payload still carries the legacy key: %s", v.Payload)
+	}
+	before := e.rows()
+	rep := e.apply(legacy)
+	if rep.Problems.Unchanged != 1 || e.rows()["problem_versions"] != before["problem_versions"] {
+		t.Errorf("second apply = %+v rows %v", rep, e.rows())
 	}
 }

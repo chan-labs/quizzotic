@@ -6,27 +6,32 @@ import "testing"
 
 func TestNormalizeCloze(t *testing.T) {
 	tests := []struct {
-		name string
-		in   string
-		cs   bool
-		want string
+		name  string
+		in    string
+		match string
+		want  string
 	}{
-		{"trim", "  sky \t\n", false, "sky"},
-		{"lowercase", "SkY", false, "sky"},
-		{"case sensitive keeps case", "SkY", true, "SkY"},
-		{"collapse whitespace", "a   b\t\tc\nd", false, "a b c d"},
-		{"strip each trailing punct", "sky.,;:!?", false, "sky"},
-		{"strip trailing punct then space", "sky . ", false, "sky"},
-		{"internal punct kept", "a.b, c", false, "a.b, c"},
-		{"leading punct kept", "?sky", false, "?sky"},
-		{"case sensitive still trims and strips", "  Sky!  ", true, "Sky"},
-		{"unicode lowercase", "ÉCOLE", false, "école"},
-		{"empty", "  ", false, ""},
+		{"trim", "  sky \t\n", MatchRelaxed, "sky"},
+		{"lowercase", "SkY", MatchRelaxed, "sky"},
+		{"collapse whitespace", "a   b\t\tc\nd", MatchRelaxed, "a b c d"},
+		{"strip each trailing punct", "sky.,;:!?", MatchRelaxed, "sky"},
+		{"strip trailing punct then space", "sky . ", MatchRelaxed, "sky"},
+		{"internal punct kept", "a.b, c", MatchRelaxed, "a.b, c"},
+		{"leading punct kept", "?sky", MatchRelaxed, "?sky"},
+		{"unicode lowercase", "ÉCOLE", MatchRelaxed, "école"},
+		{"empty", "  ", MatchRelaxed, ""},
+		{"empty mode is relaxed", "  SkY! ", "", "sky"},
+		{"unknown mode is relaxed", "  SkY! ", "bogus", "sky"},
+		{"case-insensitive folds case", "SkY", MatchCaseInsensitive, "sky"},
+		{"case-insensitive keeps spaces", "  Sky  ", MatchCaseInsensitive, "  sky  "},
+		{"case-insensitive keeps inner whitespace", "A  B\tC", MatchCaseInsensitive, "a  b\tc"},
+		{"case-insensitive keeps punctuation", "Sky!?", MatchCaseInsensitive, "sky!?"},
+		{"case-insensitive unicode", "ÉCOLE", MatchCaseInsensitive, "école"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NormalizeCloze(tt.in, tt.cs); got != tt.want {
-				t.Fatalf("NormalizeCloze(%q) = %q, want %q", tt.in, got, tt.want)
+			if got := NormalizeCloze(tt.in, tt.match); got != tt.want {
+				t.Fatalf("NormalizeCloze(%q, %q) = %q, want %q", tt.in, tt.match, got, tt.want)
 			}
 		})
 	}
@@ -84,24 +89,63 @@ func TestGradeClozeNormalizationApplied(t *testing.T) {
 	if !GradeCloze([]ClozeBlank{b}, map[string]string{"b": "  new york!"}).Correct["b"] {
 		t.Error("normalized answer should match normalized accepted value")
 	}
-	b.CaseSensitive = true
-	if GradeCloze([]ClozeBlank{b}, map[string]string{"b": "new york"}).Correct["b"] {
-		t.Error("case-sensitive blank accepted wrong case")
+}
+
+func TestGradeClozeCaseInsensitiveIsExactOtherwise(t *testing.T) {
+	b := ClozeBlank{ID: "b", Accepted: []string{"New York"}, Match: MatchCaseInsensitive}
+	g := func(ans string) bool { return GradeCloze([]ClozeBlank{b}, map[string]string{"b": ans}).Correct["b"] }
+	if !g("new york") || !g("NEW YORK") {
+		t.Error("case must not matter")
 	}
-	if !GradeCloze([]ClozeBlank{b}, map[string]string{"b": " New   York?"}).Correct["b"] {
-		t.Error("case-sensitive blank should still trim, collapse and strip")
+	for _, ans := range []string{" new york", "new york ", "new  york", "new york.", "new\tyork"} {
+		if g(ans) {
+			t.Errorf("%q accepted: whitespace and punctuation must stay exact", ans)
+		}
+	}
+	// The same answers pass in relaxed mode.
+	b.Match = MatchRelaxed
+	for _, ans := range []string{" new york", "new york ", "new  york", "new york.", "new\tyork"} {
+		if !g(ans) {
+			t.Errorf("%q rejected in relaxed mode", ans)
+		}
+	}
+	// Accepted answers keep their own spacing in case-insensitive mode.
+	b = ClozeBlank{ID: "b", Accepted: []string{"Mr. Smith!"}, Match: MatchCaseInsensitive}
+	if !g("mr. smith!") || g("mr. smith") {
+		t.Error("accepted punctuation must match exactly")
 	}
 }
 
-func TestGradeClozeEditsRespectCase(t *testing.T) {
-	// Case-sensitive: a case difference costs one edit.
-	b := ClozeBlank{ID: "b", Accepted: []string{"Paris"}, CaseSensitive: true, MaxEdits: 1}
-	if !GradeCloze([]ClozeBlank{b}, map[string]string{"b": "paris"}).Correct["b"] {
-		t.Error("one case edit within max_edits=1 should pass")
+func TestGradeClozeCaseInsensitiveMaxEdits(t *testing.T) {
+	b := ClozeBlank{ID: "b", Accepted: []string{"Paris"}, Match: MatchCaseInsensitive, MaxEdits: 1}
+	g := func(ans string) bool { return GradeCloze([]ClozeBlank{b}, map[string]string{"b": ans}).Correct["b"] }
+	if !g("PARIS") {
+		t.Error("case difference costs no edit")
+	}
+	if !g("pariz") {
+		t.Error("one substitution is within max_edits=1")
+	}
+	// A trailing period is one edit, not stripped.
+	if !g("paris.") {
+		t.Error("one extra character is within max_edits=1")
+	}
+	if g("paris..") {
+		t.Error("two extra characters exceed max_edits=1")
 	}
 	b.MaxEdits = 0
-	if GradeCloze([]ClozeBlank{b}, map[string]string{"b": "paris"}).Correct["b"] {
-		t.Error("case difference with max_edits=0 should fail")
+	if g("paris.") {
+		t.Error("extra character with max_edits=0 should fail")
+	}
+}
+
+func TestGradeClozeWhitespaceOnlyAnswerNeverCorrect(t *testing.T) {
+	for _, m := range []string{MatchRelaxed, MatchCaseInsensitive} {
+		b := ClozeBlank{ID: "b", Accepted: []string{"a"}, Match: m, MaxEdits: 3}
+		for _, ans := range []string{"", " ", " \t\n"} {
+			if GradeCloze([]ClozeBlank{b}, map[string]string{"b": ans}).Correct["b"] {
+				t.Errorf("match %q: blank answer %q graded correct", m, ans)
+			}
+		}
 	}
 }
 

@@ -2530,9 +2530,24 @@ components:
           items:
             type: string
             minLength: 1
+        match:
+          type: string
+          enum: [relaxed, case-insensitive]
+          default: relaxed
+          description: |
+            How a response is compared with `accepted`. `relaxed` (default)
+            trims the ends, ignores case, collapses runs of whitespace to one
+            space and drops trailing `.,;:!?`. `case-insensitive` ignores case
+            only: whitespace and punctuation must match exactly. `max_edits`
+            then applies to the compared strings.
         case_sensitive:
           type: boolean
-          default: false
+          deprecated: true
+          writeOnly: true
+          description: |
+            Deprecated, accepted on input for one version and never returned.
+            Any value means `match: relaxed`. When `match` is also sent,
+            `match` wins.
         max_edits:
           type: integer
           minimum: 0

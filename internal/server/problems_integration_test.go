@@ -328,7 +328,7 @@ func TestGetProblemViews(t *testing.T) {
 		if string(pv.Payload) != `{"blanks":[{"id":"w"}]}` {
 			t.Errorf("payload = %s", pv.Payload)
 		}
-		for _, leak := range []string{"hippocampus", "accepted", "max_edits", "case_sensitive"} {
+		for _, leak := range []string{"hippocampus", "accepted", "max_edits", "\"match\""} {
 			if bytes.Contains(raw, []byte(leak)) {
 				t.Errorf("prompt view leaks %q: %s", leak, raw)
 			}

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chan-labs/quizzotic/internal/grading"
 	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
@@ -43,12 +44,64 @@ type ClozePayload struct {
 	Blanks []Blank `json:"blanks"`
 }
 
-// Blank is one cloze blank.
+// Cloze match modes; see grading.NormalizeCloze.
+const (
+	MatchRelaxed         = grading.MatchRelaxed
+	MatchCaseInsensitive = grading.MatchCaseInsensitive
+)
+
+// Blank is one cloze blank. Match is MatchRelaxed or MatchCaseInsensitive;
+// stored payloads and output carry only `match`.
 type Blank struct {
-	ID            string   `json:"id"`
-	Accepted      []string `json:"accepted"`
-	CaseSensitive bool     `json:"case_sensitive"`
-	MaxEdits      int      `json:"max_edits"`
+	ID       string   `json:"id"`
+	Accepted []string `json:"accepted"`
+	Match    string   `json:"match"`
+	MaxEdits int      `json:"max_edits"`
+}
+
+// UnmarshalJSON decodes a blank strictly. The legacy boolean `case_sensitive`
+// is still read (for one version) and means MatchRelaxed; when `match` is
+// present it wins. A blank with neither is MatchRelaxed. An unknown `match`
+// value is kept so ValidateCloze can report it.
+func (b *Blank) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		ID            string   `json:"id"`
+		Accepted      []string `json:"accepted"`
+		Match         *string  `json:"match"`
+		CaseSensitive *bool    `json:"case_sensitive"` // legacy, ignored
+		MaxEdits      int      `json:"max_edits"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&aux); err != nil {
+		return err
+	}
+	*b = Blank{ID: aux.ID, Accepted: aux.Accepted, Match: MatchRelaxed, MaxEdits: aux.MaxEdits}
+	if aux.Match != nil {
+		b.Match = *aux.Match
+	}
+	return nil
+}
+
+// CanonicalPayload rewrites a valid cloze payload to its stored form: legacy
+// `case_sensitive` becomes `match: "relaxed"` and an absent `match` is made
+// explicit. Other types, and payloads that do not decode, are returned as is
+// (ValidatePayload reports those). Call it after validation.
+func CanonicalPayload(typ string, raw json.RawMessage) json.RawMessage {
+	if typ != TypeCloze {
+		return raw
+	}
+	var p ClozePayload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return raw
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(p); err != nil {
+		return raw
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n")
 }
 
 // OpenPayload is the payload of an open problem.
@@ -181,6 +234,9 @@ func ValidateCloze(prompt string, p ClozePayload) []platform.FieldError {
 			if strings.TrimSpace(a) == "" {
 				add(fmt.Sprintf("%s.accepted[%d]", path, j), "must not be empty")
 			}
+		}
+		if b.Match != MatchRelaxed && b.Match != MatchCaseInsensitive {
+			add(path+".match", "must be relaxed or case-insensitive")
 		}
 		if b.MaxEdits < 0 || b.MaxEdits > MaxClozeEdits {
 			add(path+".max_edits", fmt.Sprintf("must be between 0 and %d", MaxClozeEdits))

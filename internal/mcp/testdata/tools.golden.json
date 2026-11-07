@@ -253,11 +253,22 @@
                         "type": "array"
                       },
                       "case_sensitive": {
-                        "default": false,
-                        "type": "boolean"
+                        "deprecated": true,
+                        "description": "Deprecated, accepted on input for one version and never returned.\nAny value means `match: relaxed`. When `match` is also sent,\n`match` wins.\n",
+                        "type": "boolean",
+                        "writeOnly": true
                       },
                       "id": {
                         "minLength": 1,
+                        "type": "string"
+                      },
+                      "match": {
+                        "default": "relaxed",
+                        "description": "How a response is compared with `accepted`. `relaxed` (default)\ntrims the ends, ignores case, collapses runs of whitespace to one\nspace and drops trailing `.,;:!?`. `case-insensitive` ignores case\nonly: whitespace and punctuation must match exactly. `max_edits`\nthen applies to the compared strings.\n",
+                        "enum": [
+                          "relaxed",
+                          "case-insensitive"
+                        ],
                         "type": "string"
                       },
                       "max_edits": {
@@ -422,11 +433,22 @@
                               "type": "array"
                             },
                             "case_sensitive": {
-                              "default": false,
-                              "type": "boolean"
+                              "deprecated": true,
+                              "description": "Deprecated, accepted on input for one version and never returned.\nAny value means `match: relaxed`. When `match` is also sent,\n`match` wins.\n",
+                              "type": "boolean",
+                              "writeOnly": true
                             },
                             "id": {
                               "minLength": 1,
+                              "type": "string"
+                            },
+                            "match": {
+                              "default": "relaxed",
+                              "description": "How a response is compared with `accepted`. `relaxed` (default)\ntrims the ends, ignores case, collapses runs of whitespace to one\nspace and drops trailing `.,;:!?`. `case-insensitive` ignores case\nonly: whitespace and punctuation must match exactly. `max_edits`\nthen applies to the compared strings.\n",
+                              "enum": [
+                                "relaxed",
+                                "case-insensitive"
+                              ],
                               "type": "string"
                             },
                             "max_edits": {
@@ -618,11 +640,22 @@
                         "type": "array"
                       },
                       "case_sensitive": {
-                        "default": false,
-                        "type": "boolean"
+                        "deprecated": true,
+                        "description": "Deprecated, accepted on input for one version and never returned.\nAny value means `match: relaxed`. When `match` is also sent,\n`match` wins.\n",
+                        "type": "boolean",
+                        "writeOnly": true
                       },
                       "id": {
                         "minLength": 1,
+                        "type": "string"
+                      },
+                      "match": {
+                        "default": "relaxed",
+                        "description": "How a response is compared with `accepted`. `relaxed` (default)\ntrims the ends, ignores case, collapses runs of whitespace to one\nspace and drops trailing `.,;:!?`. `case-insensitive` ignores case\nonly: whitespace and punctuation must match exactly. `max_edits`\nthen applies to the compared strings.\n",
+                        "enum": [
+                          "relaxed",
+                          "case-insensitive"
+                        ],
                         "type": "string"
                       },
                       "max_edits": {

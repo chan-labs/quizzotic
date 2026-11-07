@@ -38,6 +38,10 @@ quizzes:
     problems: [fsrs.retrievability]   # problem keys, in order
 ```
 
+Cloze blanks take `match: relaxed` (default) or `match: case-insensitive`; see
+the spec. The old `case_sensitive` key is still read for one version and means
+`relaxed`.
+
 Unknown fields are errors, and every problem found in a file is reported at once.
 
 ## Keys
