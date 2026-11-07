@@ -148,7 +148,7 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 
 	ln := opts.Listener
 	if ln == nil {
-		ln, err = net.Listen("tcp", cfg.Server.Listen)
+		ln, err = (&net.ListenConfig{}).Listen(ctx, "tcp", cfg.Server.Listen)
 		if err != nil {
 			return fmt.Errorf("listen: %w", err)
 		}

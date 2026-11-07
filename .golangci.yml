@@ -8,12 +8,14 @@ run:
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
   enable:
+    - bodyclose
     - copyloopvar
     - misspell
+    - noctx
     - nolintlint
     - rowserrcheck
     - sqlclosecheck
-  # More linters (revive, noctx, bodyclose, errorlint, gocritic,
+  # More linters (revive, errorlint, gocritic,
   # intrange, perfsprint, unconvert, unparam, usestdlibvars, wastedassign)
   # come in follow-up PRs, one linter at a time, once their findings are fixed.
   settings:
@@ -53,6 +55,11 @@ linters:
       # the connection is released.
       - path: internal/store/(postgres|sqlite)/(history|quizzes|tags|users)\.go
         linters: [sqlclosecheck]
+      # Tests build requests and open connections without a context on purpose
+      # (httptest recorders have no body to close, nothing to cancel); rewriting
+      # ~125 call sites would be churn with no gain.
+      - path: _test\.go
+        linters: [noctx, bodyclose]
 
 formatters:
   enable:

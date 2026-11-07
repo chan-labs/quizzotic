@@ -24,6 +24,7 @@ package ownerscope
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -105,7 +106,7 @@ func (c *Client) DoWith(method, path string, body any, hdr http.Header) Response
 	if prefix == "" {
 		prefix = "/api/v1"
 	}
-	req, err := http.NewRequest(method, c.Env.BaseURL+prefix+path, rd)
+	req, err := http.NewRequestWithContext(context.Background(), method, c.Env.BaseURL+prefix+path, rd)
 	if err != nil {
 		c.T.Errorf("ownerscope: new request: %v", err)
 		return Response{}
