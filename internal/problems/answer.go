@@ -40,7 +40,7 @@ func (s *Service) ForAnswer(ctx context.Context, ownerID, id domain.ID) (_ Answe
 	}
 	epoch := CardEpoch(versions, p.CurrentVersion)
 	return AnswerSubject{ID: p.ID, Status: p.Status, Version: p.CurrentVersion, Type: v.Type,
-		Payload: v.Payload, Explanation: v.Explanation, CardEpoch: epoch}, nil
+		Payload: CanonicalPayload(v.Type, v.Payload), Explanation: v.Explanation, CardEpoch: epoch}, nil
 }
 
 // CardEpoch is the card epoch of a problem whose current version is current:

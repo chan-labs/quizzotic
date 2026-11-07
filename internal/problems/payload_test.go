@@ -60,6 +60,14 @@ func TestValidatePayload(t *testing.T) {
 			{"prompt", "marker {{b1}} has no matching entry in payload.blanks"},
 		}},
 		{"cloze duplicate blank id", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"]},{"id":"b1","accepted":["y"]}]}`, []fe{{"payload.blanks[1].id", "duplicate blank id b1"}}},
+		{"cloze match relaxed", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"],"match":"relaxed"}]}`, nil},
+		{"cloze match case-insensitive", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"],"match":"case-insensitive"}]}`, nil},
+		{"cloze match unknown", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"],"match":"exact"}]}`, []fe{{"payload.blanks[0].match", "must be relaxed or case-insensitive"}}},
+		{"cloze match empty", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"],"match":""}]}`, []fe{{"payload.blanks[0].match", "must be relaxed or case-insensitive"}}},
+		{"cloze legacy case_sensitive true", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"],"case_sensitive":true}]}`, nil},
+		{"cloze legacy case_sensitive false", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"],"case_sensitive":false}]}`, nil},
+		{"cloze match wins over legacy", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"],"case_sensitive":true,"match":"bogus"}]}`, []fe{{"payload.blanks[0].match", "must be relaxed or case-insensitive"}}},
+		{"cloze unknown blank field", "cloze", "{{b1}}", `{"blanks":[{"id":"b1","accepted":["x"],"bogus":1}]}`, []fe{{"payload", `invalid payload: json: unknown field "bogus"`}}},
 
 		// open
 		{"open valid", "open", "q", `{"reference_answer":"because","rubric":["a","b"]}`, nil},
@@ -98,5 +106,56 @@ func TestClozeMarkers(t *testing.T) {
 	want := []string{"x", "y", "x", ""}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %q want %q", got, want)
+	}
+}
+
+func TestClozeBlankMatchDecoding(t *testing.T) {
+	cases := []struct {
+		name, in, want string
+	}{
+		{"absent is relaxed", `{"id":"a","accepted":["x"]}`, MatchRelaxed},
+		{"legacy true is relaxed", `{"id":"a","accepted":["x"],"case_sensitive":true}`, MatchRelaxed},
+		{"legacy false is relaxed", `{"id":"a","accepted":["x"],"case_sensitive":false}`, MatchRelaxed},
+		{"match case-insensitive", `{"id":"a","accepted":["x"],"match":"case-insensitive"}`, MatchCaseInsensitive},
+		{"match wins over legacy true", `{"id":"a","accepted":["x"],"case_sensitive":true,"match":"case-insensitive"}`, MatchCaseInsensitive},
+		{"match wins over legacy false", `{"id":"a","accepted":["x"],"case_sensitive":false,"match":"case-insensitive"}`, MatchCaseInsensitive},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var b Blank
+			if err := json.Unmarshal([]byte(tc.in), &b); err != nil {
+				t.Fatal(err)
+			}
+			if b.Match != tc.want {
+				t.Errorf("Match = %q, want %q", b.Match, tc.want)
+			}
+		})
+	}
+}
+
+func TestCanonicalPayload(t *testing.T) {
+	got := string(CanonicalPayload(TypeCloze, json.RawMessage(
+		`{"blanks":[{"id":"a","accepted":["R&D <x>"],"case_sensitive":true,"max_edits":1},{"id":"b","accepted":["y"],"match":"case-insensitive"}]}`)))
+	want := `{"blanks":[{"id":"a","accepted":["R&D <x>"],"match":"relaxed","max_edits":1},{"id":"b","accepted":["y"],"match":"case-insensitive","max_edits":0}]}`
+	if got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+	// Other types and undecodable payloads are returned as they came.
+	for _, c := range []struct{ typ, raw string }{
+		{TypeOpen, `{"reference_answer":"x"}`}, {TypeCloze, `{"blanks":"nope"}`},
+	} {
+		if got := string(CanonicalPayload(c.typ, json.RawMessage(c.raw))); got != c.raw {
+			t.Errorf("%s: changed %s to %s", c.typ, c.raw, got)
+		}
+	}
+}
+
+// A row stored before the match mode (or restored from an old export) is
+// presented with `match` only.
+func TestViewCanonicalizesLegacyStoredPayload(t *testing.T) {
+	v := newView(Problem{}, Version{Type: TypeCloze,
+		Payload: json.RawMessage(`{"blanks":[{"id":"a","accepted":["x"],"case_sensitive":true,"max_edits":0}]}`)})
+	if got, want := string(v.Payload), `{"blanks":[{"id":"a","accepted":["x"],"match":"relaxed","max_edits":0}]}`; got != want {
+		t.Errorf("payload = %s, want %s", got, want)
 	}
 }

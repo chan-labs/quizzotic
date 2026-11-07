@@ -218,7 +218,7 @@ func (s *Service) newProblem(actor domain.Actor, in CreateInput) (Problem, Versi
 	id := s.ids.New()
 	p := Problem{ID: id, OwnerID: actor.UserID, Status: status, CurrentVersion: 1,
 		CreatedBy: actor, CreatedAt: now, UpdatedAt: now}
-	v := Version{ProblemID: id, Version: 1, Type: in.Type, Prompt: in.Prompt, Payload: payload.Bytes(),
+	v := Version{ProblemID: id, Version: 1, Type: in.Type, Prompt: in.Prompt, Payload: CanonicalPayload(in.Type, payload.Bytes()),
 		Explanation: in.Explanation, Source: in.Source, ChangeKind: ChangeMajor, CreatedBy: actor, CreatedAt: now}
 	return p, v, nil
 }
@@ -371,7 +371,7 @@ func (s *Service) List(ctx context.Context, ownerID domain.ID, q ListQuery) (_ p
 
 func newView(p Problem, v Version) View {
 	return View{ID: p.ID, Status: p.Status, Version: p.CurrentVersion, Type: v.Type, Prompt: v.Prompt,
-		Payload: v.Payload, Explanation: v.Explanation, Source: v.Source, CreatedBy: actorView(p.CreatedBy),
+		Payload: CanonicalPayload(v.Type, v.Payload), Explanation: v.Explanation, Source: v.Source, CreatedBy: actorView(p.CreatedBy),
 		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
 
