@@ -156,7 +156,9 @@ type Patch struct {
 }
 
 // Create makes an active tag.
-func (s *Service) Create(ctx context.Context, ownerID domain.ID, in CreateInput) (Tag, error) {
+func (s *Service) Create(ctx context.Context, ownerID domain.ID, in CreateInput) (_ Tag, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.Create")
+	defer end(&err)
 	name := strings.TrimSpace(in.Name)
 	slug := strings.ToLower(strings.TrimSpace(in.Slug))
 	if slug == "" {
@@ -172,7 +174,7 @@ func (s *Service) Create(ctx context.Context, ownerID domain.ID, in CreateInput)
 	now := s.clock.Now()
 	t := Tag{ID: s.ids.New(), OwnerID: ownerID, Slug: slug, Name: name, Description: in.Description,
 		Status: StatusActive, Aliases: []string{}, CreatedAt: now, UpdatedAt: now}
-	err := s.mutate(ctx, ownerID, func(r Repos) error { return r.Tags.Create(ctx, ownerID, t) })
+	err = s.mutate(ctx, ownerID, func(r Repos) error { return r.Tags.Create(ctx, ownerID, t) })
 	if err != nil {
 		return Tag{}, err
 	}
@@ -180,9 +182,11 @@ func (s *Service) Create(ctx context.Context, ownerID domain.ID, in CreateInput)
 }
 
 // Get resolves ref (ID, slug or alias) to a tag.
-func (s *Service) Get(ctx context.Context, ownerID domain.ID, ref string) (Tag, error) {
+func (s *Service) Get(ctx context.Context, ownerID domain.ID, ref string) (_ Tag, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.Get")
+	defer end(&err)
 	var t Tag
-	err := s.tx.InTx(ctx, func(r Repos) (err error) {
+	err = s.tx.InTx(ctx, func(r Repos) (err error) {
 		t, err = Resolve(ctx, r.Tags, ownerID, ref)
 		return err
 	})
@@ -191,7 +195,9 @@ func (s *Service) Get(ctx context.Context, ownerID domain.ID, ref string) (Tag, 
 
 // List returns one page of tags with the given status (active when empty) and
 // the cursor for the next page ("" on the last one).
-func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p platform.Page) ([]Tag, string, error) {
+func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p platform.Page) (_ []Tag, _ string, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.List")
+	defer end(&err)
 	if status == "" {
 		status = StatusActive
 	}
@@ -221,7 +227,9 @@ func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p 
 // Update applies patch to the tag ref names. ifMatch must equal the tag's
 // current ETag, else ErrPreconditionFailed. Changing the slug renames the tag:
 // the old slug becomes an alias.
-func (s *Service) Update(ctx context.Context, ownerID domain.ID, ref, ifMatch string, patch Patch) (Tag, error) {
+func (s *Service) Update(ctx context.Context, ownerID domain.ID, ref, ifMatch string, patch Patch) (_ Tag, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.Update")
+	defer end(&err)
 	var fe []platform.FieldError
 	if patch.Slug != nil {
 		*patch.Slug = strings.ToLower(strings.TrimSpace(*patch.Slug))
@@ -238,7 +246,7 @@ func (s *Service) Update(ctx context.Context, ownerID domain.ID, ref, ifMatch st
 		return Tag{}, platform.Validation("invalid tag", fe...)
 	}
 	var out Tag
-	err := s.mutate(ctx, ownerID, func(r Repos) error {
+	err = s.mutate(ctx, ownerID, func(r Repos) error {
 		t, err := Resolve(ctx, r.Tags, ownerID, ref)
 		if err != nil {
 			return err
@@ -267,7 +275,9 @@ func (s *Service) Update(ctx context.Context, ownerID domain.ID, ref, ifMatch st
 
 // ListProblems returns one page of the non-deleted problems carrying the tag
 // ref names, with their current versions, and the next cursor.
-func (s *Service) ListProblems(ctx context.Context, ownerID domain.ID, ref string, p platform.Page) ([]problems.View, string, error) {
+func (s *Service) ListProblems(ctx context.Context, ownerID domain.ID, ref string, p platform.Page) (_ []problems.View, _ string, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.ListProblems")
+	defer end(&err)
 	after, err := parseCursor(p.Cursor)
 	if err != nil {
 		return nil, "", err
@@ -300,9 +310,11 @@ func (s *Service) ListProblems(ctx context.Context, ownerID domain.ID, ref strin
 }
 
 // ProblemTags returns the tags on the owner's problem, ordered by slug.
-func (s *Service) ProblemTags(ctx context.Context, ownerID, problemID domain.ID) ([]Tag, error) {
+func (s *Service) ProblemTags(ctx context.Context, ownerID, problemID domain.ID) (_ []Tag, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.ProblemTags")
+	defer end(&err)
 	var out []Tag
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err = s.tx.InTx(ctx, func(r Repos) error {
 		if _, err := r.Problems.Get(ctx, ownerID, problemID); err != nil {
 			return err
 		}
@@ -318,6 +330,8 @@ func (s *Service) ProblemTags(ctx context.Context, ownerID, problemID domain.ID)
 // into. found is false when the owner has no such tag. It lets the problems
 // service filter by tag without importing this package.
 func (s *Service) ResolveTagFilter(ctx context.Context, ownerID domain.ID, ref string) (id domain.ID, found bool, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.ResolveTagFilter")
+	defer end(&err)
 	err = s.tx.InTx(ctx, func(r Repos) error {
 		t, err := Resolve(ctx, r.Tags, ownerID, ref)
 		if err != nil {
@@ -338,13 +352,15 @@ func (s *Service) ResolveTagFilter(ctx context.Context, ownerID domain.ID, ref s
 // SetProblemTags replaces the tags on a problem with those refs name. A merged
 // tag stands for the tag it was merged into; unknown and retired tags are
 // validation errors. It returns the resulting tags ordered by slug.
-func (s *Service) SetProblemTags(ctx context.Context, ownerID, problemID domain.ID, refs []string) ([]Tag, error) {
+func (s *Service) SetProblemTags(ctx context.Context, ownerID, problemID domain.ID, refs []string) (_ []Tag, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.SetProblemTags")
+	defer end(&err)
 	if len(refs) > maxProblemTags {
 		return nil, platform.Validation("too many tags", platform.FieldError{
 			Field: "tags", Detail: fmt.Sprintf("at most %d tags per problem", maxProblemTags)})
 	}
 	var out []Tag
-	err := s.mutate(ctx, ownerID, func(r Repos) error {
+	err = s.mutate(ctx, ownerID, func(r Repos) error {
 		if _, err := r.Problems.Get(ctx, ownerID, problemID); err != nil {
 			return err
 		}

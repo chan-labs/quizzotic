@@ -73,6 +73,17 @@ Parallel features should touch only their own files.
 - **Migrations.** Name new migrations `YYYYMMDDHHMMSS_name.sql` (UTC timestamp, 14 digits) in both `migrations/sqlite` and `migrations/postgres`, for example `20261102120000_attempt_notes.sql`. Never pick the "next number": the existing `0001` to `0014` files keep their numbers and sort first, and anything else (other digit counts) is rejected by `migrate.Load`. Never rename an applied migration.
 - **API spec.** `api/openapi.yaml` stays one file (Redocly lint, the contract test and the CLI/MCP generators read it whole). Add new paths and schemas in a block next to the feature's neighbours rather than appending at the end of the file, so two features do not both extend the same last lines.
 
+## Tracing service methods
+Every exported method of a feature's `Service` that takes a `context.Context` opens with a span, so each request's trace shows HTTP, then service, then repo:
+
+```go
+func (s *Service) Create(ctx context.Context, ...) (_ View, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Create")
+	defer end(&err)
+```
+
+The span is named `<package>.<Method>`, carries no attributes (no user data or IDs), and uses the returned `ctx` for everything it calls. Return the error through the named `err` result. Client errors (a `*platform.Problem` below 500) do not fail the span; anything else does. `TestEveryServiceMethodIsTraced` fails when a method lacks the span.
+
 ## Adding a store backend
 
 The store is the only place that knows about a database. Features depend on `Repo` interfaces; `internal/store` composes them into `Store`.
