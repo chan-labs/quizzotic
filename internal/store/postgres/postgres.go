@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/store"
 	"github.com/chan-labs/quizzotic/internal/store/migrate"
 	"github.com/chan-labs/quizzotic/migrations"
@@ -30,7 +31,16 @@ type execer interface {
 
 // rebinder lets repository SQL be written with ? placeholders (as in the
 // SQLite backend) by rewriting them to $1, $2, ... before they reach pgx.
-type rebinder struct{ q execer }
+type rebinder struct{ q platform.TracedExecer }
+
+// dbSystem is the db.system span attribute for this backend.
+const dbSystem = "postgresql"
+
+// inTx reports whether q is bound to an open transaction.
+func inTx(q execer) bool {
+	rb, ok := q.(rebinder)
+	return ok && rb.q.InTx()
+}
 
 func (r rebinder) ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error) {
 	return r.q.ExecContext(ctx, Rebind(q), args...)
@@ -90,7 +100,7 @@ func Open(ctx context.Context, url string) (*Store, error) {
 		// The pgx error text can echo connection details; keep it generic.
 		return nil, fmt.Errorf("open postgres: ping failed: %w", sanitize(err))
 	}
-	return &Store{db: db, q: rebinder{db}}, nil
+	return &Store{db: db, q: rebinder{platform.NewTracedExecer(db, dbSystem)}}, nil
 }
 
 // OpenSchema is Open with search_path pinned to schema, which must exist.
@@ -104,7 +114,7 @@ func OpenSchema(ctx context.Context, url, schema string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("open postgres: ping failed: %w", sanitize(err))
 	}
-	return &Store{db: db, q: rebinder{db}}, nil
+	return &Store{db: db, q: rebinder{platform.NewTracedExecer(db, dbSystem)}}, nil
 }
 
 func openDB(url string, params map[string]string) (*sql.DB, error) {
@@ -140,21 +150,28 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx store.Store) error) error
 	if s.tx != nil {
 		return fn(s)
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	base := platform.NewTracedExecer(s.db, dbSystem)
+	txCtx, span := base.TraceTx(ctx)
+	tx, err := s.db.BeginTx(txCtx, nil)
 	if err != nil {
+		platform.EndSpan(span, err)
 		return err
 	}
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
+			span.End()
 			panic(p)
 		}
 	}()
-	if err := fn(&Store{db: s.db, q: rebinder{tx}, tx: tx}); err != nil {
+	if err := fn(&Store{db: s.db, q: rebinder{base.Tx(tx, span, ctx)}, tx: tx}); err != nil {
 		tx.Rollback()
+		platform.EndSpan(span, err)
 		return err
 	}
-	return tx.Commit()
+	err = tx.Commit()
+	platform.EndSpan(span, err)
+	return err
 }
 
 // migrateLockKey is the pg_advisory_lock key that serializes migrators, so two
