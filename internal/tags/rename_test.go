@@ -108,8 +108,11 @@ func TestRenameChainKeepsEveryOldSlug(t *testing.T) {
 func TestRenameRejections(t *testing.T) {
 	ctx := context.Background()
 	svc, owner, _ := renameSetup(t)
-	svc.Create(ctx, owner, tags.CreateInput{Name: "A", Slug: "a"})
-	svc.Create(ctx, owner, tags.CreateInput{Name: "B", Slug: "b"})
+	for _, in := range []tags.CreateInput{{Name: "A", Slug: "a"}, {Name: "B", Slug: "b"}} {
+		if _, err := svc.Create(ctx, owner, in); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if _, err := svc.Rename(ctx, owner, tags.RenameInput{Tag: "b", Slug: ptr("b2")}); err != nil {
 		t.Fatal(err)
 	}

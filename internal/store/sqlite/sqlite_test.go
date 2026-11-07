@@ -37,10 +37,16 @@ func count(t *testing.T, s *Store) int {
 func TestPragmas(t *testing.T) {
 	s := open(t)
 	var mode string
-	s.DB().QueryRow(`PRAGMA journal_mode`).Scan(&mode)
+	if err := s.DB().QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil {
+		t.Fatal(err)
+	}
 	var bt, fk int
-	s.DB().QueryRow(`PRAGMA busy_timeout`).Scan(&bt)
-	s.DB().QueryRow(`PRAGMA foreign_keys`).Scan(&fk)
+	if err := s.DB().QueryRow(`PRAGMA busy_timeout`).Scan(&bt); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DB().QueryRow(`PRAGMA foreign_keys`).Scan(&fk); err != nil {
+		t.Fatal(err)
+	}
 	if mode != "wal" || bt != 5000 || fk != 1 {
 		t.Fatalf("mode=%s busy_timeout=%d foreign_keys=%d", mode, bt, fk)
 	}
@@ -58,7 +64,9 @@ func TestWithTxCommitAndRollback(t *testing.T) {
 	}
 	boom := errors.New("boom")
 	err = s.WithTx(ctx, func(tx store.Store) error {
-		tx.(*Store).q.ExecContext(ctx, `INSERT INTO t VALUES (2)`)
+		if _, err := tx.(*Store).q.ExecContext(ctx, `INSERT INTO t VALUES (2)`); err != nil {
+			return err
+		}
 		// nested WithTx joins the same transaction
 		return tx.WithTx(ctx, func(inner store.Store) error { return boom })
 	})
@@ -71,9 +79,9 @@ func TestWithTxRollsBackOnPanic(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
 	func() {
-		defer func() { recover() }()
-		s.WithTx(ctx, func(tx store.Store) error {
-			tx.(*Store).q.ExecContext(ctx, `INSERT INTO t VALUES (1)`)
+		defer func() { _ = recover() }()
+		_ = s.WithTx(ctx, func(tx store.Store) error {
+			_, _ = tx.(*Store).q.ExecContext(ctx, `INSERT INTO t VALUES (1)`)
 			panic("x")
 		})
 	}()

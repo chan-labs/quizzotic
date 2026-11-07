@@ -13,13 +13,29 @@ linters:
     - nolintlint
     - rowserrcheck
     - sqlclosecheck
-  # More linters (errcheck, revive, noctx, bodyclose, errorlint, gocritic,
+  # More linters (revive, noctx, bodyclose, errorlint, gocritic,
   # intrange, perfsprint, unconvert, unparam, usestdlibvars, wastedassign)
   # come in follow-up PRs, one linter at a time, once their findings are fixed.
-  # errcheck is part of `standard`; it is disabled until its PR lands.
-  disable:
-    - errcheck
   settings:
+    errcheck:
+      # Unactionable errors, excluded on purpose:
+      #  - fmt.Fprint*: CLI and admin output to stdout/stderr or an in-memory
+      #    buffer; there is nowhere to report a failed terminal write.
+      #  - Close on HTTP response bodies and database handles/rows: read-side
+      #    cleanup, where the error carries no data loss (rows.Err and the
+      #    query error are checked separately).
+      # Close on files that were written to is not excluded and must be checked.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.ReadCloser).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Tx).Rollback # deferred after commit/failure; the original error wins
+        - (*bufio.Writer).Write # errors are sticky and surface at Flush, which is checked
+        - (*bufio.Writer).WriteString
+        - (*bufio.Writer).WriteByte
     staticcheck:
       # Same checks the standalone staticcheck gate ran: the default set,
       # without the QF quick-fix suggestions.
@@ -27,6 +43,11 @@ linters:
 
   exclusions:
     rules:
+      # `defer x.Close()` of test fixtures (stores, servers, clients): a failed
+      # close at the end of a test has nothing to report to.
+      - path: _test\.go
+        linters: [errcheck]
+        text: "Error return value of `[^`]*\\.Close` is not checked"
       # These loops close `rows` explicitly, before the next query on the same
       # connection, instead of with defer; moving to defer would change when
       # the connection is released.
