@@ -12,6 +12,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/problems"
 )
 
@@ -191,9 +192,11 @@ func NewService(tx Transactor, opts ...ServiceOption) *Service {
 
 // RebuildUser drops and rebuilds all of one user's cards in one transaction
 // and returns how many cards it wrote.
-func (s *Service) RebuildUser(ctx context.Context, userID domain.ID) (int, error) {
+func (s *Service) RebuildUser(ctx context.Context, userID domain.ID) (_ int, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.RebuildUser")
+	defer end(&err)
 	var n int
-	err := s.tx.InTx(ctx, func(sc Scope) error {
+	err = s.tx.InTx(ctx, func(sc Scope) error {
 		var err error
 		n, err = NewProjector(sc).rebuild(ctx, userID, nil)
 		return err
@@ -209,7 +212,9 @@ type RebuildSummary struct {
 
 // RebuildOne rebuilds one existing user's cards, or returns ErrNotFound when
 // there is no such user.
-func (s *Service) RebuildOne(ctx context.Context, userID domain.ID) (RebuildSummary, error) {
+func (s *Service) RebuildOne(ctx context.Context, userID domain.ID) (_ RebuildSummary, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.RebuildOne")
+	defer end(&err)
 	if s.users == nil {
 		return RebuildSummary{}, errors.New("review: rebuild needs a user repo (WithUsers)")
 	}
@@ -232,7 +237,9 @@ func (s *Service) RebuildOne(ctx context.Context, userID domain.ID) (RebuildSumm
 // (a failure stops the run and leaves later users untouched; rerunning is
 // safe because a rebuild is idempotent), and progress is logged after each
 // batch. The summary counts what was done even when an error is returned.
-func (s *Service) RebuildAll(ctx context.Context) (RebuildSummary, error) {
+func (s *Service) RebuildAll(ctx context.Context) (_ RebuildSummary, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.RebuildAll")
+	defer end(&err)
 	if s.users == nil {
 		return RebuildSummary{}, errors.New("review: rebuild needs a user repo (WithUsers)")
 	}
@@ -271,6 +278,8 @@ func (s *Service) RebuildAll(ctx context.Context) (RebuildSummary, error) {
 // RecomputeCards recomputes every card of the user with the given desired
 // retention. It implements settings.RetentionRecomputer: the settings service
 // calls it after a change of retention has been stored.
-func (s *Service) RecomputeCards(ctx context.Context, userID domain.ID, retention float64) error {
+func (s *Service) RecomputeCards(ctx context.Context, userID domain.ID, retention float64) (err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.RecomputeCards")
+	defer end(&err)
 	return s.tx.InTx(ctx, func(sc Scope) error { return NewProjector(sc).Rebuild(ctx, userID, &retention) })
 }

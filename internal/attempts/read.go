@@ -45,9 +45,11 @@ type ListQuery struct {
 }
 
 // Get returns one of the owner's attempts.
-func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (View, error) {
+func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (_ View, err error) {
+	ctx, end := platform.TraceMethod(ctx, "attempts.Get")
+	defer end(&err)
 	var a Attempt
-	err := s.read(ctx, func(r Repo) (err error) {
+	err = s.read(ctx, func(r Repo) (err error) {
 		a, err = r.Get(ctx, ownerID, id)
 		return err
 	})
@@ -61,7 +63,9 @@ func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (View, error) 
 }
 
 // List returns one page of the owner's attempts, oldest first.
-func (s *Service) List(ctx context.Context, ownerID domain.ID, q ListQuery) (platform.PageResult[View], error) {
+func (s *Service) List(ctx context.Context, ownerID domain.ID, q ListQuery) (_ platform.PageResult[View], err error) {
+	ctx, end := platform.TraceMethod(ctx, "attempts.List")
+	defer end(&err)
 	var fields []platform.FieldError
 	var f ListFilter
 	if q.Problem != "" {
@@ -118,7 +122,7 @@ func (s *Service) List(ctx context.Context, ownerID domain.ID, q ListQuery) (pla
 	}
 	f.Limit = limit + 1 // one extra row says whether another page follows
 	var rows []Attempt
-	err := s.read(ctx, func(r Repo) (err error) {
+	err = s.read(ctx, func(r Repo) (err error) {
 		rows, err = r.List(ctx, ownerID, f)
 		return err
 	})

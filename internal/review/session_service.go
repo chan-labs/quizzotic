@@ -128,7 +128,9 @@ type NextView struct {
 // outcome, not an error. Quiz answers are ordinary attempts, so they count
 // toward the daily review and new-card limits (which are measured against the
 // attempt log) exactly like review answers.
-func (s *SessionService) Create(ctx context.Context, userID domain.ID, in CreateSessionInput) (SessionView, error) {
+func (s *SessionService) Create(ctx context.Context, userID domain.ID, in CreateSessionInput) (_ SessionView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.SessionService.Create")
+	defer end(&err)
 	var quizID domain.ID
 	var fields []platform.FieldError
 	switch in.Kind {
@@ -158,7 +160,7 @@ func (s *SessionService) Create(ctx context.Context, userID domain.ID, in Create
 
 	id, now := s.ids.New(), s.clock.Now()
 	var out Session
-	err := s.tx.InTx(ctx, func(sc SessionScope) error {
+	err = s.tx.InTx(ctx, func(sc SessionScope) error {
 		var plan Plan
 		var err error
 		if in.Kind == SessionReview {
@@ -188,9 +190,11 @@ func (s *SessionService) Create(ctx context.Context, userID domain.ID, in Create
 }
 
 // Get returns the user's session with each item marked answered or not.
-func (s *SessionService) Get(ctx context.Context, userID, id domain.ID) (SessionView, error) {
+func (s *SessionService) Get(ctx context.Context, userID, id domain.ID) (_ SessionView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.SessionService.Get")
+	defer end(&err)
 	var v SessionView
-	err := s.tx.InTx(ctx, func(sc SessionScope) error {
+	err = s.tx.InTx(ctx, func(sc SessionScope) error {
 		sess, answered, err := loadSession(ctx, sc, userID, id)
 		if err != nil {
 			return err
@@ -205,9 +209,11 @@ func (s *SessionService) Get(ctx context.Context, userID, id domain.ID) (Session
 // session owned by someone else is reported like a missing one. It lets the
 // attempts service validate a session_id without reaching into this package's
 // repositories.
-func (s *SessionService) Exists(ctx context.Context, userID, id domain.ID) (bool, error) {
+func (s *SessionService) Exists(ctx context.Context, userID, id domain.ID) (_ bool, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.SessionService.Exists")
+	defer end(&err)
 	found := true
-	err := s.tx.InTx(ctx, func(sc SessionScope) error {
+	err = s.tx.InTx(ctx, func(sc SessionScope) error {
 		_, err := sc.Sessions.Get(ctx, userID, id)
 		if errors.Is(err, ErrSessionNotFound) {
 			found = false
@@ -220,9 +226,11 @@ func (s *SessionService) Exists(ctx context.Context, userID, id domain.ID) (bool
 
 // Complete marks the user's session completed. Completing a completed session
 // is not an error and keeps its first completion time.
-func (s *SessionService) Complete(ctx context.Context, userID, id domain.ID) (SessionView, error) {
+func (s *SessionService) Complete(ctx context.Context, userID, id domain.ID) (_ SessionView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.SessionService.Complete")
+	defer end(&err)
 	var v SessionView
-	err := s.tx.InTx(ctx, func(sc SessionScope) error {
+	err = s.tx.InTx(ctx, func(sc SessionScope) error {
 		if err := sc.Sessions.Complete(ctx, userID, id, s.clock.Now()); err != nil {
 			return err
 		}
@@ -242,7 +250,9 @@ func (s *SessionService) Complete(ctx context.Context, userID, id domain.ID) (Se
 // come due since the session was built (Builder.AppendDue, given the problems
 // still waiting in the list), so a card answered Again returns once its step
 // has elapsed. A completed session serves nothing: that is a conflict.
-func (s *SessionService) Next(ctx context.Context, userID, id domain.ID) (NextView, error) {
+func (s *SessionService) Next(ctx context.Context, userID, id domain.ID) (_ NextView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.SessionService.Next")
+	defer end(&err)
 	var (
 		candidates []int // positions of unanswered, live items, in order
 		sess       Session

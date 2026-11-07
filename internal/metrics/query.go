@@ -151,10 +151,12 @@ type WeakProblemView struct {
 func ptr(v float64) *float64 { return &v }
 
 // Overview returns the user-level metrics at the service clock.
-func (s *QueryService) Overview(ctx context.Context, userID domain.ID) (OverviewView, error) {
+func (s *QueryService) Overview(ctx context.Context, userID domain.ID) (_ OverviewView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "metrics.QueryService.Overview")
+	defer end(&err)
 	now := s.clock.Now()
 	var out OverviewView
-	err := s.tx.InTx(ctx, func(sc SnapshotScope) error {
+	err = s.tx.InTx(ctx, func(sc SnapshotScope) error {
 		cfg, err := sc.Settings.Get(ctx, userID)
 		if err != nil {
 			return err
@@ -212,7 +214,9 @@ func (s *QueryService) Overview(ctx context.Context, userID domain.ID) (Overview
 // Tags returns one page of the owner's active tags with their mastery now,
 // ordered by tag ID. cursor is a previous page's next cursor; limit is the page
 // size (platform.DefaultLimit when not positive).
-func (s *QueryService) Tags(ctx context.Context, userID domain.ID, cursor string, limit int) (platform.PageResult[TagMasteryView], error) {
+func (s *QueryService) Tags(ctx context.Context, userID domain.ID, cursor string, limit int) (_ platform.PageResult[TagMasteryView], err error) {
+	ctx, end := platform.TraceMethod(ctx, "metrics.QueryService.Tags")
+	defer end(&err)
 	var after domain.ID
 	if cursor != "" {
 		b, err := base64.RawURLEncoding.DecodeString(cursor)
@@ -229,7 +233,7 @@ func (s *QueryService) Tags(ctx context.Context, userID domain.ID, cursor string
 	}
 	now := s.clock.Now()
 	var all []TagMasteryView
-	err := s.tx.InTx(ctx, func(sc SnapshotScope) (err error) {
+	err = s.tx.InTx(ctx, func(sc SnapshotScope) (err error) {
 		cfg, err := sc.Settings.Get(ctx, userID)
 		if err != nil {
 			return err
@@ -312,7 +316,9 @@ func (s *QueryService) tagViews(ctx context.Context, sc SnapshotScope, userID do
 // from <= date <= to, oldest first. Dates are study days, YYYY-MM-DD in the
 // user's time zone, the convention the snapshot job writes; an empty bound is
 // open. A tag that is not an active tag of the owner is a 404 problem.
-func (s *QueryService) TagHistory(ctx context.Context, userID domain.ID, ref, from, to string) (TagHistoryView, error) {
+func (s *QueryService) TagHistory(ctx context.Context, userID domain.ID, ref, from, to string) (_ TagHistoryView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "metrics.QueryService.TagHistory")
+	defer end(&err)
 	var fields []platform.FieldError
 	for _, b := range []struct{ name, v string }{{"from", from}, {"to", to}} {
 		if b.v == "" {
@@ -374,13 +380,15 @@ func (s *QueryService) TagHistory(ctx context.Context, userID domain.ID, ref, fr
 // WeakProblems returns the owner's studied live problems with the lowest
 // predicted recall now, weakest first (ties by problem ID), at most limit of
 // them (DefaultWeakProblems when not positive).
-func (s *QueryService) WeakProblems(ctx context.Context, userID domain.ID, limit int) ([]WeakProblemView, error) {
+func (s *QueryService) WeakProblems(ctx context.Context, userID domain.ID, limit int) (_ []WeakProblemView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "metrics.QueryService.WeakProblems")
+	defer end(&err)
 	if limit <= 0 {
 		limit = DefaultWeakProblems
 	}
 	now := s.clock.Now()
 	var out []WeakProblemView
-	err := s.tx.InTx(ctx, func(sc SnapshotScope) error {
+	err = s.tx.InTx(ctx, func(sc SnapshotScope) error {
 		params, err := sc.Scope.Params.Params(ctx, userID)
 		if err != nil {
 			return err

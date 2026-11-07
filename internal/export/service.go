@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 const (
@@ -64,7 +65,9 @@ func NewService(repo Repo, tx Transactor, clock domain.Clock, opts ...Option) *S
 // Attempts newer than the start of the export are left out: tables are read
 // one after another while the instance keeps running, and an attempt written
 // meanwhile could refer to a problem created after the problems were read.
-func (s *Service) Export(ctx context.Context, owner domain.ID, w io.Writer) error {
+func (s *Service) Export(ctx context.Context, owner domain.ID, w io.Writer) (err error) {
+	ctx, end := platform.TraceMethod(ctx, "export.Export")
+	defer end(&err)
 	mark := domain.NewIDGenerator(s.clock).New().String()
 
 	first, err := s.repo.Read(ctx, owner, Tables[0], nil, 1)
@@ -180,9 +183,11 @@ type Summary struct {
 // transaction (a failure leaves the instance empty), preserving every ID. It
 // then rebuilds the projections. It returns ErrNotEmpty when any user exists
 // and an error wrapping ErrInvalid for a document it cannot accept.
-func (s *Service) Import(ctx context.Context, r io.Reader) (Summary, error) {
+func (s *Service) Import(ctx context.Context, r io.Reader) (_ Summary, err error) {
+	ctx, end := platform.TraceMethod(ctx, "export.Import")
+	defer end(&err)
 	var sum Summary
-	err := s.tx.InTx(ctx, func(repo Repo) error {
+	err = s.tx.InTx(ctx, func(repo Repo) error {
 		has, err := repo.HasUsers(ctx)
 		if err != nil {
 			return err

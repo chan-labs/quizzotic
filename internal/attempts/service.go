@@ -167,7 +167,9 @@ func WithCardUpdater(c CardUpdater) Option { return func(s *Service) { s.cards =
 // transaction. Only a human may answer. Failures that are the client's to fix
 // are *platform.Problem; an invalid rating is reported as an error wrapping
 // grading.ErrInvalidRating (the handler renders it).
-func (s *Service) Answer(ctx context.Context, actor domain.Actor, in AnswerInput) (Result, error) {
+func (s *Service) Answer(ctx context.Context, actor domain.Actor, in AnswerInput) (_ Result, err error) {
+	ctx, end := platform.TraceMethod(ctx, "attempts.Answer")
+	defer end(&err)
 	if actor.Kind != domain.ActorHuman || actor.UserID.IsNil() {
 		return Result{}, platform.Forbidden("only a human can answer problems")
 	}
@@ -319,7 +321,9 @@ const RatingWindow = 15 * time.Minute
 // transaction. An attempt that is already rated, or whose window has closed,
 // is a 409; a rating that does not fit the outcome is a 422 on the rating
 // field (rendered by the handler from the grading error).
-func (s *Service) Rate(ctx context.Context, actor domain.Actor, id domain.ID, rating int) (Result, error) {
+func (s *Service) Rate(ctx context.Context, actor domain.Actor, id domain.ID, rating int) (_ Result, err error) {
+	ctx, end := platform.TraceMethod(ctx, "attempts.Rate")
+	defer end(&err)
 	if actor.Kind != domain.ActorHuman || actor.UserID.IsNil() {
 		return Result{}, platform.Forbidden("only a human can rate attempts")
 	}

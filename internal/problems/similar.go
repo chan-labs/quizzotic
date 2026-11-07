@@ -42,7 +42,9 @@ type SimilarResult struct {
 // Similar ranks the owner's non-deleted problems by token-set Jaccard
 // similarity between in and each problem's current prompt and answers, best
 // first, ties broken by problem ID.
-func (s *Service) Similar(ctx context.Context, ownerID domain.ID, in SimilarInput) (SimilarResult, error) {
+func (s *Service) Similar(ctx context.Context, ownerID domain.ID, in SimilarInput) (_ SimilarResult, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Similar")
+	defer end(&err)
 	var fields []platform.FieldError
 	if strings.TrimSpace(in.Prompt) == "" {
 		fields = append(fields, platform.FieldError{Field: "prompt", Detail: "required"})

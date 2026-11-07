@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 // RetentionRecomputer is the hook through which a change of desired retention
@@ -59,9 +60,11 @@ func NewService(tx Transactor, defaults Defaults, opts ...Option) *Service {
 }
 
 // Get returns the user's effective settings.
-func (s *Service) Get(ctx context.Context, userID domain.ID) (Settings, error) {
+func (s *Service) Get(ctx context.Context, userID domain.ID) (_ Settings, err error) {
+	ctx, end := platform.TraceMethod(ctx, "settings.Get")
+	defer end(&err)
 	var out Settings
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err = s.tx.InTx(ctx, func(r Repos) error {
 		o, err := r.Settings.Get(ctx, userID)
 		if err != nil {
 			return err
@@ -73,7 +76,9 @@ func (s *Service) Get(ctx context.Context, userID domain.ID) (Settings, error) {
 }
 
 // StudyDay returns the user's current study day at now.
-func (s *Service) StudyDay(ctx context.Context, userID domain.ID, now time.Time) (StudyDay, error) {
+func (s *Service) StudyDay(ctx context.Context, userID domain.ID, now time.Time) (_ StudyDay, err error) {
+	ctx, end := platform.TraceMethod(ctx, "settings.StudyDay")
+	defer end(&err)
 	cur, err := s.Get(ctx, userID)
 	if err != nil {
 		return StudyDay{}, err
@@ -86,12 +91,14 @@ func (s *Service) StudyDay(ctx context.Context, userID domain.ID, now time.Time)
 // returns a *ValidationError (errors.Is ErrInvalid) for bad values. If the
 // effective desired retention changed, the RetentionRecomputer hook, when
 // installed, runs after commit.
-func (s *Service) Update(ctx context.Context, userID domain.ID, o Overrides) (Settings, error) {
+func (s *Service) Update(ctx context.Context, userID domain.ID, o Overrides) (_ Settings, err error) {
+	ctx, end := platform.TraceMethod(ctx, "settings.Update")
+	defer end(&err)
 	if err := o.Validate(); err != nil {
 		return Settings{}, err
 	}
 	var before, after Settings
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err = s.tx.InTx(ctx, func(r Repos) error {
 		old, err := r.Settings.Get(ctx, userID)
 		if err != nil {
 			return err
@@ -113,9 +120,11 @@ func (s *Service) Update(ctx context.Context, userID domain.ID, o Overrides) (Se
 // Overrides returns the user's stored overrides (nil fields use the default).
 // Callers that edit only some fields read this first so Update does not turn
 // untouched defaults into overrides.
-func (s *Service) Overrides(ctx context.Context, userID domain.ID) (Overrides, error) {
+func (s *Service) Overrides(ctx context.Context, userID domain.ID) (_ Overrides, err error) {
+	ctx, end := platform.TraceMethod(ctx, "settings.Overrides")
+	defer end(&err)
 	var out Overrides
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err = s.tx.InTx(ctx, func(r Repos) error {
 		var err error
 		out, err = r.Settings.Get(ctx, userID)
 		return err
