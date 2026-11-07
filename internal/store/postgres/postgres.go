@@ -193,13 +193,13 @@ func (s *Store) Migrate(ctx context.Context) ([]int64, error) {
 				return nil, err
 			}
 			if _, err := c.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, int64(migrateLockKey)); err != nil {
-				c.Close()
+				_ = c.Close()
 				return nil, err
 			}
 			return func() {
 				// Background: the caller's ctx may already be cancelled.
-				c.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, int64(migrateLockKey))
-				c.Close()
+				_, _ = c.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, int64(migrateLockKey))
+				_ = c.Close()
 			}, nil
 		},
 	})

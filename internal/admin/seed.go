@@ -63,7 +63,7 @@ func seedCmd(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "quizzotic: %v\n", err)
 		return 1
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 
 	ownerID, err := seedrun.ResolveOwner(ctx, st, *owner)
 	if err != nil {

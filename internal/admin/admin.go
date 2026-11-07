@@ -59,7 +59,7 @@ func migrate(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "quizzotic: %v\n", err)
 		return 1
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 	applied, err := st.Migrate(ctx)
 	if err != nil {
 		fmt.Fprintf(stderr, "quizzotic: migrate: %v\n", err)

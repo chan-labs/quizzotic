@@ -64,7 +64,7 @@ func rebuildCmd(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		fmt.Fprintf(stderr, "quizzotic: %v\n", err)
 		return 1
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	if *history {

@@ -51,7 +51,7 @@ func Load(spec string) (*File, error) {
 	if err != nil {
 		return nil, fmt.Errorf("seed: %w", err)
 	}
-	defer fh.Close()
+	defer func() { _ = fh.Close() }()
 	f, err := Parse(fh)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", spec, err)

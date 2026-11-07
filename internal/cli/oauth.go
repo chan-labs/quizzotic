@@ -293,7 +293,7 @@ func loopbackLogin(ctx context.Context, hc *http.Client, d *discovery, clientID 
 	})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	q := url.Values{
 		"response_type":         {"code"},

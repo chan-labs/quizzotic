@@ -70,7 +70,7 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 
 	if cfg.Storage.AutoMigrate {
 		applied, err := st.Migrate(ctx)

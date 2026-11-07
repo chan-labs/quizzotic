@@ -68,7 +68,7 @@ func exportCmd(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	if !ok {
 		return 1
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 	if id.IsNil() {
 		u, err := st.Users().Sole(ctx)
 		switch {
@@ -100,7 +100,7 @@ func exportCmd(ctx context.Context, args []string, stdout, stderr io.Writer) int
 		err = cerr
 	}
 	if err != nil && *out != "" {
-		os.Remove(*out) // never leave a truncated export that looks like a backup
+		_ = os.Remove(*out) // never leave a truncated export that looks like a backup
 	}
 	switch {
 	case errors.Is(err, export.ErrNotFound):
@@ -136,7 +136,7 @@ func importCmd(ctx context.Context, args []string, stdin io.Reader, stdout, stde
 			fmt.Fprintf(stderr, "quizzotic: %v\n", err)
 			return 1
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		r = f
 	}
 
@@ -144,7 +144,7 @@ func importCmd(ctx context.Context, args []string, stdin io.Reader, stdout, stde
 	if !ok {
 		return 1
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 	if _, err := st.Migrate(ctx); err != nil {
 		fmt.Fprintf(stderr, "quizzotic: migrate: %v\n", err)
 		return 1

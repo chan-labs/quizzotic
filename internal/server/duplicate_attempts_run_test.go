@@ -43,7 +43,8 @@ func TestRunConcurrentDuplicateAttemptsRecordOne(t *testing.T) {
 	t.Cleanup(func() {
 		cancel()
 		select {
-		case <-done:
+		case err := <-done:
+			t.Logf("server stopped: %v", err)
 		case <-time.After(10 * time.Second):
 			t.Error("server did not shut down")
 		}

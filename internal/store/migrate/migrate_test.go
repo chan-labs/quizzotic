@@ -41,7 +41,9 @@ func TestUpAppliesOnceInOrder(t *testing.T) {
 		t.Fatalf("second should be no-op: %v %v", got, err)
 	}
 	var n int
-	db.QueryRow(`SELECT count(*) FROM a`).Scan(&n)
+	if err := db.QueryRow(`SELECT count(*) FROM a`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 2 {
 		t.Fatalf("rows = %d", n)
 	}
@@ -58,11 +60,15 @@ func TestUpFailedMigrationRollsBackAndIsNotRecorded(t *testing.T) {
 		t.Fatalf("got %v err %v", got, err)
 	}
 	var n int
-	db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE name='b'`).Scan(&n)
+	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE name='b'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 0 {
 		t.Fatal("partial migration was not rolled back")
 	}
-	db.QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&n)
+	if err := db.QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n != 1 {
 		t.Fatalf("recorded %d", n)
 	}

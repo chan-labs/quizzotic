@@ -52,7 +52,7 @@ func newSchemaStore(t *testing.T) *Store {
 	}
 	t.Cleanup(func() {
 		s.Close()
-		admin.DB().ExecContext(context.Background(), `DROP SCHEMA `+name+` CASCADE`)
+		_, _ = admin.DB().ExecContext(context.Background(), `DROP SCHEMA `+name+` CASCADE`)
 		admin.Close()
 	})
 	return s
