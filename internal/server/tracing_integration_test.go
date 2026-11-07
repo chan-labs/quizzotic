@@ -179,4 +179,27 @@ func TestRepoCallsTracedUnderRequest(t *testing.T) {
 	if !seen {
 		t.Error("no problems.Get span for the 404 request")
 	}
+
+	// One route per remaining service family: lifecycle (publish), tag
+	// operations, attempt reads and the metrics query service.
+	e.exp.Reset()
+	p := e.create(t, e.human, openBody("Traced publish prompt"))
+	e.exp.Reset()
+	if r := e.req(t, "POST", "/problems/"+p.ID.String()+"/publish", e.human, nil,
+		map[string]string{"If-Match": p.ETag()}); r.code != http.StatusOK {
+		t.Fatalf("publish = %d (%s)", r.code, r.body)
+	}
+	e.traceOf(t, "/api/v1/problems/"+p.ID.String()+"/publish").requireChain(t, "problems.Publish")
+
+	for _, c := range []struct{ path, span string }{
+		{"/tag-operations", "tags.ListOperationDetails"},
+		{"/attempts", "attempts.List"},
+		{"/metrics/overview", "metrics.QueryService.Overview"},
+	} {
+		e.exp.Reset()
+		if r := e.req(t, "GET", c.path, e.human, nil, nil); r.code != http.StatusOK {
+			t.Fatalf("GET %s = %d (%s)", c.path, r.code, r.body)
+		}
+		e.traceOf(t, "/api/v1"+c.path).requireChain(t, c.span)
+	}
 }

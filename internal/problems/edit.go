@@ -119,7 +119,9 @@ type VersionView struct {
 // Edit merges in onto the problem's current version and stores the result as
 // a new version. ifMatch must satisfy the problem's current ETag; the check
 // and the write share one transaction.
-func (s *Service) Edit(ctx context.Context, actor domain.Actor, id domain.ID, ifMatch string, in EditInput) (View, error) {
+func (s *Service) Edit(ctx context.Context, actor domain.Actor, id domain.ID, ifMatch string, in EditInput) (_ View, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Edit")
+	defer end(&err)
 	if err := actor.Validate(); err != nil || actor.UserID.IsNil() {
 		return View{}, errors.New("problems: edit needs an actor with a user")
 	}
@@ -132,7 +134,7 @@ func (s *Service) Edit(ctx context.Context, actor domain.Actor, id domain.ID, if
 			platform.FieldError{Field: "body", Detail: "change at least one of type, prompt, payload, explanation, source"})
 	}
 	var out View
-	err := s.inEditTx(ctx, func(r Repo, onMajor MajorEditHandler) error {
+	err = s.inEditTx(ctx, func(r Repo, onMajor MajorEditHandler) error {
 		p, err := r.Get(ctx, actor.UserID, id)
 		if err != nil {
 			return notFound(err)
@@ -195,7 +197,9 @@ func (s *Service) Edit(ctx context.Context, actor domain.Actor, id domain.ID, if
 }
 
 // Versions returns every version of the owner's problem, oldest first.
-func (s *Service) Versions(ctx context.Context, ownerID, id domain.ID) ([]VersionView, error) {
+func (s *Service) Versions(ctx context.Context, ownerID, id domain.ID) (_ []VersionView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Versions")
+	defer end(&err)
 	vs, err := s.repo.ListVersions(ctx, ownerID, id)
 	if err != nil {
 		return nil, notFound(err)

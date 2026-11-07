@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 // AnswerSubject is what the answer flow needs to grade an attempt: the
@@ -26,7 +27,9 @@ type AnswerSubject struct {
 
 // ForAnswer returns the owner's non-deleted problem as the answer flow sees
 // it, or a 404 problem for a missing, deleted or foreign one.
-func (s *Service) ForAnswer(ctx context.Context, ownerID, id domain.ID) (AnswerSubject, error) {
+func (s *Service) ForAnswer(ctx context.Context, ownerID, id domain.ID) (_ AnswerSubject, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.ForAnswer")
+	defer end(&err)
 	p, v, err := s.current(ctx, ownerID, id)
 	if err != nil {
 		return AnswerSubject{}, err

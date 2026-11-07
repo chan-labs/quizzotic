@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"go.opentelemetry.io/otel"
@@ -105,16 +106,27 @@ func TestTraceMethodNoopWithoutProvider(t *testing.T) {
 	}
 }
 
-// TestEveryServiceMethodIsTraced fails when an exported method of a feature's
-// Service takes a context but does not begin with the TraceMethod span named
-// "<package>.<Method>" and `defer end(&err)`.
+// TestEveryServiceMethodIsTraced fails when an exported context-taking method
+// of any type named *Service (Service, QueryService, SessionService, ...) in
+// internal/*/*.go does not begin with the TraceMethod span and
+// `defer end(&err)` (or `defer end(nil)` when the method returns no error).
+// The span is "<package>.<Method>" for a type named Service and
+// "<package>.<Type>.<Method>" for the others.
+//
+// Deliberately excluded: Projectors, Snapshotters, store-facing adapters,
+// repo implementations and other helpers that are not named *Service. They
+// run inside a service call (or a job) and are covered by it and by the
+// db spans.
 func TestEveryServiceMethodIsTraced(t *testing.T) {
-	files, err := filepath.Glob("../*/service.go")
+	files, err := filepath.Glob("../*/*.go")
 	if err != nil || len(files) == 0 {
-		t.Fatalf("no service files: %v", err)
+		t.Fatalf("no source files: %v", err)
 	}
 	methods := 0
 	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, f, nil, 0)
 		if err != nil {
@@ -122,29 +134,41 @@ func TestEveryServiceMethodIsTraced(t *testing.T) {
 		}
 		for _, d := range file.Decls {
 			fn, ok := d.(*ast.FuncDecl)
-			if !ok || fn.Recv == nil || !fn.Name.IsExported() || !isServiceRecv(fn.Recv) || !takesContext(fn) {
+			if !ok || fn.Recv == nil || !fn.Name.IsExported() || !takesContext(fn) {
+				continue
+			}
+			typ := serviceRecv(fn.Recv)
+			if typ == "" {
 				continue
 			}
 			methods++
 			want := file.Name.Name + "." + fn.Name.Name
+			if typ != "Service" {
+				want = file.Name.Name + "." + typ + "." + fn.Name.Name
+			}
 			if !startsWithTrace(fn, want) {
-				t.Errorf("%s: %s.Service.%s must start with\n\tctx, end := platform.TraceMethod(ctx, %q)\n\tdefer end(&err)\n(err being the named error result)",
-					fset.Position(fn.Pos()), file.Name.Name, fn.Name.Name, want)
+				t.Errorf("%s: %s.%s.%s must start with\n\tctx, end := platform.TraceMethod(ctx, %q)\n\tdefer end(&err)\n(err being the named error result)",
+					fset.Position(fn.Pos()), file.Name.Name, typ, fn.Name.Name, want)
 			}
 		}
 	}
-	if methods < 20 {
+	if methods < 60 {
 		t.Errorf("only %d service methods found; the check is not looking at the services", methods)
 	}
 }
 
-func isServiceRecv(r *ast.FieldList) bool {
+// serviceRecv returns the receiver type name when it is a pointer to a type
+// whose name ends in "Service", else "".
+func serviceRecv(r *ast.FieldList) string {
 	star, ok := r.List[0].Type.(*ast.StarExpr)
 	if !ok {
-		return false
+		return ""
 	}
 	id, ok := star.X.(*ast.Ident)
-	return ok && id.Name == "Service"
+	if ok && strings.HasSuffix(id.Name, "Service") {
+		return id.Name
+	}
+	return ""
 }
 
 func takesContext(fn *ast.FuncDecl) bool {

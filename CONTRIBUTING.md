@@ -92,7 +92,7 @@ Parallel features should touch only their own files.
 - **API spec.** `api/openapi.yaml` stays one file (Redocly lint, the contract test and the CLI/MCP generators read it whole). Add new paths and schemas in a block next to the feature's neighbours rather than appending at the end of the file, so two features do not both extend the same last lines.
 
 ## Tracing service methods
-Every exported method of a feature's `Service` that takes a `context.Context` opens with a span, so each request's trace shows HTTP, then service, then repo:
+Every exported method that takes a `context.Context` on a feature's service types (`Service`, and any other type named `*Service` such as `QueryService` or `SessionService`, in any file of the package) opens with a span, so each request's trace shows HTTP, then service, then repo:
 
 ```go
 func (s *Service) Create(ctx context.Context, ...) (_ View, err error) {
@@ -100,7 +100,7 @@ func (s *Service) Create(ctx context.Context, ...) (_ View, err error) {
 	defer end(&err)
 ```
 
-The span is named `<package>.<Method>`, carries no attributes (no user data or IDs), and uses the returned `ctx` for everything it calls. Return the error through the named `err` result. Client errors (a `*platform.Problem` below 500) do not fail the span; anything else does. `TestEveryServiceMethodIsTraced` fails when a method lacks the span.
+The span is named `<package>.<Method>` (`<package>.<Type>.<Method>` for types other than `Service`; a method with no error result uses `defer end(nil)`), carries no attributes (no user data or IDs), and uses the returned `ctx` for everything it calls. Return the error through the named `err` result. Client errors (a `*platform.Problem` below 500) do not fail the span; anything else does. `TestEveryServiceMethodIsTraced` fails when a method lacks the span. Projectors, snapshotters and store adapters are not services and are covered by the call that runs them.
 
 ## Adding a store backend
 

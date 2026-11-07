@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 // Web login defaults.
@@ -106,7 +107,9 @@ func (s *LoginService) SessionTTL() time.Duration { return s.cfg.SessionTTL }
 // BeginLogin stores fresh state, nonce and PKCE verifier and returns the
 // issuer URL to redirect the browser to. returnTo is kept only when it is a
 // local path.
-func (s *LoginService) BeginLogin(ctx context.Context, returnTo string) (string, error) {
+func (s *LoginService) BeginLogin(ctx context.Context, returnTo string) (_ string, err error) {
+	ctx, end := platform.TraceMethod(ctx, "auth.LoginService.BeginLogin")
+	defer end(&err)
 	disc, err := s.idp.Discovery(ctx)
 	if err != nil {
 		return "", err
@@ -160,7 +163,9 @@ type LoginResult struct {
 
 // CompleteLogin consumes the one-time state, exchanges the code (with the PKCE
 // verifier), verifies the ID token, provisions the user and creates a session.
-func (s *LoginService) CompleteLogin(ctx context.Context, state, code string) (LoginResult, error) {
+func (s *LoginService) CompleteLogin(ctx context.Context, state, code string) (_ LoginResult, err error) {
+	ctx, end := platform.TraceMethod(ctx, "auth.LoginService.CompleteLogin")
+	defer end(&err)
 	if state == "" || code == "" {
 		return LoginResult{}, ErrInvalidState
 	}
@@ -217,6 +222,8 @@ func (s *LoginService) CompleteLogin(ctx context.Context, state, code string) (L
 // AbandonLogin discards the state of a login the issuer rejected, so it cannot
 // be replayed. Errors are ignored: the state expires on its own.
 func (s *LoginService) AbandonLogin(ctx context.Context, state string) {
+	ctx, end := platform.TraceMethod(ctx, "auth.LoginService.AbandonLogin")
+	defer end(nil)
 	if state != "" {
 		_, _ = s.repos.LoginStates().Consume(ctx, hashToken(state), s.clock.Now())
 	}
@@ -266,6 +273,8 @@ func (s *LoginService) exchange(ctx context.Context, endpoint, code, verifier st
 // expiry (at most once per minute) and reports whether it did, so the caller
 // can re-issue the cookie. Expired sessions are deleted.
 func (s *LoginService) Authenticate(ctx context.Context, token string) (ws WebSession, refreshed bool, err error) {
+	ctx, end := platform.TraceMethod(ctx, "auth.LoginService.Authenticate")
+	defer end(&err)
 	if token == "" {
 		return WebSession{}, false, ErrNoSession
 	}
@@ -295,8 +304,10 @@ func (s *LoginService) Authenticate(ctx context.Context, token string) (ws WebSe
 }
 
 // Logout deletes the session.
-func (s *LoginService) Logout(ctx context.Context, ws WebSession) error {
-	err := s.repos.WebSessions().Delete(ctx, ws.UserID, ws.ID)
+func (s *LoginService) Logout(ctx context.Context, ws WebSession) (err error) {
+	ctx, end := platform.TraceMethod(ctx, "auth.LoginService.Logout")
+	defer end(&err)
+	err = s.repos.WebSessions().Delete(ctx, ws.UserID, ws.ID)
 	if errors.Is(err, ErrNotFound) {
 		return nil
 	}
