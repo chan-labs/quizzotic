@@ -63,6 +63,16 @@ run = "dev/dev.sh server"
 description = "Delete the dev databases (.dev/quizzotic*.db)"
 run = "dev/dev.sh reset"
 
+# Local trace viewer (Grafana + Tempo, needs Docker). DEV ONLY.
+# Grafana: http://localhost:3000; OTLP HTTP :4318, gRPC :4317.
+[tasks.dev-otel]
+description = "Start the local Grafana/Tempo tracing stack (then: QUIZZOTIC_DEV_OTEL=1 mise run dev)"
+run = "docker compose -f dev/docker-compose.otel.yaml up -d"
+
+[tasks.dev-otel-down]
+description = "Stop and remove the local Grafana/Tempo tracing stack"
+run = "docker compose -f dev/docker-compose.otel.yaml down"
+
 [tasks.release-check]
 description = "Validate the GoReleaser config (publishes nothing)"
 run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 check"

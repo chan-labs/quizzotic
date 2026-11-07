@@ -46,11 +46,9 @@ func (r attemptRepo) Create(ctx context.Context, ownerID domain.ID, a attempts.A
 		// READ COMMITTED: two transactions could both count before either
 		// inserts. The owner lock serializes them; outside a transaction there
 		// is nothing to serialize against.
-		if rb, ok := r.q.(rebinder); ok {
-			if _, ok := rb.q.(*sql.Tx); ok {
-				if err := lockOwner(ctx, r.q, ownerID); err != nil {
-					return err
-				}
+		if inTx(r.q) {
+			if err := lockOwner(ctx, r.q, ownerID); err != nil {
+				return err
 			}
 		}
 	}

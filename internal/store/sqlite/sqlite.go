@@ -11,6 +11,7 @@ import (
 
 	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
 
+	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/store"
 	"github.com/chan-labs/quizzotic/internal/store/migrate"
 	"github.com/chan-labs/quizzotic/migrations"
@@ -26,7 +27,7 @@ type execer interface {
 // Store is the SQLite implementation of store.Store.
 type Store struct {
 	db *sql.DB
-	q  execer // db, or the open transaction
+	q  platform.TracedExecer // db, or the open transaction, traced
 }
 
 var _ store.Store = (*Store)(nil)
@@ -53,7 +54,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
 	}
-	return &Store{db: db, q: db}, nil
+	return &Store{db: db, q: platform.NewTracedExecer(db, "sqlite")}, nil
 }
 
 // DB exposes the pool for tests and the migration runner.
@@ -61,24 +62,30 @@ func (s *Store) DB() *sql.DB { return s.db }
 
 // WithTx implements store.Store.
 func (s *Store) WithTx(ctx context.Context, fn func(tx store.Store) error) error {
-	if _, nested := s.q.(*sql.Tx); nested {
+	if s.q.InTx() {
 		return fn(s)
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	txCtx, span := s.q.TraceTx(ctx)
+	tx, err := s.db.BeginTx(txCtx, nil)
 	if err != nil {
+		platform.EndSpan(span, err)
 		return err
 	}
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
+			span.End()
 			panic(p)
 		}
 	}()
-	if err := fn(&Store{db: s.db, q: tx}); err != nil {
+	if err := fn(&Store{db: s.db, q: s.q.Tx(tx, span, ctx)}); err != nil {
 		tx.Rollback()
+		platform.EndSpan(span, err)
 		return err
 	}
-	return tx.Commit()
+	err = tx.Commit()
+	platform.EndSpan(span, err)
+	return err
 }
 
 // Migrate implements store.Store.

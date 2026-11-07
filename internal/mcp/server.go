@@ -18,6 +18,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/chan-labs/quizzotic/internal/openapi"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 // bodyKey names the tool argument that carries the request body when the body
@@ -32,7 +33,7 @@ var forbiddenScopes = []string{"attempts:write", "sessions:write", "admin"}
 type Options struct {
 	// BaseURL is the Quizzotic server root, without /api/v1.
 	BaseURL string
-	// HTTP defaults to http.DefaultClient.
+	// HTTP defaults to a client that traces outbound requests.
 	HTTP *http.Client
 	// Ops defaults to the embedded spec's operations.
 	Ops []openapi.Operation
@@ -85,7 +86,7 @@ func New(o Options) (*sdk.Server, error) {
 		}
 	}
 	if o.HTTP == nil {
-		o.HTTP = http.DefaultClient
+		o.HTTP = &http.Client{Transport: platform.TraceTransport(nil)}
 	}
 	o.BaseURL = strings.TrimRight(o.BaseURL, "/")
 	if o.Version == "" {

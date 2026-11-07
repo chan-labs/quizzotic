@@ -45,6 +45,24 @@ start the stack with `preview_start`. The issuer and the `dev-secret` client
 secret are fake and for local development only; nothing here is shipped in the
 `quizzotic` binary.
 
+## Local tracing
+
+```sh
+mise run dev-otel                       # Grafana + Tempo + collector (grafana/otel-lgtm, Docker)
+QUIZZOTIC_DEV_OTEL=1 mise run dev       # in another terminal: dev server exports to it
+mise run dev-otel-down                  # stop the stack
+```
+
+`QUIZZOTIC_DEV_OTEL=1` sets `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`,
+`OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` and `OTEL_SERVICE_NAME=quizzotic-dev`
+for the dev server unless you set them yourself. Use the web UI, or the CLI with
+`OTEL_EXPORTER_OTLP_ENDPOINT` set so its own spans export too, then open
+<http://localhost:3000>, go to **Explore**, pick the **Tempo** data source and
+use **Search** with service name `quizzotic-dev` (or the TraceQL query
+`{ resource.service.name = "quizzotic-dev" }`). Grafana runs as anonymous admin
+and is bound to localhost; the stack is for local development only. See
+[docs/tracing.md](docs/tracing.md) for the spans and variables.
+
 ## Golden files
 
 The generated CLI help (`internal/cli/testdata`, `cmd/quizzotic/testdata`) and the MCP tool list (`internal/mcp/testdata`) are checked against golden files. Changing an operation summary, description or schema in `api/openapi.yaml` fails `mise run test` until you run `mise run golden` and commit the reviewed diff.
