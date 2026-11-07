@@ -15,10 +15,11 @@ Thanks for helping. Please read the [Code of Conduct](CODE_OF_CONDUCT.md). The d
 ## Development
 
 ```sh
-mise install          # once: Go, Node and staticcheck at the pinned versions
+mise install          # once: Go, Node and golangci-lint at the pinned versions
 mise run build        # build the quizzotic binary
 mise run test         # go test -race ./...
-mise run lint         # go vet + staticcheck + Redocly lint of api/openapi.yaml
+mise run lint         # golangci-lint + format check + Redocly lint of api/openapi.yaml
+mise run fmt          # gofmt + goimports, in place
 mise run golden       # regenerate CLI help and MCP tool-list goldens
 mise run test-postgres  # Postgres store suite in a throwaway postgres:17 container (needs docker)
 mise run build-all    # cross-compile for linux, darwin, windows (CGO_ENABLED=0)
