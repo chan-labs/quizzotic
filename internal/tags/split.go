@@ -60,12 +60,14 @@ type splitPayload struct {
 // retires the source when asked, and records an applied TagOperation holding
 // the before-snapshot of the source and the existing targets, attributed to
 // actor. Invalid input is a validation error and changes nothing.
-func (s *Service) Split(ctx context.Context, ownerID domain.ID, actor domain.Actor, in SplitInput) (SplitResult, error) {
+func (s *Service) Split(ctx context.Context, ownerID domain.ID, actor domain.Actor, in SplitInput) (_ SplitResult, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.Split")
+	defer end(&err)
 	if err := actor.Validate(); err != nil {
 		return SplitResult{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
 	}
 	var res SplitResult
-	err := s.mutate(ctx, ownerID, func(r Repos) (err error) {
+	err = s.mutate(ctx, ownerID, func(r Repos) (err error) {
 		if res, err = s.applySplit(ctx, r, ownerID, actor, in, &splitRun{}); err != nil {
 			return err
 		}

@@ -58,7 +58,9 @@ type BatchItem struct {
 // If any item is invalid nothing is written and the result is a 422 whose
 // errors are the invalid fields of every bad item, each path prefixed with
 // items[i]. The views come back in request order.
-func (s *Service) CreateBatch(ctx context.Context, actor domain.Actor, items []BatchItem) ([]View, error) {
+func (s *Service) CreateBatch(ctx context.Context, actor domain.Actor, items []BatchItem) (_ []View, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.CreateBatch")
+	defer end(&err)
 	if err := checkCreateActor(actor); err != nil {
 		return nil, err
 	}
@@ -75,7 +77,7 @@ func (s *Service) CreateBatch(ctx context.Context, actor domain.Actor, items []B
 	}
 
 	var out []View
-	err := s.batch.InBatchTx(ctx, func(sc BatchScope) error {
+	err = s.batch.InBatchTx(ctx, func(sc BatchScope) error {
 		var (
 			fields []platform.FieldError
 			tagIDs = make([][]domain.ID, len(items))

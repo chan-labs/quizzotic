@@ -66,7 +66,9 @@ type Patch struct {
 }
 
 // Create makes a quiz, with its initial items when given.
-func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput) (Quiz, error) {
+func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput) (_ Quiz, err error) {
+	ctx, end := platform.TraceMethod(ctx, "quizzes.Create")
+	defer end(&err)
 	title := strings.TrimSpace(in.Title)
 	status := in.Status
 	if status == "" {
@@ -107,9 +109,11 @@ func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput
 }
 
 // Get returns the owner's quiz with its items.
-func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (Quiz, error) {
+func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (_ Quiz, err error) {
+	ctx, end := platform.TraceMethod(ctx, "quizzes.Get")
+	defer end(&err)
 	var q Quiz
-	err := s.tx.InTx(ctx, func(r Repo) (err error) {
+	err = s.tx.InTx(ctx, func(r Repo) (err error) {
 		q, err = r.Get(ctx, ownerID, id)
 		return err
 	})
@@ -118,7 +122,9 @@ func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (Quiz, error) 
 
 // List returns one page of the owner's quizzes (optionally one status) and the
 // cursor for the next page ("" on the last one).
-func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p platform.Page) ([]Quiz, string, error) {
+func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p platform.Page) (_ []Quiz, _ string, err error) {
+	ctx, end := platform.TraceMethod(ctx, "quizzes.List")
+	defer end(&err)
 	if status != "" && !status.Valid() {
 		return nil, "", platform.Validation("invalid status", platform.FieldError{Field: "status", Detail: "must be draft, live or archived"})
 	}
@@ -131,7 +137,7 @@ func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p 
 		after = id
 	}
 	var out []Quiz
-	err := s.tx.InTx(ctx, func(r Repo) (err error) {
+	err = s.tx.InTx(ctx, func(r Repo) (err error) {
 		out, err = r.List(ctx, ownerID, ListFilter{Status: status, After: after, Limit: p.Limit + 1})
 		return err
 	})
@@ -148,7 +154,9 @@ func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p 
 
 // Update applies patch. ifMatch must equal the quiz's current ETag (412
 // otherwise); the check and the write share one transaction.
-func (s *Service) Update(ctx context.Context, ownerID, id domain.ID, ifMatch string, patch Patch) (Quiz, error) {
+func (s *Service) Update(ctx context.Context, ownerID, id domain.ID, ifMatch string, patch Patch) (_ Quiz, err error) {
+	ctx, end := platform.TraceMethod(ctx, "quizzes.Update")
+	defer end(&err)
 	var fe []platform.FieldError
 	if patch.Title != nil {
 		*patch.Title = strings.TrimSpace(*patch.Title)
@@ -164,7 +172,7 @@ func (s *Service) Update(ctx context.Context, ownerID, id domain.ID, ifMatch str
 		return Quiz{}, platform.Validation("invalid quiz", fe...)
 	}
 	var out Quiz
-	err := s.tx.InTx(ctx, func(r Repo) error {
+	err = s.tx.InTx(ctx, func(r Repo) error {
 		q, err := r.Get(ctx, ownerID, id)
 		if err != nil {
 			return err
@@ -194,7 +202,9 @@ func (s *Service) Update(ctx context.Context, ownerID, id domain.ID, ifMatch str
 // SetItems replaces the quiz's items with the problems refs name, in order.
 // Every ref must be a distinct problem of the owner; otherwise it is a 422
 // that names the offending entries and changes nothing.
-func (s *Service) SetItems(ctx context.Context, ownerID, id domain.ID, ifMatch string, refs []string) (Quiz, error) {
+func (s *Service) SetItems(ctx context.Context, ownerID, id domain.ID, ifMatch string, refs []string) (_ Quiz, err error) {
+	ctx, end := platform.TraceMethod(ctx, "quizzes.SetItems")
+	defer end(&err)
 	// Existence first, so another owner's quiz is a 404 whatever the body says.
 	if _, err := s.Get(ctx, ownerID, id); err != nil {
 		return Quiz{}, err
@@ -229,7 +239,9 @@ func (s *Service) SetItems(ctx context.Context, ownerID, id domain.ID, ifMatch s
 }
 
 // Delete soft-deletes the quiz. ifMatch must equal its current ETag.
-func (s *Service) Delete(ctx context.Context, ownerID, id domain.ID, ifMatch string) error {
+func (s *Service) Delete(ctx context.Context, ownerID, id domain.ID, ifMatch string) (err error) {
+	ctx, end := platform.TraceMethod(ctx, "quizzes.Delete")
+	defer end(&err)
 	return s.tx.InTx(ctx, func(r Repo) error {
 		q, err := r.Get(ctx, ownerID, id)
 		if err != nil {

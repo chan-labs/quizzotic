@@ -18,12 +18,14 @@ import (
 // ErrOpReverted when it was reverted already and ErrRevertConflict when a
 // later applied, not reverted operation touched any of the same tags. Mastery
 // and history of every tag involved are rebuilt in the same transaction.
-func (s *Service) RevertOperation(ctx context.Context, ownerID domain.ID, actor domain.Actor, id domain.ID) (OpDetail, error) {
+func (s *Service) RevertOperation(ctx context.Context, ownerID domain.ID, actor domain.Actor, id domain.ID) (_ OpDetail, err error) {
+	ctx, end := platform.TraceMethod(ctx, "tags.RevertOperation")
+	defer end(&err)
 	if err := actor.Validate(); err != nil {
 		return OpDetail{}, platform.Validation("invalid actor", platform.FieldError{Field: "actor", Detail: err.Error()})
 	}
 	var d OpDetail
-	err := s.mutate(ctx, ownerID, func(r Repos) error {
+	err = s.mutate(ctx, ownerID, func(r Repos) error {
 		op, err := r.Ops.Get(ctx, ownerID, id)
 		if err != nil {
 			return err

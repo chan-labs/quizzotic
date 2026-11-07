@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 // Repos is the set of repositories a Transactor binds to one transaction.
@@ -52,13 +53,15 @@ const maxProvisionAttempts = 5
 // user on the first valid login (just-in-time provisioning). Display name and
 // email are copied from the claims, and last_seen_at is updated. Concurrent
 // first logins for one (issuer, subject) yield exactly one user.
-func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (User, error) {
+func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (_ User, err error) {
+	ctx, end := platform.TraceMethod(ctx, "auth.Provision")
+	defer end(&err)
 	if c.Issuer == "" || c.Subject == "" {
 		return User{}, errors.New("auth: claims need an issuer and a subject")
 	}
 	for i := 0; i < maxProvisionAttempts; i++ {
 		var u User
-		err := s.tx.InTx(ctx, func(r Repos) error {
+		err = s.tx.InTx(ctx, func(r Repos) error {
 			var err error
 			u, err = s.provision(ctx, r, c)
 			return err
@@ -72,9 +75,11 @@ func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (User, error
 }
 
 // GetUser returns the user with the given ID, or ErrNotFound.
-func (s *Service) GetUser(ctx context.Context, userID domain.ID) (User, error) {
+func (s *Service) GetUser(ctx context.Context, userID domain.ID) (_ User, err error) {
+	ctx, end := platform.TraceMethod(ctx, "auth.GetUser")
+	defer end(&err)
 	var u User
-	err := s.tx.InTx(ctx, func(r Repos) error {
+	err = s.tx.InTx(ctx, func(r Repos) error {
 		var err error
 		u, err = r.Users.Get(ctx, userID)
 		return err

@@ -164,7 +164,9 @@ func NewReader(repo Repo) *Service {
 // Create validates in and stores a new problem with its first version, owned
 // by actor's user. Validation failures are a *platform.Problem listing every
 // invalid field.
-func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput) (View, error) {
+func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput) (_ View, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Create")
+	defer end(&err)
 	if err := checkCreateActor(actor); err != nil {
 		return View{}, err
 	}
@@ -222,7 +224,9 @@ func (s *Service) newProblem(actor domain.Actor, in CreateInput) (Problem, Versi
 }
 
 // Get returns the owner's problem in the full view.
-func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (View, error) {
+func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (_ View, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Get")
+	defer end(&err)
 	p, v, err := s.current(ctx, ownerID, id)
 	if err != nil {
 		return View{}, err
@@ -232,7 +236,9 @@ func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (View, error) 
 
 // GetPrompt returns the owner's problem in the prompt view. MCQ choices are
 // shuffled afresh on every call when the payload says shuffle.
-func (s *Service) GetPrompt(ctx context.Context, ownerID, id domain.ID) (PromptView, error) {
+func (s *Service) GetPrompt(ctx context.Context, ownerID, id domain.ID) (_ PromptView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.GetPrompt")
+	defer end(&err)
 	p, v, err := s.current(ctx, ownerID, id)
 	if err != nil {
 		return PromptView{}, err
@@ -293,7 +299,9 @@ func (s *Service) promptPayload(v Version) (json.RawMessage, error) {
 }
 
 // List returns one page of the owner's problems, oldest first.
-func (s *Service) List(ctx context.Context, ownerID domain.ID, q ListQuery) (platform.PageResult[View], error) {
+func (s *Service) List(ctx context.Context, ownerID domain.ID, q ListQuery) (_ platform.PageResult[View], err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.List")
+	defer end(&err)
 	var fields []platform.FieldError
 	f := ListFilter{Query: strings.TrimSpace(q.Q)}
 	if q.Status != "" {

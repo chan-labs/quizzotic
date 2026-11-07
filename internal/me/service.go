@@ -12,6 +12,7 @@ import (
 
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 // Users looks up a user by ID. *auth.Service implements it.
@@ -54,7 +55,9 @@ type Me struct {
 // Me returns who p is. The user is looked up by the principal's own ID, so it
 // can only ever describe the caller. A human holds every scope in the
 // catalog; an agent holds the intersection of its scopes and the catalog.
-func (s *Service) Me(ctx context.Context, p auth.Principal) (Me, error) {
+func (s *Service) Me(ctx context.Context, p auth.Principal) (_ Me, err error) {
+	ctx, end := platform.TraceMethod(ctx, "me.Me")
+	defer end(&err)
 	u, err := s.users.GetUser(ctx, p.UserID)
 	if err != nil {
 		return Me{}, err

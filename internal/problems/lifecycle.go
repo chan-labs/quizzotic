@@ -35,12 +35,16 @@ func CanTransition(from, to Status) bool { return transitions[from][to] }
 
 // Publish moves a draft problem to live. ifMatch is the request's If-Match
 // value, checked against the current ETag inside the write transaction.
-func (s *Service) Publish(ctx context.Context, ownerID, id domain.ID, ifMatch string) (View, error) {
+func (s *Service) Publish(ctx context.Context, ownerID, id domain.ID, ifMatch string) (_ View, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Publish")
+	defer end(&err)
 	return s.transition(ctx, ownerID, id, ifMatch, StatusLive)
 }
 
 // Archive moves a live problem to archived.
-func (s *Service) Archive(ctx context.Context, ownerID, id domain.ID, ifMatch string) (View, error) {
+func (s *Service) Archive(ctx context.Context, ownerID, id domain.ID, ifMatch string) (_ View, err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Archive")
+	defer end(&err)
 	return s.transition(ctx, ownerID, id, ifMatch, StatusArchived)
 }
 
@@ -81,7 +85,9 @@ func (s *Service) transition(ctx context.Context, ownerID, id domain.ID, ifMatch
 }
 
 // Delete soft-deletes the problem from any status. Versions are kept.
-func (s *Service) Delete(ctx context.Context, ownerID, id domain.ID, ifMatch string) error {
+func (s *Service) Delete(ctx context.Context, ownerID, id domain.ID, ifMatch string) (err error) {
+	ctx, end := platform.TraceMethod(ctx, "problems.Delete")
+	defer end(&err)
 	return s.inEditTx(ctx, func(r Repo, h MajorEditHandler) error {
 		p, v, err := currentIn(ctx, r, ownerID, id)
 		if err != nil {
