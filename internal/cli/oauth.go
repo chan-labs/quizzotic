@@ -254,7 +254,7 @@ func loopbackLogin(ctx context.Context, hc *http.Client, d *discovery, clientID 
 	if err != nil {
 		return zero, err
 	}
-	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp4", "127.0.0.1:0")
 	if err != nil {
 		return zero, fmt.Errorf("opening loopback listener: %w", err)
 	}

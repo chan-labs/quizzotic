@@ -67,14 +67,15 @@ func (e *Env) applyDefaults() {
 }
 
 func openBrowser(u string) error {
+	// Fire and forget: the opener must outlive any request-scoped context.
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", u)
+		cmd = exec.CommandContext(context.Background(), "open", u)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", u)
+		cmd = exec.CommandContext(context.Background(), "rundll32", "url.dll,FileProtocolHandler", u)
 	default:
-		cmd = exec.Command("xdg-open", u)
+		cmd = exec.CommandContext(context.Background(), "xdg-open", u)
 	}
 	if err := cmd.Start(); err != nil {
 		return err
