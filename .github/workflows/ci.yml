@@ -22,6 +22,16 @@ jobs:
         with:
           cache: true
           install_args: go golangci-lint
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            ~/.cache/golangci-lint
+          key: go-lint-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-lint-${{ hashFiles('go.sum') }}-
+            go-lint-
       - name: golangci-lint and format check
         run: mise run lint-go
 
@@ -46,6 +56,15 @@ jobs:
         with:
           cache: true
           install_args: go
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-test-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-test-${{ hashFiles('go.sum') }}-
+            go-test-
       # internal/web runs static/review.js under Node; without it that test
       # would skip, so CI installs Node and requires it.
       - uses: actions/setup-node@v4
@@ -82,6 +101,15 @@ jobs:
         with:
           cache: true
           install_args: go
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-test-postgres-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-test-postgres-${{ hashFiles('go.sum') }}-
+            go-test-postgres-
       - name: postgres store tests (conformance, migrations, append-only triggers)
         run: go test -race -count=1 -v ./internal/store/postgres ./internal/store/driver
 
@@ -104,6 +132,15 @@ jobs:
         with:
           cache: true
           install_args: go
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-build-${{ matrix.name }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ matrix.name }}-${{ hashFiles('go.sum') }}-
+            go-build-${{ matrix.name }}-
       - name: go build
         env:
           CGO_ENABLED: "0"
@@ -120,5 +157,14 @@ jobs:
         with:
           cache: true
           install_args: go
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-release-config-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-release-config-${{ hashFiles('go.sum') }}-
+            go-release-config-
       - name: goreleaser check
         run: mise run release-check
