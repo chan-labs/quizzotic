@@ -5,7 +5,7 @@
 go = "1.26.3"
 uv = "0.9"  # Python scripts (tools/fsrs-vectors)
 node = "22" # Redocly (openapi-lint)
-"go:honnef.co/go/tools/cmd/staticcheck" = "2025.1.1" # built with the pinned go, as the old CI did
+golangci-lint = "2.15.0" # lint + format (replaces go vet, staticcheck and gofmt)
 
 [tasks.build]
 description = "Build bin/quizzotic (version from git describe, or VERSION)"
@@ -18,26 +18,30 @@ go build -ldflags "-X main.version=${VERSION}" -o bin/quizzotic ./cmd/quizzotic
 description = "Run all tests with the race detector"
 run = "go test -race ./..."
 
-[tasks.vet]
-description = "go vet"
-run = "go vet ./..."
+[tasks.golangci-lint]
+description = "golangci-lint (go vet, staticcheck and the rest of .golangci.yml)"
+run = "golangci-lint run ./..."
 
-[tasks.gofmt]
-description = "Fail if any Go file is not gofmt-formatted"
-run = 'out="$(gofmt -l .)"; if [ -n "$out" ]; then echo "gofmt needed:" >&2; echo "$out" >&2; exit 1; fi'
+[tasks.fmt]
+description = "Format Go files (gofmt + goimports) in place"
+run = "golangci-lint fmt ./..."
 
-[tasks.staticcheck]
-description = "staticcheck"
-run = "staticcheck ./..."
+[tasks.fmt-check]
+description = "Fail if any Go file is not gofmt/goimports-formatted"
+run = "golangci-lint fmt --diff ./..."
 
 # Pinned so local and CI results match. Needs Node.js (provided by mise).
 [tasks.openapi-lint]
 description = "Redocly lint of api/openapi.yaml"
 run = "npx --yes @redocly/cli@1.34.5 lint api/openapi.yaml"
 
+[tasks.lint-go]
+description = "golangci-lint + format check (the CI lint job)"
+depends = ["golangci-lint", "fmt-check"]
+
 [tasks.lint]
-description = "gofmt check + go vet + staticcheck + Redocly lint"
-depends = ["gofmt", "vet", "staticcheck", "openapi-lint"]
+description = "golangci-lint + format check + Redocly lint"
+depends = ["lint-go", "openapi-lint"]
 
 # Regenerate the CLI help and MCP tool-list golden files after an intentional
 # change to api/openapi.yaml or the generators. Review the diff before committing.

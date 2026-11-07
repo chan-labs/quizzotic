@@ -393,7 +393,7 @@ The repository is public from the first commit, so the first milestone includes 
 
 - **License**: Apache-2.0 (explicit patent grant), with a NOTICE file and SPDX headers in source files.
 - **Repo files**: README with a 5-minute quickstart, CONTRIBUTING (including how to add a store or IdP), SECURITY.md with a private disclosure address, CODE\_OF\_CONDUCT, CHANGELOG, `docs/dependencies.md`, and ADRs in `docs/adr/` for the decisions in this spec.
-- **CI** (GitHub Actions): `go vet`, `staticcheck`, `go test -race` on SQLite and Postgres, OpenAPI lint, and a contract test that every route matches the spec and vice versa.
+- **CI** (GitHub Actions): golangci-lint (includes `go vet` and staticcheck) plus a gofmt/goimports check, `go test -race` on SQLite and Postgres, OpenAPI lint, and a contract test that every route matches the spec and vice versa.
 - **Releases**: semver tags; GoReleaser builds static binaries for linux, darwin and windows on amd64 and arm64, plus a public, multi-arch distroless container image published to GitHub Container Registry on each tag.
 - **Examples**: `deploy/docker-compose.yaml` running the published image with Pocket ID, and a sample `quizzotic.yaml`. The repository ships no environment-specific manifests: operators run the published image with their own configuration.
 - **Observability**: `log/slog` structured logs with request IDs, `/healthz` (process up) and `/readyz` (store reachable, JWKS loaded), and optional Prometheus text-format `/metrics` written with the standard library.

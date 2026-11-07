@@ -1,0 +1,47 @@
+# golangci-lint v2 config. `mise run lint` runs it (plus Redocly); `mise run fmt`
+# formats. The linter is pinned in mise.toml and is a tool, not a Go dependency.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - copyloopvar
+    - misspell
+    - nolintlint
+    - rowserrcheck
+    - sqlclosecheck
+  # More linters (errcheck, revive, noctx, bodyclose, errorlint, gocritic,
+  # intrange, perfsprint, unconvert, unparam, usestdlibvars, wastedassign)
+  # come in follow-up PRs, one linter at a time, once their findings are fixed.
+  # errcheck is part of `standard`; it is disabled until its PR lands.
+  disable:
+    - errcheck
+  settings:
+    staticcheck:
+      # Same checks the standalone staticcheck gate ran: the default set,
+      # without the QF quick-fix suggestions.
+      checks: ["all", "-QF*", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-ST1023"]
+
+  exclusions:
+    rules:
+      # These loops close `rows` explicitly, before the next query on the same
+      # connection, instead of with defer; moving to defer would change when
+      # the connection is released.
+      - path: internal/store/(postgres|sqlite)/(history|quizzes|tags|users)\.go
+        linters: [sqlclosecheck]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/chan-labs/quizzotic
+
+issues:
+  max-issues-per-linter: 0 # report everything; the default caps hide findings
+  max-same-issues: 0

@@ -21,8 +21,9 @@ jobs:
       - uses: jdx/mise-action@v5.2.5
         with:
           cache: true
-      - name: lint (go vet, staticcheck, Redocly)
-        run: mise run lint
+          install_args: go golangci-lint
+      - name: golangci-lint and format check
+        run: mise run lint-go
 
   openapi:
     name: openapi
