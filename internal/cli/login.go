@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
 // Default OAuth client IDs, matching docs/pocket-id.md.
@@ -33,7 +35,7 @@ func (e *Env) applyDefaults() {
 		e.Getenv = os.Getenv
 	}
 	if e.HTTP == nil {
-		e.HTTP = http.DefaultClient
+		e.HTTP = &http.Client{Transport: platform.TraceTransport(nil)}
 	}
 	if e.Stdin == nil {
 		e.Stdin = os.Stdin

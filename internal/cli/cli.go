@@ -43,7 +43,8 @@ type Env struct {
 	Stderr io.Writer
 	// Getenv defaults to os.Getenv.
 	Getenv func(string) string
-	// HTTP defaults to http.DefaultClient.
+	// HTTP defaults to a client that traces outbound requests and sends
+	// traceparent.
 	HTTP *http.Client
 	// Ops defaults to the embedded spec's operations.
 	Ops []openapi.Operation
