@@ -8,38 +8,22 @@ run:
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
   enable:
-    - bodyclose
     - copyloopvar
-    - errorlint
-    - gocritic
-    - intrange
     - misspell
-    - noctx
     - nolintlint
-    - perfsprint
-    - revive
     - rowserrcheck
     - sqlclosecheck
-    - unconvert
-    - unparam
-    - usestdlibvars
-    - wastedassign
-  # Enabled in the linter's own follow-up PR, once its existing findings are
-  # fixed. Each is a linter this config already names above or in `standard`.
+  # More linters (errcheck, revive, noctx, bodyclose, errorlint, gocritic,
+  # intrange, perfsprint, unconvert, unparam, usestdlibvars, wastedassign)
+  # come in follow-up PRs, one linter at a time, once their findings are fixed.
+  # errcheck is part of `standard`; it is disabled until its PR lands.
   disable:
     - errcheck
-    - staticcheck
-    - revive
-    - noctx
-    - bodyclose
-    - errorlint
-    - gocritic
-    - intrange
-    - perfsprint
-    - unconvert
-    - unparam
-    - usestdlibvars
-    - wastedassign
+  settings:
+    staticcheck:
+      # Same checks the standalone staticcheck gate ran: the default set,
+      # without the QF quick-fix suggestions.
+      checks: ["all", "-QF*", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-ST1023"]
 
   exclusions:
     rules:

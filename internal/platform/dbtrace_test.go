@@ -57,7 +57,14 @@ func TestTracedExecer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows.Close()
+	for rows.Next() {
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
 	var n int
 	if err := q.QueryRowContext(ctx, `SELECT n FROM t WHERE n = ?`, 1).Scan(&n); err != sql.ErrNoRows {
 		t.Fatalf("scan = %v, want ErrNoRows", err)
