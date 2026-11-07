@@ -5,6 +5,8 @@
 #
 # Environment:
 #   QUIZZOTIC_DEV_PORT         server port (default 8089)
+#   QUIZZOTIC_DEV_OTEL         when non-empty, export traces to the local stack
+#                              from `mise run dev-otel` (OTLP HTTP on :4318)
 #   QUIZZOTIC_DEV_ISSUER_PORT  fake issuer port (default 8099); the database is
 #                              .dev/quizzotic-<issuer port>.db
 # Needs Docker: the issuer is navikt/mock-oauth2-server (config in
@@ -21,6 +23,13 @@ ISSUER_CONTAINER="quizzotic-dev-issuer-${ISSUER_PORT}"
 ISSUER_IMAGE="ghcr.io/navikt/mock-oauth2-server:2.1.10@sha256:65d4ed47ce094cc3849e41e03499bfb32372d69c726ec22b3d5a19eba9bc787e"
 
 mkdir -p "$STATE/bin"
+
+# Opt-in trace export to `mise run dev-otel`; explicit OTEL_* values win.
+if [ -n "${QUIZZOTIC_DEV_OTEL:-}" ]; then
+	export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}"
+	export OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}"
+	export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-quizzotic-dev}"
+fi
 
 # Port overrides for the committed dev config (env beats the file).
 export QUIZZOTIC_SERVER_LISTEN="127.0.0.1:${PORT}"
