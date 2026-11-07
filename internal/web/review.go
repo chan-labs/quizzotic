@@ -405,7 +405,7 @@ func storedResult(a attempts.View, full problems.View) (attempts.Result, error) 
 		}
 		blanks := make([]grading.ClozeBlank, 0, len(p.Blanks))
 		for _, b := range p.Blanks {
-			blanks = append(blanks, grading.ClozeBlank{ID: b.ID, Accepted: b.Accepted, CaseSensitive: b.CaseSensitive, MaxEdits: b.MaxEdits})
+			blanks = append(blanks, grading.ClozeBlank{ID: b.ID, Accepted: b.Accepted, Match: b.Match, MaxEdits: b.MaxEdits})
 		}
 		g.Blanks = grading.GradeCloze(blanks, resp.Answers).Correct
 	}

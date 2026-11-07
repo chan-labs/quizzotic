@@ -10,7 +10,7 @@ Open-source spaced-repetition quiz service. Written in Go (stdlib-first), backed
 - FSRS-based scheduling, with an append-only attempt history.
 - SQLite by default, Postgres optional, any OIDC IdP.
 
-See [`docs/spec.md`](docs/spec.md) for the full design.
+See [`docs/spec.md`](docs/spec.md) for the full design. OpenTelemetry tracing is off by default and enabled with standard `OTEL_*` variables: see [`docs/tracing.md`](docs/tracing.md).
 
 ## Contributing
 

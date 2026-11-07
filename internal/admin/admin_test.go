@@ -29,7 +29,7 @@ func TestMigrateCreatesSchemaMigrationsAndIsIdempotent(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("run %d: exit %d stderr=%s", i+1, code, errs)
 		}
-		want := "applied 15 migration(s): [1 2 3 4 5 6 7 8 9 10 11 12 13 14 20261102130000]"
+		want := "applied 16 migration(s): [1 2 3 4 5 6 7 8 9 10 11 12 13 14 20261102130000 20261102150000]"
 		if i == 1 {
 			want = "schema up to date"
 		}

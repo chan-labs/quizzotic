@@ -28,10 +28,10 @@ type choiceRow struct {
 }
 
 type blankRow struct {
-	ID            string
-	Accepted      string // one accepted answer per line
-	CaseSensitive bool
-	MaxEdits      int
+	ID       string
+	Accepted string // one accepted answer per line
+	Match    string
+	MaxEdits int
 }
 
 // problemForm is the editor's state: what the browser submitted, or the
@@ -139,7 +139,7 @@ func parseProblemForm(r *http.Request) problemForm {
 		f.Choices = append(f.Choices, choiceRow{ID: id, Text: text, Correct: correct[i]})
 	}
 
-	caseSens := indexSet(v["blank_case"])
+	matches := v["blank_match"]
 	accepted, edits := v["blank_accepted"], v["blank_edits"]
 	for i, raw := range v["blank_id"] {
 		id := strings.TrimSpace(raw)
@@ -154,7 +154,11 @@ func parseProblemForm(r *http.Request) problemForm {
 		if i < len(edits) {
 			n, _ = strconv.Atoi(strings.TrimSpace(edits[i]))
 		}
-		f.Blanks = append(f.Blanks, blankRow{ID: id, Accepted: acc, CaseSensitive: caseSens[i], MaxEdits: n})
+		match := problems.MatchRelaxed
+		if i < len(matches) && matches[i] == problems.MatchCaseInsensitive {
+			match = problems.MatchCaseInsensitive
+		}
+		f.Blanks = append(f.Blanks, blankRow{ID: id, Accepted: acc, Match: match, MaxEdits: n})
 	}
 	return f
 }
@@ -186,7 +190,7 @@ func (f problemForm) payload() (json.RawMessage, error) {
 		p := problems.ClozePayload{Blanks: []problems.Blank{}}
 		for _, b := range f.Blanks {
 			p.Blanks = append(p.Blanks, problems.Blank{ID: b.ID, Accepted: lines(b.Accepted),
-				CaseSensitive: b.CaseSensitive, MaxEdits: b.MaxEdits})
+				Match: b.Match, MaxEdits: b.MaxEdits})
 		}
 		return json.Marshal(p)
 	case problems.TypeOpen:
@@ -221,7 +225,7 @@ func formFromView(v problems.View) (problemForm, error) {
 		}
 		for _, b := range p.Blanks {
 			f.Blanks = append(f.Blanks, blankRow{ID: b.ID, Accepted: strings.Join(b.Accepted, "\n"),
-				CaseSensitive: b.CaseSensitive, MaxEdits: b.MaxEdits})
+				Match: b.Match, MaxEdits: b.MaxEdits})
 		}
 	case problems.TypeOpen:
 		var p problems.OpenPayload

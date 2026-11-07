@@ -137,10 +137,15 @@ All three types end in the same FSRS rating — Again (1), Hard (2), Good (3), E
 | Type | Payload | Auto-grade | Score (0–1) | Rating |
 | --- | --- | --- | --- | --- |
 | `mcq` | `choices[{id, text}]`, `correct[]`, `multiple` (bool), `shuffle` (bool) | Yes | Single: 1 or 0. Multiple: (right picks − wrong picks) ÷ correct count, floor 0 | Wrong → Again. Right → user picks Hard, Good or Easy; default Good |
-| `cloze` | Prompt with `{{blank_id}}` markers; `blanks[{id, accepted[], case_sensitive, max_edits}]` | Yes | Fraction of blanks correct | Any blank wrong → Again. All right → user picks; default Good |
+| `cloze` | Prompt with `{{blank_id}}` markers; `blanks[{id, accepted[], match, max_edits}]` | Yes | Fraction of blanks correct | Any blank wrong → Again. All right → user picks; default Good |
 | `open` | `reference_answer`, optional `rubric[]` key points | No | Derived from rating: 0, 0.33, 0.67, 1 | User must pick 1–4 after comparing with the reference |
 
-**Cloze normalization** (when `case_sensitive` is false): trim, lowercase, collapse internal whitespace to one space, strip trailing `.,;:!?`. Then exact match against each accepted answer, or Levenshtein distance ≤ `max_edits` (default 0, max 3).
+**Cloze matching.** Each blank has a `match` mode, `relaxed` (default) or `case-insensitive`. The response and every accepted answer are normalized the same way, then compared exactly, or by Levenshtein distance ≤ `max_edits` (default 0, max 3) on the normalized strings. A response that is empty or only whitespace is never correct.
+
+- `relaxed`: trim, lowercase, collapse internal whitespace to one space, strip trailing `.,;:!?`.
+- `case-insensitive`: lowercase only. Whitespace and punctuation stay exactly as typed, so `Paris ` and `Paris.` do not match `Paris`; `PARIS` does.
+
+The earlier boolean `case_sensitive` is replaced by `match`. It is still accepted on input (API, seed files, import, MCP, CLI, web form) for one version and means `relaxed`; when a blank sends both, `match` wins. Responses never carry it. Stored problem versions were rewritten to `match: relaxed` by a migration; past attempts are not touched and their grades stand.
 
 **Answer flow**
 
