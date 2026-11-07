@@ -65,7 +65,9 @@ type CardQuery struct {
 
 // Get returns the owner's card for a problem, or a 404 problem when there is
 // none: the problem is unknown, or has not been answered, or is not live.
-func (s *CardService) Get(ctx context.Context, ownerID, problemID domain.ID) (CardView, error) {
+func (s *CardService) Get(ctx context.Context, ownerID, problemID domain.ID) (_ CardView, err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.CardService.Get")
+	defer end(&err)
 	c, err := s.cards.Get(ctx, ownerID, problemID)
 	if errors.Is(err, ErrNotFound) {
 		return CardView{}, platform.NotFound("no card for this problem")
@@ -77,7 +79,9 @@ func (s *CardService) Get(ctx context.Context, ownerID, problemID domain.ID) (Ca
 }
 
 // List returns one page of the owner's cards ordered by problem ID.
-func (s *CardService) List(ctx context.Context, ownerID domain.ID, q CardQuery) (platform.PageResult[CardView], error) {
+func (s *CardService) List(ctx context.Context, ownerID domain.ID, q CardQuery) (_ platform.PageResult[CardView], err error) {
+	ctx, end := platform.TraceMethod(ctx, "review.CardService.List")
+	defer end(&err)
 	var fields []platform.FieldError
 	var f CardFilter
 	if q.DueBefore != "" {
