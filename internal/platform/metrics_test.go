@@ -19,7 +19,7 @@ func scrape(t *testing.T, m *Metrics) string {
 	mux := http.NewServeMux()
 	m.Register(mux)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	if rec.Code != 200 {
 		t.Fatalf("status = %d", rec.Code)
 	}
@@ -176,7 +176,7 @@ func TestNilMetricsIsNoop(t *testing.T) {
 	m.ObserveRequest("GET", "x", 200, 0)
 	called := false
 	h := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })
-	m.Middleware(h).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+	m.Middleware(h).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 	if !called {
 		t.Error("nil Metrics middleware must pass through")
 	}
@@ -194,7 +194,7 @@ func TestMetricsMiddlewareRouteLabels(t *testing.T) {
 	h := m.Middleware(mux)
 
 	for _, p := range []string{"/api/v1/problems/abc", "/api/v1/problems/def", "/healthz", "/random/1", "/random/2", "/api/v1/nope"} {
-		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", p, nil))
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, p, nil))
 	}
 	text := scrape(t, m)
 	validateExposition(t, text)

@@ -103,10 +103,10 @@ func runProjectionRaces(t *testing.T, newStore NewStore) {
 
 	t.Run("concurrent answers to one problem all reach its card", func(t *testing.T) {
 		f := newMasteryFixture(t, newStore)
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			p := f.newProblem(pkinds[0], problems.StatusLive)
 			var fns []func() error
-			for i := 0; i < 6; i++ {
+			for range 6 {
 				fns = append(fns, func() error { _, err := f.answer(p.ID, right, nil); return err })
 			}
 			domainErr(t, round, together(fns))
@@ -123,9 +123,9 @@ func runProjectionRaces(t *testing.T, newStore NewStore) {
 	t.Run("mastery rows equal a rebuild after concurrent answers", func(t *testing.T) {
 		f := newMasteryFixture(t, newStore)
 		tag := f.newTag(f.user, "shared")
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			var fns []func() error
-			for i := 0; i < 6; i++ {
+			for range 6 {
 				p := f.newProblem(pkinds[0], problems.StatusLive)
 				f.tag(f.user, p.ID, tag)
 				fns = append(fns, func() error { _, err := f.answer(p.ID, right, nil); return err })
@@ -169,7 +169,7 @@ func runProjectionRaces(t *testing.T, newStore NewStore) {
 
 	t.Run("a major edit and an answer leave no card for a stale epoch", func(t *testing.T) {
 		f := newMasteryFixture(t, newStore)
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			p := f.newProblem(pkinds[0], problems.StatusLive)
 			if _, err := f.answer(p.ID, right, nil); err != nil {
 				t.Fatal(err)

@@ -134,7 +134,7 @@ func runMasteryRepo(t *testing.T, newStore NewStore) {
 			t.Fatalf("list = %+v, %v; want 2 rows", list, err)
 		}
 		want := []domain.ID{tagA, tagB}
-		slices.SortFunc(want, func(x, y domain.ID) int { return compareIDs(x, y) })
+		slices.SortFunc(want, compareIDs)
 		if list[0].TagID != want[0] || list[1].TagID != want[1] {
 			t.Errorf("list is not ordered by tag ID: %v", list)
 		}
@@ -380,7 +380,7 @@ func runMasteryProperty(t *testing.T, newStore NewStore) {
 				tagIDs[i] = f.newTag(f.user, fmt.Sprintf("tag-%d", i))
 			}
 			var probs []problems.View
-			for i := 0; i < 8; i++ {
+			for i := range 8 {
 				p := f.newProblem(pkinds[i%len(pkinds)], problems.StatusLive)
 				var mine []domain.ID
 				for _, id := range tagIDs {
@@ -418,7 +418,7 @@ func runMasteryProperty(t *testing.T, newStore NewStore) {
 				panic("unknown type")
 			}
 			var unrated []domain.ID
-			for step := 0; step < 80; step++ {
+			for range 80 {
 				p := probs[rng.Intn(len(probs))]
 				switch n := rng.Intn(9); {
 				case n < 7:

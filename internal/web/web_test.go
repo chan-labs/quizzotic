@@ -37,7 +37,7 @@ func newMux(t *testing.T) *http.ServeMux {
 }
 
 func get(mux *http.ServeMux, path string, authed bool) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("GET", path, nil)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	if authed {
 		req.AddCookie(&http.Cookie{Name: "ok", Value: "1"})
 	}

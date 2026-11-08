@@ -354,7 +354,7 @@ func TestAnswerRefusals(t *testing.T) {
 
 // post sends body to the handler as principal p (nil: no principal).
 func post(e *env, p *auth.Principal, body string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("POST", "/api/v1/attempts", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/attempts", bytes.NewBufferString(body))
 	if p != nil {
 		req = req.WithContext(auth.WithPrincipal(req.Context(), *p))
 	}
@@ -461,7 +461,7 @@ func TestHandlerCreate(t *testing.T) {
 
 	t.Run("nil service is 404", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		NewHandler(nil, nil).Create(rec, httptest.NewRequest("POST", "/api/v1/attempts", nil))
+		NewHandler(nil, nil).Create(rec, httptest.NewRequest(http.MethodPost, "/api/v1/attempts", nil))
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("status = %d", rec.Code)
 		}

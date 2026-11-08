@@ -246,8 +246,8 @@ func runProvision(t *testing.T, newStore NewStore) {
 		var wg sync.WaitGroup
 		out := make(chan result, subjects*perSubject)
 		start := make(chan struct{})
-		for si := 0; si < subjects; si++ {
-			for k := 0; k < perSubject; k++ {
+		for si := range subjects {
+			for range perSubject {
 				wg.Add(1)
 				go func(sub string) {
 					defer wg.Done()

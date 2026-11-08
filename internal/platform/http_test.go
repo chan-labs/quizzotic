@@ -13,7 +13,7 @@ import (
 )
 
 func TestWriteErrorProblem(t *testing.T) {
-	r := httptest.NewRequest("GET", "/api/v1/problems/x", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/problems/x", nil)
 	r = r.WithContext(WithRequestID(r.Context(), "req-1"))
 	w := httptest.NewRecorder()
 	WriteError(w, r, fmt.Errorf("wrap: %w", NotFound("problem x not found")))
@@ -35,7 +35,7 @@ func TestWriteErrorProblem(t *testing.T) {
 }
 
 func TestWriteErrorHidesInternals(t *testing.T) {
-	r := httptest.NewRequest("GET", "/x", nil)
+	r := httptest.NewRequest(http.MethodGet, "/x", nil)
 	w := httptest.NewRecorder()
 	WriteError(w, r, errors.New("pq: password authentication failed"))
 	if w.Code != 500 || strings.Contains(w.Body.String(), "password") {
@@ -52,7 +52,7 @@ func TestWriteErrorValidationFieldsAndNoMutation(t *testing.T) {
 	shared := Validation("bad", FieldError{Field: "prompt", Detail: "required"})
 	for _, path := range []string{"/a", "/b"} {
 		w := httptest.NewRecorder()
-		WriteError(w, httptest.NewRequest("POST", path, nil), shared)
+		WriteError(w, httptest.NewRequest(http.MethodPost, path, nil), shared)
 		var p Problem
 		_ = json.Unmarshal(w.Body.Bytes(), &p)
 		if w.Code != 422 || p.Instance != path || len(p.Errors) != 1 || p.Errors[0].Field != "prompt" {
@@ -92,7 +92,7 @@ func TestParsePageBounds(t *testing.T) {
 		{"limit=abc", 0, "", true},
 	}
 	for _, c := range cases {
-		r := httptest.NewRequest("GET", "/x?"+c.query, nil)
+		r := httptest.NewRequest(http.MethodGet, "/x?"+c.query, nil)
 		p, err := ParsePage(r)
 		if c.wantErr {
 			var pr *Problem
@@ -124,7 +124,7 @@ type body struct {
 
 func decode(t *testing.T, s string) (body, error) {
 	t.Helper()
-	r := httptest.NewRequest("POST", "/x", strings.NewReader(s))
+	r := httptest.NewRequest(http.MethodPost, "/x", strings.NewReader(s))
 	var b body
 	err := DecodeJSON(httptest.NewRecorder(), r, &b)
 	return b, err

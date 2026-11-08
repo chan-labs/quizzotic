@@ -3,6 +3,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -25,18 +26,18 @@ func ParseStorageURL(raw string) (Driver, string, error) {
 	scheme, rest, ok := strings.Cut(raw, "://")
 	if !ok || scheme == "" {
 		// Never echo raw: it may carry a database password.
-		return "", "", fmt.Errorf("storage.url: missing scheme (use sqlite://, postgres:// or postgresql://)")
+		return "", "", errors.New("storage.url: missing scheme (use sqlite://, postgres:// or postgresql://)")
 	}
 	switch strings.ToLower(scheme) {
 	case "sqlite":
 		if rest == "" {
-			return "", "", fmt.Errorf("storage.url: sqlite:// needs a file path")
+			return "", "", errors.New("storage.url: sqlite:// needs a file path")
 		}
 		return DriverSQLite, rest, nil
 	case "postgres", "postgresql":
 		u, err := url.Parse(raw)
 		if err != nil {
-			return "", "", fmt.Errorf("storage.url: invalid postgres URL")
+			return "", "", errors.New("storage.url: invalid postgres URL")
 		}
 		if u.Host == "" {
 			return "", "", fmt.Errorf("storage.url: %s:// needs a host", strings.ToLower(scheme))

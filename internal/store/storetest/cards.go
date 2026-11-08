@@ -574,7 +574,7 @@ func runCardProjection(t *testing.T, newStore NewStore) {
 	t.Run("recompute with a new retention changes the schedule", func(t *testing.T) {
 		f := newCardFixture(t, newStore)
 		p := f.newProblem(pkinds[0], problems.StatusLive)
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			if _, err := f.answer(p.ID, pkinds[0].right, nil); err != nil {
 				t.Fatal(err)
 			}
@@ -631,7 +631,7 @@ func runCardRebuildProperty(t *testing.T, newStore NewStore) {
 			rng := rand.New(rand.NewSource(seed))
 
 			var probs []problems.View
-			for i := 0; i < 4; i++ {
+			for i := range 4 {
 				probs = append(probs, f.newProblem(pkinds[i%len(pkinds)], problems.StatusLive))
 			}
 			kindOf := func(v problems.View) pkind {
@@ -645,7 +645,7 @@ func runCardRebuildProperty(t *testing.T, newStore NewStore) {
 			var unrated []domain.ID
 			majors := 0
 
-			for step := 0; step < 80; step++ {
+			for range 80 {
 				p := probs[rng.Intn(len(probs))]
 				switch n := rng.Intn(13); {
 				case n < 7: // answer

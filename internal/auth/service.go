@@ -59,7 +59,7 @@ func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (_ User, err
 	if c.Issuer == "" || c.Subject == "" {
 		return User{}, errors.New("auth: claims need an issuer and a subject")
 	}
-	for i := 0; i < maxProvisionAttempts; i++ {
+	for range maxProvisionAttempts {
 		var u User
 		err = s.tx.InTx(ctx, func(r Repos) error {
 			var err error

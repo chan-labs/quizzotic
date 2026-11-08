@@ -102,7 +102,7 @@ func runMetricsReads(t *testing.T, newStore NewStore) {
 			if !ok {
 				t.Fatalf("no card for %v", want.ID)
 			}
-			if pc.Prompt != k.prompt || pc.Type != string(k.typ) {
+			if pc.Prompt != k.prompt || pc.Type != k.typ {
 				t.Errorf("problem %v: type %q prompt %q, want %q %q", want.ID, pc.Type, pc.Prompt, k.typ, k.prompt)
 			}
 			if pc.Card.Reps != c.Reps || pc.Card.Stability != c.Stability || !pc.Card.Due.Equal(c.Due) ||

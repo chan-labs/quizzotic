@@ -86,7 +86,7 @@ func newIdemFixture(t *testing.T, status int) *idemFixture {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "/api/v1/things/1")
 		w.WriteHeader(status)
-		_, _ = w.Write([]byte(`{"call":` + string(rune('0'+n)) + `}`))
+		_, _ = w.Write([]byte(`{"call":` + string('0'+n) + `}`))
 	})
 	f.h = Idempotency(f.repo, f.clock, userID)(app)
 	return f
@@ -238,7 +238,7 @@ func TestIdempotencyConcurrentSameKeyRunsOnce(t *testing.T) {
 	f := newIdemFixture(t, http.StatusCreated)
 	u := f.ids.New()
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

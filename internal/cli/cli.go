@@ -410,9 +410,11 @@ func paramUsage(p openapi.Parameter) string {
 func (c command) usage(w io.Writer, fs *flag.FlagSet) {
 	op := c.op
 	line := "usage: quizzotic " + c.resource + " " + c.action
+	var params strings.Builder
 	for _, p := range op.PathParams() {
-		line += " <" + p.Name + ">"
+		params.WriteString(" <" + p.Name + ">")
 	}
+	line += params.String()
 	line += " [flags]"
 	fmt.Fprintln(w, line)
 	if op.Summary != "" {

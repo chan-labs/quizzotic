@@ -202,9 +202,11 @@ func previewError(err error) string {
 	var p *platform.Problem
 	if errors.As(err, &p) {
 		msg := p.Detail
+		var msgSb205 strings.Builder
 		for _, f := range p.Errors {
-			msg += "; " + f.Field + ": " + f.Detail
+			msgSb205.WriteString("; " + f.Field + ": " + f.Detail)
 		}
+		msg += msgSb205.String()
 		return strings.TrimPrefix(msg, "; ")
 	}
 	if errors.Is(err, ErrSlugTaken) {

@@ -24,7 +24,7 @@ func TestMigrateCreatesSchemaMigrationsAndIsIdempotent(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "fresh.db")
 	url := "sqlite://" + file
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		code, out, errs := run(t, "migrate", "--storage-url", url)
 		if code != 0 {
 			t.Fatalf("run %d: exit %d stderr=%s", i+1, code, errs)

@@ -439,7 +439,7 @@ func TestReviewReplayedAnswerAndRefreshedResultRecordOneAttempt(t *testing.T) {
 			t.Fatalf("%s: answer = %d %q", typ, first.Code, loc)
 		}
 		// Replays (refresh of the POST, double submit) record nothing and move on.
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			again := e.do("POST", path+"/answer", form)
 			if again.Code != http.StatusSeeOther || again.Header().Get("Location") != path {
 				t.Errorf("%s: replay = %d %q, want 303 to %s", typ, again.Code, again.Header().Get("Location"), path)
@@ -447,7 +447,7 @@ func TestReviewReplayedAnswerAndRefreshedResultRecordOneAttempt(t *testing.T) {
 		}
 		// Refreshing the result URL re-reads it and writes nothing.
 		var bodies []string
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			rec := e.do("GET", loc, nil)
 			if rec.Code != http.StatusOK {
 				t.Fatalf("%s: result = %d", typ, rec.Code)
@@ -551,7 +551,7 @@ func TestReviewPostsRequireCSRFSessionAndOwnership(t *testing.T) {
 			}
 		}
 		anon := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", target, strings.NewReader(form(testCSRF).Encode()))
+		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form(testCSRF).Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		e.mux.ServeHTTP(anon, req)
 		if anon.Code != http.StatusSeeOther || !strings.HasPrefix(anon.Header().Get("Location"), "/auth/login") {
@@ -559,7 +559,7 @@ func TestReviewPostsRequireCSRFSessionAndOwnership(t *testing.T) {
 		}
 	}
 	anon := httptest.NewRecorder()
-	e.mux.ServeHTTP(anon, httptest.NewRequest("GET", path, nil))
+	e.mux.ServeHTTP(anon, httptest.NewRequest(http.MethodGet, path, nil))
 	if anon.Code != http.StatusSeeOther {
 		t.Errorf("anonymous GET: %d", anon.Code)
 	}

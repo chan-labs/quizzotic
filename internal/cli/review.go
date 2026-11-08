@@ -152,9 +152,11 @@ func httpError(resp *http.Response, raw []byte) error {
 		if p.Detail != "" {
 			msg += ": " + p.Detail
 		}
+		var extra strings.Builder
 		for _, e := range p.Errors {
-			msg += fmt.Sprintf("; %s: %s", e.Field, e.Message)
+			fmt.Fprintf(&extra, "; %s: %s", e.Field, e.Message)
 		}
+		msg += extra.String()
 	}
 	if resp.StatusCode == http.StatusUnauthorized {
 		msg += " (run \"quizzotic login\")"
@@ -286,7 +288,7 @@ func (r *reviewer) loop(ctx context.Context, sessionID string) error {
 		p := next.Item.Problem
 		fmt.Fprintf(r.out, "\n--- Problem %d (%d left, %s) ---\n", n, next.Remaining, next.Item.Kind)
 		shown := r.env.Now()
-		resp, err := r.ask(p, shown)
+		resp, err := r.ask(p)
 		if err != nil {
 			return err
 		}
@@ -311,7 +313,7 @@ func (r *reviewer) loop(ctx context.Context, sessionID string) error {
 		}
 		stale = 0
 		r.showResult(p, res)
-		rating, err := r.rate(ctx, p, &res)
+		rating, err := r.rate(ctx, &res)
 		if err != nil {
 			return err
 		}
@@ -329,7 +331,7 @@ func (r *reviewer) loop(ctx context.Context, sessionID string) error {
 type answer struct{ value any }
 
 // ask shows the problem and reads the answer for its type.
-func (r *reviewer) ask(p promptProblem, shown time.Time) (answer, error) {
+func (r *reviewer) ask(p promptProblem) (answer, error) {
 	switch p.Type {
 	case "mcq":
 		fmt.Fprintln(r.out, plainText(p.Prompt))
@@ -457,7 +459,7 @@ func texts(choices []choice, ids map[string]bool) []string {
 // rate settles the rating and returns the one that applies. A wrong answer
 // is always Again, so nothing is asked. A right mcq or cloze answer takes
 // 2-4 (Enter keeps Good); an open answer needs 1-4.
-func (r *reviewer) rate(ctx context.Context, p promptProblem, res *resultDTO) (int, error) {
+func (r *reviewer) rate(ctx context.Context, res *resultDTO) (int, error) {
 	correct := res.Grade.Correct
 	if correct != nil && !*correct {
 		return 1, nil

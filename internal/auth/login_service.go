@@ -250,12 +250,12 @@ func (s *LoginService) exchange(ctx context.Context, endpoint, code, verifier st
 	}
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrExchange, err)
+		return "", fmt.Errorf("%w: %w", ErrExchange, err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxIdPBody))
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrExchange, err)
+		return "", fmt.Errorf("%w: %w", ErrExchange, err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%w: token endpoint status %d", ErrExchange, resp.StatusCode)

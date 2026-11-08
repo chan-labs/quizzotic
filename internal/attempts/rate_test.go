@@ -219,7 +219,7 @@ func TestRateHandler(t *testing.T) {
 	e, _ := rateEnv(t)
 	a := answer(t, e, e.open, 1, `{"text":"x"}`, nil)
 	do := func(kind auth.Kind, path, body string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest("POST", path, bytes.NewBufferString(body))
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 		req = req.WithContext(auth.WithPrincipal(req.Context(), auth.Principal{Kind: kind, UserID: e.user}))
 		req.SetPathValue("id", a.Attempt.ID.String())
 		w := httptest.NewRecorder()

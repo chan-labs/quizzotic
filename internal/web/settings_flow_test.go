@@ -77,7 +77,7 @@ func newFlowEnv(t *testing.T) *flowEnv {
 func (e *flowEnv) saveSettings(form url.Values) {
 	e.t.Helper()
 	form.Set("csrf_token", testCSRF)
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 	e.mux.ServeHTTP(rec, req)

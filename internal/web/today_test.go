@@ -129,7 +129,7 @@ func pageInt(t *testing.T, body, id string) int {
 func TestTodayCountsMatchCardsEndpointAndDayLimits(t *testing.T) {
 	e := newTodayEnv(t)
 	var ps []problems.View
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		ps = append(ps, e.liveProblem(t, "p"+strconv.Itoa(i)))
 	}
 	// Day 1: introduce four cards.
@@ -180,7 +180,7 @@ func (e todayEnv) post(token string) *httptest.ResponseRecorder {
 	if token != "" {
 		form.Set("csrf_token", token)
 	}
-	req := httptest.NewRequest("POST", "/review/start", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/review/start", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "ok", Value: "1"})
 	rec := httptest.NewRecorder()
@@ -221,7 +221,7 @@ func TestStartReviewRequiresCSRFAndSession(t *testing.T) {
 			t.Errorf("token %q: status = %d, want 403", tok, rec.Code)
 		}
 	}
-	req := httptest.NewRequest("POST", "/review/start", nil)
+	req := httptest.NewRequest(http.MethodPost, "/review/start", nil)
 	rec := httptest.NewRecorder()
 	e.mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("Location"), "/auth/login") {

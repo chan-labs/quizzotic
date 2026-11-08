@@ -82,7 +82,7 @@ func TestExportThroughTheRealServer(t *testing.T) {
 			rd = bytes.NewReader(raw)
 		}
 		var resp *http.Response
-		for i := 0; i < 100; i++ { // the server is starting
+		for range 100 { // the server is starting
 			req, _ := http.NewRequest(method, base+path, rd)
 			if body != nil {
 				req.Header.Set("Content-Type", "application/json")

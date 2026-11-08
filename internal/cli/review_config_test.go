@@ -31,7 +31,7 @@ func runReview(t *testing.T, dir string) (int, string) {
 
 func TestReviewUsesConfigFileServer(t *testing.T) {
 	srv, hits := hitCounter(t)
-	dir := writeConfig(t, "server: "+srv.URL+"\n", 0o644)
+	dir := writeConfig(t, "server: "+srv.URL+"\n")
 	// The fake answers /me without a human kind, so review stops there; the
 	// hit proves the config-file server was used.
 	code, errOut := runReview(t, dir)
@@ -41,7 +41,7 @@ func TestReviewUsesConfigFileServer(t *testing.T) {
 }
 
 func TestReviewMalformedConfigFile(t *testing.T) {
-	dir := writeConfig(t, "server: [bad\n", 0o644)
+	dir := writeConfig(t, "server: [bad\n")
 	code, errOut := runReview(t, dir)
 	if code != 1 || !strings.Contains(errOut, "config.yaml") || !strings.Contains(errOut, "not valid") {
 		t.Fatalf("code=%d err=%q", code, errOut)

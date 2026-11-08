@@ -212,7 +212,7 @@ func TestUnknownKidRefreshIsRateLimited(t *testing.T) {
 	mustKey(t, p, "a")
 
 	// Right after the load, forged kids do not trigger refetches.
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		if _, err := p.Key(ctx, "forged"); !errors.Is(err, auth.ErrUnknownKey) {
 			t.Fatalf("err = %v", err)
 		}
@@ -223,7 +223,7 @@ func TestUnknownKidRefreshIsRateLimited(t *testing.T) {
 
 	// After the window, exactly one refetch no matter how many lookups.
 	c.advance(time.Minute)
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		_, _ = p.Key(ctx, "forged")
 	}
 	if got := f.nJWKS.Load(); got != 2 {
@@ -264,7 +264,7 @@ func TestConcurrentLookupsFetchOnce(t *testing.T) {
 	f := newFakeIdP(t, rsaJWK(t, "a"))
 	p := auth.NewProvider(f.srv.URL)
 	var wg sync.WaitGroup
-	for i := 0; i < 32; i++ {
+	for range 32 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

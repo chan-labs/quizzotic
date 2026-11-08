@@ -62,7 +62,7 @@ func Rebind(q string) string {
 	}
 	var b strings.Builder
 	n, inStr := 0, false
-	for i := 0; i < len(q); i++ {
+	for i := range len(q) {
 		c := q[i]
 		switch {
 		case c == '\'':

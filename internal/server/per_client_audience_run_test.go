@@ -73,7 +73,7 @@ func TestRunPerClientAudiences(t *testing.T) {
 	}
 
 	me := func(tok string) (int, string, string) {
-		req, _ := http.NewRequest("GET", base+"/api/v1/me", nil)
+		req, _ := http.NewRequest(http.MethodGet, base+"/api/v1/me", nil)
 		req.Header.Set("Authorization", "Bearer "+tok)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {

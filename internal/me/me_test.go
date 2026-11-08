@@ -31,7 +31,7 @@ func TestMeUserNotFound(t *testing.T) {
 	var logs bytes.Buffer
 	h := me.NewHandler(svc, slog.New(slog.NewTextHandler(&logs, nil)))
 
-	req := httptest.NewRequest("GET", "/me", nil)
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
 	req = req.WithContext(auth.WithPrincipal(req.Context(), auth.Principal{Kind: auth.KindHuman, ClientID: "c"}))
 	rec := httptest.NewRecorder()
 	h.Me(rec, req)
@@ -56,7 +56,7 @@ func TestMeUserNotFound(t *testing.T) {
 
 func TestMetadataUsesConfiguredPublicURLOnly(t *testing.T) {
 	svc := me.NewService(fakeUsers{}, "https://idp.example.com", "https://q.example.com/", []string{"b", "a"})
-	req := httptest.NewRequest("GET", "http://evil.example.net/.well-known/oauth-protected-resource", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://evil.example.net/.well-known/oauth-protected-resource", nil)
 	req.Host = "evil.example.net"
 	rec := httptest.NewRecorder()
 	me.NewHandler(svc, nil).Metadata(rec, req)

@@ -39,7 +39,7 @@ func TestRequestIDInLogsInboundAndGenerated(t *testing.T) {
 		logger.InfoContext(r.Context(), "inside handler")
 	}))
 
-	req := httptest.NewRequest("GET", "/x", nil)
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set(RequestIDHeader, "abc-123")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -58,7 +58,7 @@ func TestRequestIDInLogsInboundAndGenerated(t *testing.T) {
 
 	buf.Reset()
 	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("GET", "/x", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
 	gen := rec.Header().Get(RequestIDHeader)
 	if len(gen) != 32 {
 		t.Fatalf("generated id = %q", gen)
@@ -74,7 +74,7 @@ func TestRequestIDRejectsBadInbound(t *testing.T) {
 	logger := NewLogger(&bytes.Buffer{}, config.Logging{})
 	h := RequestID(logger)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	for _, bad := range []string{"has space", strings.Repeat("a", 129), "tab\tx"} {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set(RequestIDHeader, bad)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
@@ -99,7 +99,7 @@ func TestHealthz(t *testing.T) {
 	mux := http.NewServeMux()
 	NewHealth(slog.Default()).Register(mux)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/healthz", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if rec.Code != 200 {
 		t.Fatalf("code = %d", rec.Code)
 	}
@@ -112,7 +112,7 @@ func TestReadyz(t *testing.T) {
 	h.Register(mux)
 	get := func() *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/readyz", nil))
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 		return rec
 	}
 

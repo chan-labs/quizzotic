@@ -169,7 +169,7 @@ func TestAttemptsAnswerEveryTypeThenListAndGet(t *testing.T) {
 	t.Run("pagination", func(t *testing.T) {
 		var got []string
 		cursor := ""
-		for pages := 0; pages < 10; pages++ {
+		for range 10 {
 			q := url.Values{"limit": {"3"}}
 			if cursor != "" {
 				q.Set("cursor", cursor)

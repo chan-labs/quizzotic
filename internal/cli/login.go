@@ -145,7 +145,7 @@ func resolveIssuer(ctx context.Context, env Env, explicit, server string) (strin
 		AuthorizationServers []string `json:"authorization_servers"`
 	}
 	if err := getJSON(ctx, env.HTTP, server+"/.well-known/oauth-protected-resource", &doc); err != nil || len(doc.AuthorizationServers) == 0 {
-		return "", fmt.Errorf("cannot find the identity provider: pass --issuer or set QUIZZOTIC_ISSUER (server lookup failed: %v)", err)
+		return "", fmt.Errorf("cannot find the identity provider: pass --issuer or set QUIZZOTIC_ISSUER (server lookup failed: %w)", err)
 	}
 	iss := strings.TrimRight(doc.AuthorizationServers[0], "/")
 	if err := checkIssuerURL(iss); err != nil {
@@ -204,7 +204,7 @@ func AccessToken(ctx context.Context, env Env, server string, agent bool) (strin
 	if err != nil {
 		var oe *oauthError
 		if errors.As(err, &oe) && (oe.Code == "invalid_grant" || oe.Status == http.StatusUnauthorized || oe.Status == http.StatusBadRequest) {
-			return "", fmt.Errorf("%w: the stored login can no longer be refreshed (%v); run %q", ErrLoginRequired, err, relogin)
+			return "", fmt.Errorf("%w: the stored login can no longer be refreshed (%w); run %q", ErrLoginRequired, err, relogin)
 		}
 		return "", fmt.Errorf("refreshing the stored login: %w", err)
 	}
@@ -345,7 +345,7 @@ func Logout(_ context.Context, args []string, env Env) int {
 		fmt.Fprintf(env.Stderr, "quizzotic: %v\n", err)
 		return 1
 	}
-	removed := false
+	var removed bool
 	switch {
 	case *all:
 		removed = len(cf) > 0

@@ -193,7 +193,7 @@ func TestIdentityEndpointsDisabledWithoutWithIdentity(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	get := func(path string, hdr map[string]string) int {
-		req, _ := http.NewRequest("GET", srv.URL+path, nil)
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+path, nil)
 		for k, v := range hdr {
 			req.Header.Set(k, v)
 		}

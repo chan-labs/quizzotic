@@ -127,7 +127,7 @@ func (s *Service) merge(ctx context.Context, r Repos, ownerID domain.ID, in Merg
 			after = page[len(page)-1]
 		}
 	}
-	slices.SortFunc(affected, func(a, b domain.ID) int { return compareIDs(a, b) })
+	slices.SortFunc(affected, compareIDs)
 
 	if err := r.Tags.Merge(ctx, ownerID, ids, target.ID, s.clock.Now()); err != nil {
 		return MergeResult{}, err

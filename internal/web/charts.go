@@ -5,6 +5,7 @@ package web
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -116,7 +117,7 @@ func buildBarChart(id, title, desc string, labels []string, names []string, seri
 	h := c.Bottom - c.Top
 	y := func(v float64) float64 { return r1(c.Bottom - v/float64(top)*h) }
 	for v := 0; v <= top; v += step {
-		c.YTicks = append(c.YTicks, chartTick{Y: y(float64(v)), Label: fmt.Sprint(v)})
+		c.YTicks = append(c.YTicks, chartTick{Y: y(float64(v)), Label: strconv.Itoa(v)})
 	}
 	n := len(labels)
 	c.Table = dataTable{Head: tableHead}
@@ -135,7 +136,7 @@ func buildBarChart(id, title, desc string, labels []string, names []string, seri
 				X: r1(x0 + bw*float64(s)), Y: y(float64(v)), W: r1(bw), H: r1(c.Bottom - y(float64(v))), Series: s,
 				Tip: fmt.Sprintf("%s: %d %s", lab, v, names[s]),
 			})
-			row = append(row, fmt.Sprint(v))
+			row = append(row, strconv.Itoa(v))
 		}
 		c.Table.Rows = append(c.Table.Rows, row)
 	}
@@ -204,7 +205,7 @@ func buildRecallLine(id, title, desc string, samples []historySample) lineChart 
 		} else {
 			fmt.Fprintf(&path, " L%v,%v", p.X, p.Y)
 		}
-		c.Table.Rows = append(c.Table.Rows, []string{s.Date, pct1(s.Recall), fmt.Sprint(s.CardsSeen)})
+		c.Table.Rows = append(c.Table.Rows, []string{s.Date, pct1(s.Recall), strconv.Itoa(s.CardsSeen)})
 	}
 	c.Path = path.String()
 	if n == 1 {

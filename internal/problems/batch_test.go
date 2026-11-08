@@ -56,7 +56,7 @@ func TestCreateBatchRollsBackOnMidBatchFailure(t *testing.T) {
 		domain.NewIDGenerator(f.clock), problems.WithBatch(failingTx{st: f.st, failOn: 3}))
 
 	var items []problems.BatchItem
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		in := mcqInput(false)
 		in.Prompt = "Batch item"
 		items = append(items, problems.BatchItem{CreateInput: in, Tags: []string{"bio"}})

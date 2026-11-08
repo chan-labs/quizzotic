@@ -29,7 +29,7 @@ func TestTraceTransportInjectsTraceparent(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", srv.URL+"/x?token=secret", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL+"/x?token=secret", nil)
 	resp, err := (&http.Client{Transport: TraceTransport(nil)}).Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +79,7 @@ func TestTraceTransportPropagatesWithoutProvider(t *testing.T) {
 	}))
 	defer srv.Close()
 	ctx := trace.ContextWithSpanContext(context.Background(), parent)
-	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL, nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
 	resp, err := (&http.Client{Transport: TraceTransport(nil)}).Do(req)
 	if err != nil {
 		t.Fatal(err)

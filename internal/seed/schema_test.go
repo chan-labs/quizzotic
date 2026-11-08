@@ -40,7 +40,7 @@ func TestSchemaMatchesFormat(t *testing.T) {
 	fields := func(v any) []string {
 		var out []string
 		rt := reflect.TypeOf(v)
-		for i := 0; i < rt.NumField(); i++ {
+		for i := range rt.NumField() {
 			out = append(out, rt.Field(i).Tag.Get("json"))
 		}
 		sort.Strings(out)

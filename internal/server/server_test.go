@@ -59,7 +59,7 @@ func TestServeStartsAndShutsDown(t *testing.T) {
 	get := func(path string) int {
 		t.Helper()
 		var lastErr error
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			resp, err := http.Get(base + path)
 			if err == nil {
 				resp.Body.Close()
