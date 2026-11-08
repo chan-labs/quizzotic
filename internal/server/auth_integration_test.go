@@ -41,9 +41,9 @@ const (
 
 var b64 = base64.RawURLEncoding
 
-// fakeIdP is an OIDC issuer: discovery, JWKS, and a token endpoint for the web
+// fakeIDP is an OIDC issuer: discovery, JWKS, and a token endpoint for the web
 // login's code exchange. Tests mint access tokens with sign.
-type fakeIdP struct {
+type fakeIDP struct {
 	t     *testing.T
 	srv   *httptest.Server
 	priv  ed25519.PrivateKey
@@ -53,14 +53,14 @@ type fakeIdP struct {
 	nonces map[string]string // authorization code -> nonce
 }
 
-func newFakeIdP(t *testing.T) *fakeIdP {
+func newFakeIDP(t *testing.T) *fakeIDP {
 	t.Helper()
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, other, _ := ed25519.GenerateKey(rand.Reader)
-	f := &fakeIdP{t: t, priv: priv, other: other, nonces: map[string]string{}}
+	f := &fakeIDP{t: t, priv: priv, other: other, nonces: map[string]string{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{
@@ -93,7 +93,7 @@ func newFakeIdP(t *testing.T) *fakeIdP {
 	return f
 }
 
-func (f *fakeIdP) sign(key ed25519.PrivateKey, claims map[string]any) string {
+func (f *fakeIDP) sign(key ed25519.PrivateKey, claims map[string]any) string {
 	hdr, _ := json.Marshal(map[string]string{"alg": "EdDSA", "kid": "k1", "typ": "JWT"})
 	pl, _ := json.Marshal(claims)
 	signed := b64.EncodeToString(hdr) + "." + b64.EncodeToString(pl)
@@ -105,7 +105,7 @@ func (f *fakeIdP) sign(key ed25519.PrivateKey, claims map[string]any) string {
 }
 
 // access mints a valid access token for client and sub; mutate adjusts claims.
-func (f *fakeIdP) access(client, sub string, mutate ...func(map[string]any)) string {
+func (f *fakeIDP) access(client, sub string, mutate ...func(map[string]any)) string {
 	c := map[string]any{
 		"iss": f.srv.URL, "aud": itAudience, "sub": sub, "client_id": client,
 		"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(),
@@ -129,7 +129,7 @@ type who struct {
 }
 
 type itEnv struct {
-	idp  *fakeIdP
+	idp  *fakeIDP
 	srv  *httptest.Server
 	st   *sqlite.Store
 	logs *bytes.Buffer
@@ -151,7 +151,7 @@ func (e *itEnv) metricsText(t *testing.T) string {
 func newITEnv(t *testing.T) *itEnv {
 	t.Helper()
 	ctx := context.Background()
-	idp := newFakeIdP(t)
+	idp := newFakeIDP(t)
 
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {

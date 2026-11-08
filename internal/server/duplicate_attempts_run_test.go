@@ -22,7 +22,7 @@ import (
 // Through server.Run, the path `quizzotic serve` takes: simultaneous identical
 // answers to one session item record one attempt; the rest are 409.
 func TestRunConcurrentDuplicateAttemptsRecordOne(t *testing.T) {
-	idp := newFakeIdP(t)
+	idp := newFakeIDP(t)
 	cfg := config.Default()
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
 	cfg.Storage.URL = "sqlite://" + filepath.Join(t.TempDir(), "q.db")

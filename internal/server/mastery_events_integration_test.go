@@ -33,21 +33,21 @@ import (
 // the same file, for reading what the server wrote.
 func newRunEnv(t *testing.T) *probEnv {
 	t.Helper()
-	e, _ := startRunEnv(t, newFakeIdP(t), filepath.Join(t.TempDir(), "q.db"), nil)
+	e, _ := startRunEnv(t, newFakeIDP(t), filepath.Join(t.TempDir(), "q.db"), nil)
 	return e
 }
 
 // startRunEnv is newRunEnv over a given IdP and database file, with specs as
 // storage.seed. The returned stop shuts the server down (it also runs at
 // cleanup, once).
-func startRunEnv(t *testing.T, idp *fakeIdP, dbPath string, seeds []string) (*probEnv, func()) {
+func startRunEnv(t *testing.T, idp *fakeIDP, dbPath string, seeds []string) (*probEnv, func()) {
 	t.Helper()
 	return startRunEnvWith(t, idp, dbPath, seeds, nil)
 }
 
 // startRunEnvWith is startRunEnv with a hook that may change the config before
 // the server starts.
-func startRunEnvWith(t *testing.T, idp *fakeIdP, dbPath string, seeds []string, tweak func(*config.Config)) (*probEnv, func()) {
+func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, tweak func(*config.Config)) (*probEnv, func()) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -282,7 +282,7 @@ func TestSeedPublishAndMajorEditRefreshMastery(t *testing.T) {
 // the user exists from an earlier run, the restart seeds a live tagged
 // problem, and the running server's metrics show it with no attempt.
 func TestStartupSeedRefreshesMastery(t *testing.T) {
-	idp := newFakeIdP(t)
+	idp := newFakeIDP(t)
 	dbPath := filepath.Join(t.TempDir(), "q.db")
 	first, stop := startRunEnv(t, idp, dbPath, nil)
 	first.owner(t) // the user is created on first sign-in

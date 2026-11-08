@@ -17,17 +17,17 @@ import (
 	"github.com/chan-labs/quizzotic/internal/cli"
 )
 
-// fakeIdP is a minimal OIDC issuer with a device flow that records how it was
+// fakeIDP is a minimal OIDC issuer with a device flow that records how it was
 // used.
-type fakeIdP struct {
+type fakeIDP struct {
 	srv       *httptest.Server
 	discovery int
 	clientID  string
 }
 
-func newIdP(t *testing.T) *fakeIdP {
+func newIDP(t *testing.T) *fakeIDP {
 	t.Helper()
-	f := &fakeIdP{}
+	f := &fakeIDP{}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		f.discovery++
@@ -71,7 +71,7 @@ func login(t *testing.T, dir string, env map[string]string, args ...string) (int
 }
 
 func TestConfigIssuerPrecedence(t *testing.T) {
-	file, env, flag := newIdP(t), newIdP(t), newIdP(t)
+	file, env, flag := newIDP(t), newIDP(t), newIDP(t)
 	dir := writeConfig(t, "issuer: "+file.srv.URL+"\n")
 
 	if code, e := login(t, dir, nil); code != 0 || file.discovery != 1 {
@@ -87,7 +87,7 @@ func TestConfigIssuerPrecedence(t *testing.T) {
 }
 
 func TestConfigLoginClientIDPrecedence(t *testing.T) {
-	idp := newIdP(t)
+	idp := newIDP(t)
 	dir := writeConfig(t, "issuer: "+idp.srv.URL+"\nlogin_client_id: from-file\n")
 	for _, tc := range []struct {
 		name string
@@ -107,7 +107,7 @@ func TestConfigLoginClientIDPrecedence(t *testing.T) {
 }
 
 func TestLoginMalformedConfig(t *testing.T) {
-	idp := newIdP(t)
+	idp := newIDP(t)
 	dir := writeConfig(t, "issuer: [unclosed\n")
 	cases := map[string]map[string]string{
 		// client-id path: reached first when no flag/env supplies a client ID.

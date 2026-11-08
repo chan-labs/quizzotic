@@ -464,10 +464,10 @@ func (r *reviewer) rate(ctx context.Context, res *resultDTO) (int, error) {
 	if correct != nil && !*correct {
 		return 1, nil
 	}
-	min, def := 2, 3
+	lowest, def := 2, 3
 	label := "Rate 2 Hard, 3 Good, 4 Easy (Enter = Good): "
 	if correct == nil {
-		min, def = 1, 0
+		lowest, def = 1, 0
 		label = "Rate 1 Again, 2 Hard, 3 Good, 4 Easy: "
 	}
 	for {
@@ -477,7 +477,7 @@ func (r *reviewer) rate(ctx context.Context, res *resultDTO) (int, error) {
 			// it can be rated later (within 15 minutes).
 			return 0, err
 		}
-		rating, perr := parseRating(line, min, def)
+		rating, perr := parseRating(line, lowest, def)
 		if perr != nil {
 			fmt.Fprintf(r.out, "  %v\n", perr)
 			continue
@@ -544,19 +544,19 @@ func parseCloze(input string) string { return strings.TrimSpace(input) }
 // parseOpen trims the typed text.
 func parseOpen(input string) string { return strings.TrimSpace(input) }
 
-// parseRating reads a rating of min-4. An empty line yields def when def is
+// parseRating reads a rating of lowest-4. An empty line yields def when def is
 // nonzero (the default Good) and is an error otherwise.
-func parseRating(input string, min, def int) (int, error) {
+func parseRating(input string, lowest, def int) (int, error) {
 	s := strings.TrimSpace(input)
 	if s == "" {
 		if def != 0 {
 			return def, nil
 		}
-		return 0, fmt.Errorf("enter a rating from %d to 4", min)
+		return 0, fmt.Errorf("enter a rating from %d to 4", lowest)
 	}
 	n, err := strconv.Atoi(s)
-	if err != nil || n < min || n > 4 {
-		return 0, fmt.Errorf("enter a rating from %d to 4", min)
+	if err != nil || n < lowest || n > 4 {
+		return 0, fmt.Errorf("enter a rating from %d to 4", lowest)
 	}
 	return n, nil
 }

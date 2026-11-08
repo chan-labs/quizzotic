@@ -35,10 +35,10 @@ const (
 	testClientSecret = "s3cret/with+chars"
 )
 
-// loginIdP is a minimal OIDC provider: discovery, JWKS, an authorization
+// loginIDP is a minimal OIDC provider: discovery, JWKS, an authorization
 // endpoint the test drives by hand, and a token endpoint that enforces PKCE,
 // client authentication and the redirect URI.
-type loginIdP struct {
+type loginIDP struct {
 	t     *testing.T
 	srv   *httptest.Server
 	clock *domain.FakeClock
@@ -55,13 +55,13 @@ type authRequest struct {
 	clientID, redirectURI, nonce, challenge string
 }
 
-func newLoginIdP(t *testing.T, clock *domain.FakeClock) *loginIdP {
+func newLoginIDP(t *testing.T, clock *domain.FakeClock) *loginIDP {
 	t.Helper()
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &loginIdP{t: t, clock: clock, priv: priv, codes: map[string]authRequest{}}
+	f := &loginIDP{t: t, clock: clock, priv: priv, codes: map[string]authRequest{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{
@@ -84,7 +84,7 @@ func newLoginIdP(t *testing.T, clock *domain.FakeClock) *loginIdP {
 
 // authorize plays the browser's trip to the IdP: it checks the authorization
 // request and returns the callback URL the IdP would redirect to.
-func (f *loginIdP) authorize(location string) string {
+func (f *loginIDP) authorize(location string) string {
 	f.t.Helper()
 	u, err := url.Parse(location)
 	if err != nil || !strings.HasPrefix(location, f.srv.URL+"/authorize?") {
@@ -109,7 +109,7 @@ func (f *loginIdP) authorize(location string) string {
 	return "/auth/callback?" + url.Values{"code": {code}, "state": {q.Get("state")}}.Encode()
 }
 
-func (f *loginIdP) token(w http.ResponseWriter, r *http.Request) {
+func (f *loginIDP) token(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.tokenCalls++
@@ -142,13 +142,13 @@ func (f *loginIdP) token(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"id_token": idToken, "access_token": "unused", "token_type": "Bearer"})
 }
 
-func (f *loginIdP) set(fn func()) {
+func (f *loginIDP) set(fn func()) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	fn()
 }
 
-func (f *loginIdP) sign(claims map[string]any) string {
+func (f *loginIDP) sign(claims map[string]any) string {
 	hdr, _ := json.Marshal(map[string]string{"alg": "EdDSA", "kid": "k1", "typ": "JWT"})
 	pl, _ := json.Marshal(claims)
 	signed := b64u.EncodeToString(hdr) + "." + b64u.EncodeToString(pl)
@@ -166,11 +166,11 @@ type app struct {
 	st    *sqlite.Store
 	svc   *auth.LoginService
 	srv   *httptest.Server
-	idp   *loginIdP
+	idp   *loginIDP
 	clock *domain.FakeClock
 }
 
-func newApp(t *testing.T, dbPath string, idp *loginIdP, clock *domain.FakeClock) *app {
+func newApp(t *testing.T, dbPath string, idp *loginIDP, clock *domain.FakeClock) *app {
 	t.Helper()
 	ctx := context.Background()
 	st, err := sqlite.Open(ctx, dbPath)
@@ -334,10 +334,10 @@ func TestCallbackRejectsStateFromAnotherBrowser(t *testing.T) {
 	}
 }
 
-func setup(t *testing.T) (*loginIdP, *domain.FakeClock, string) {
+func setup(t *testing.T) (*loginIDP, *domain.FakeClock, string) {
 	t.Helper()
 	clock := domain.NewFakeClock(time.Now().UTC())
-	return newLoginIdP(t, clock), clock, filepath.Join(t.TempDir(), "q.db")
+	return newLoginIDP(t, clock), clock, filepath.Join(t.TempDir(), "q.db")
 }
 
 func TestLoginSessionSurvivesRestartThenLogout(t *testing.T) {

@@ -37,7 +37,7 @@ func TestDiscoveryRequiresHTTPSEndpoints(t *testing.T) {
 }
 
 func TestDiscoveryAllowsLoopbackHTTP(t *testing.T) {
-	f := newFakeIdP(t, rsaJWK(t, "a"))
+	f := newFakeIDP(t, rsaJWK(t, "a"))
 	if _, err := auth.NewProvider(f.srv.URL).Discovery(context.Background()); err != nil {
 		t.Fatal(err)
 	}

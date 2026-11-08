@@ -47,7 +47,7 @@ func (t TracedExecer) InTx() bool { return t.tx }
 
 // Tx returns an executor for tx whose statements nest under txSpan when they
 // carry the ctx (parent) that the transaction was started with.
-func (t TracedExecer) Tx(tx *sql.Tx, txSpan trace.Span, parent context.Context) TracedExecer {
+func (t TracedExecer) Tx(parent context.Context, tx *sql.Tx, txSpan trace.Span) TracedExecer {
 	return TracedExecer{q: tx, system: t.system, tx: true, txSpan: txSpan,
 		txParent: trace.SpanContextFromContext(parent)}
 }

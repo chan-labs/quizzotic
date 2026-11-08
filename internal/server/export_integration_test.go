@@ -42,7 +42,7 @@ func init() {
 // HTTP: the route, the admin scope and the owner scoping are all installed by
 // the production wiring.
 func TestExportThroughTheRealServer(t *testing.T) {
-	idp := newFakeIdP(t)
+	idp := newFakeIDP(t)
 	cfg := config.Default()
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
 	cfg.Storage.URL = "sqlite://" + filepath.Join(t.TempDir(), "q.db")

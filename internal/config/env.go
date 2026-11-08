@@ -51,7 +51,7 @@ func (a *envApplier) walk(v reflect.Value, name string) {
 			a.walk(v.Field(i), name+"_"+strings.ToUpper(key))
 		}
 	case v.Kind() == reflect.Slice && v.Type().Elem().Kind() == reflect.Struct:
-		max := -1
+		highest := -1
 		for k := range a.env {
 			if !strings.HasPrefix(k, name+"_") {
 				continue
@@ -66,11 +66,11 @@ func (a *envApplier) walk(v reflect.Value, name string) {
 				a.used[k] = true
 				continue
 			}
-			if n > max {
-				max = n
+			if n > highest {
+				highest = n
 			}
 		}
-		for v.Len() <= max {
+		for v.Len() <= highest {
 			v.Set(reflect.Append(v, reflect.Zero(v.Type().Elem())))
 		}
 		for i := range v.Len() {

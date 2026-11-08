@@ -30,7 +30,7 @@ func mustNY() *time.Location {
 	return loc
 }
 
-func local(d, h, min int) time.Time { return time.Date(2026, time.June, d, h, min, 0, 0, ny) }
+func local(d, h, minute int) time.Time { return time.Date(2026, time.June, d, h, minute, 0, 0, ny) }
 
 func TestReplayStates(t *testing.T) {
 	ids := domain.NewIDGenerator(domain.SystemClock{})

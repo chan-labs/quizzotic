@@ -22,7 +22,7 @@ type opPageJSON struct {
 // rejected ones, and the API returns previews and results from one list call.
 // It runs through server.Run, the way `quizzotic serve` starts the server.
 func TestTagOpsQueueShowsResultsAndRejected(t *testing.T) {
-	idp := newFakeIdP(t)
+	idp := newFakeIDP(t)
 	pe, _ := startRunEnvWith(t, idp, filepath.Join(t.TempDir(), "q.db"), nil, func(cfg *config.Config) {
 		cfg.Auth.Issuers[0].Clients = append(cfg.Auth.Issuers[0].Clients,
 			config.Client{ID: itTagAgent, Kind: "agent", AllowedScopes: []string{"tags:read", "tags:write", "problems:read"}})

@@ -85,17 +85,17 @@ func newFrame(id, title, desc string) chartFrame {
 		Left: chartPadL, Right: chartW - chartPadR, Top: chartPadT, Bottom: chartH - chartPadB}
 }
 
-// niceCeil returns a round axis maximum >= max and the tick step to use, with
+// niceCeil returns a round axis maximum >= peak and the tick step to use, with
 // at most four intervals.
-func niceCeil(max int) (top, step int) {
-	if max < 1 {
-		max = 1
+func niceCeil(peak int) (top, step int) {
+	if peak < 1 {
+		peak = 1
 	}
 	for mag := 1; ; mag *= 10 {
 		for _, m := range []int{1, 2, 5} {
-			if (max+m*mag-1)/(m*mag) <= 4 {
+			if (peak+m*mag-1)/(m*mag) <= 4 {
 				step = m * mag
-				return (max + step - 1) / step * step, step
+				return (peak + step - 1) / step * step, step
 			}
 		}
 	}

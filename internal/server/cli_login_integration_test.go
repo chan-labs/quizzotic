@@ -36,12 +36,12 @@ const (
 	loginHumanSub       = "cli-sub"
 )
 
-// loginIdP is a fake OIDC issuer for the CLI login flows: discovery, JWKS,
+// loginIDP is a fake OIDC issuer for the CLI login flows: discovery, JWKS,
 // authorize (redirects to the loopback), device authorization, and a token
 // endpoint for the authorization-code, device-code, refresh-token and
 // client-credentials grants. Only the issuer is fake; the server that
 // verifies its tokens is the production handler.
-type loginIdP struct {
+type loginIDP struct {
 	t    *testing.T
 	srv  *httptest.Server
 	priv ed25519.PrivateKey
@@ -62,13 +62,13 @@ type loginIdP struct {
 
 type loginCode struct{ client, redirect, challenge string }
 
-func newLoginIdP(t *testing.T) *loginIdP {
+func newLoginIDP(t *testing.T) *loginIDP {
 	t.Helper()
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &loginIdP{t: t, priv: priv, codes: map[string]loginCode{}, refreshTokens: map[string]string{}}
+	f := &loginIDP{t: t, priv: priv, codes: map[string]loginCode{}, refreshTokens: map[string]string{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
 		doc := map[string]string{
@@ -93,7 +93,7 @@ func newLoginIdP(t *testing.T) *loginIdP {
 	return f
 }
 
-func (f *loginIdP) sign(claims map[string]any) string {
+func (f *loginIDP) sign(claims map[string]any) string {
 	hdr, _ := json.Marshal(map[string]string{"alg": "EdDSA", "kid": "k1", "typ": "JWT"})
 	pl, _ := json.Marshal(claims)
 	signed := b64.EncodeToString(hdr) + "." + b64.EncodeToString(pl)
@@ -104,14 +104,14 @@ func (f *loginIdP) sign(claims map[string]any) string {
 	return signed + "." + b64.EncodeToString(sig)
 }
 
-func (f *loginIdP) access(client, sub string, exp time.Time) string {
+func (f *loginIDP) access(client, sub string, exp time.Time) string {
 	return f.sign(map[string]any{
 		"iss": f.srv.URL, "aud": itAudience, "sub": sub, "client_id": client,
 		"iat": time.Now().Unix(), "exp": exp.Unix(), "jti": strconv.Itoa(f.nextRefresh) + client,
 	})
 }
 
-func (f *loginIdP) authorize(w http.ResponseWriter, r *http.Request) {
+func (f *loginIDP) authorize(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	redirect, err := url.Parse(q.Get("redirect_uri"))
 	if err != nil || redirect.Hostname() != "127.0.0.1" || redirect.Port() == "" || redirect.Path != "/callback" ||
@@ -128,7 +128,7 @@ func (f *loginIdP) authorize(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, q.Get("redirect_uri")+"?"+url.Values{"code": {code}, "state": {q.Get("state")}}.Encode(), http.StatusFound)
 }
 
-func (f *loginIdP) device(w http.ResponseWriter, r *http.Request) {
+func (f *loginIDP) device(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	f.mu.Lock()
 	f.deviceClient = r.PostForm.Get("client_id")
@@ -139,12 +139,12 @@ func (f *loginIdP) device(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (f *loginIdP) oauthErr(w http.ResponseWriter, code string, status int) {
+func (f *loginIDP) oauthErr(w http.ResponseWriter, code string, status int) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
 }
 
-func (f *loginIdP) tokens(w http.ResponseWriter, client, sub string, expired bool) {
+func (f *loginIDP) tokens(w http.ResponseWriter, client, sub string, expired bool) {
 	exp := time.Now().Add(time.Hour)
 	expiresIn := 3600
 	if expired {
@@ -159,7 +159,7 @@ func (f *loginIdP) tokens(w http.ResponseWriter, client, sub string, expired boo
 	})
 }
 
-func (f *loginIdP) token(w http.ResponseWriter, r *http.Request) {
+func (f *loginIDP) token(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	_ = r.ParseForm()
@@ -218,13 +218,13 @@ func (f *loginIdP) token(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (f *loginIdP) set(fn func()) {
+func (f *loginIDP) set(fn func()) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	fn()
 }
 
-func (f *loginIdP) grantCount(g string) int {
+func (f *loginIDP) grantCount(g string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	n := 0
@@ -238,7 +238,7 @@ func (f *loginIdP) grantCount(g string) int {
 
 // loginEnv is the production API (auth wiring and router) behind the fake IdP.
 type loginEnv struct {
-	idp   *loginIdP
+	idp   *loginIDP
 	api   *httptest.Server
 	creds string
 	now   time.Time
@@ -247,7 +247,7 @@ type loginEnv struct {
 func newLoginEnv(t *testing.T) *loginEnv {
 	t.Helper()
 	ctx := context.Background()
-	idp := newLoginIdP(t)
+	idp := newLoginIDP(t)
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)

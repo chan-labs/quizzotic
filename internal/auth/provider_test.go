@@ -41,8 +41,8 @@ func rsaJWK(t *testing.T, kid string) map[string]string {
 		"n": b64(k.N.Bytes()), "e": b64([]byte{1, 0, 1})}
 }
 
-// fakeIdP is an httptest OIDC issuer whose key set can change between calls.
-type fakeIdP struct {
+// fakeIDP is an httptest OIDC issuer whose key set can change between calls.
+type fakeIDP struct {
 	srv *httptest.Server
 
 	mu    sync.Mutex
@@ -53,9 +53,9 @@ type fakeIdP struct {
 	nJWKS atomic.Int32
 }
 
-func newFakeIdP(t *testing.T, keys ...map[string]string) *fakeIdP {
+func newFakeIDP(t *testing.T, keys ...map[string]string) *fakeIDP {
 	t.Helper()
-	f := &fakeIdP{keys: keys}
+	f := &fakeIDP{keys: keys}
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -86,13 +86,13 @@ func newFakeIdP(t *testing.T, keys ...map[string]string) *fakeIdP {
 	return f
 }
 
-func (f *fakeIdP) set(keys ...map[string]string) {
+func (f *fakeIDP) set(keys ...map[string]string) {
 	f.mu.Lock()
 	f.keys = keys
 	f.mu.Unlock()
 }
 
-func (f *fakeIdP) setDown(d bool) {
+func (f *fakeIDP) setDown(d bool) {
 	f.mu.Lock()
 	f.down = d
 	f.mu.Unlock()
@@ -111,13 +111,13 @@ func (c *clock) advance(d time.Duration) {
 	c.mu.Unlock()
 }
 
-func newProvider(f *fakeIdP, c *clock) *auth.Provider {
+func newProvider(f *fakeIDP, c *clock) *auth.Provider {
 	return auth.NewProvider(f.srv.URL,
 		auth.WithClock(c.now), auth.WithJWKSTTL(time.Hour), auth.WithMinRefresh(time.Minute))
 }
 
 func TestDiscovery(t *testing.T) {
-	f := newFakeIdP(t, rsaJWK(t, "a"))
+	f := newFakeIDP(t, rsaJWK(t, "a"))
 	p := auth.NewProvider(f.srv.URL)
 	d, err := p.Discovery(context.Background())
 	if err != nil {
@@ -135,7 +135,7 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryIssuerMismatchRejected(t *testing.T) {
-	f := newFakeIdP(t, rsaJWK(t, "a"))
+	f := newFakeIDP(t, rsaJWK(t, "a"))
 	f.iss = "https://evil.example.com"
 	p := auth.NewProvider(f.srv.URL)
 	if _, err := p.Key(context.Background(), "a"); err == nil {
@@ -152,7 +152,7 @@ func TestDiscoveryIssuerMismatchRejected(t *testing.T) {
 func TestKeyRotation(t *testing.T) {
 	ctx := context.Background()
 	old := rsaJWK(t, "old")
-	f := newFakeIdP(t, old)
+	f := newFakeIDP(t, old)
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
 	p := newProvider(f, c)
 
@@ -206,7 +206,7 @@ func mustKey(t *testing.T, p *auth.Provider, kid string) *auth.Key {
 
 func TestUnknownKidRefreshIsRateLimited(t *testing.T) {
 	ctx := context.Background()
-	f := newFakeIdP(t, rsaJWK(t, "a"))
+	f := newFakeIDP(t, rsaJWK(t, "a"))
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
 	p := newProvider(f, c)
 	mustKey(t, p, "a")
@@ -233,7 +233,7 @@ func TestUnknownKidRefreshIsRateLimited(t *testing.T) {
 
 func TestTTLRefreshAndStaleServing(t *testing.T) {
 	ctx := context.Background()
-	f := newFakeIdP(t, rsaJWK(t, "a"))
+	f := newFakeIDP(t, rsaJWK(t, "a"))
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
 	p := newProvider(f, c)
 	mustKey(t, p, "a")
@@ -261,7 +261,7 @@ func TestTTLRefreshAndStaleServing(t *testing.T) {
 }
 
 func TestConcurrentLookupsFetchOnce(t *testing.T) {
-	f := newFakeIdP(t, rsaJWK(t, "a"))
+	f := newFakeIDP(t, rsaJWK(t, "a"))
 	p := auth.NewProvider(f.srv.URL)
 	var wg sync.WaitGroup
 	for range 32 {
@@ -280,7 +280,7 @@ func TestConcurrentLookupsFetchOnce(t *testing.T) {
 }
 
 func TestReadinessCheck(t *testing.T) {
-	f := newFakeIdP(t, rsaJWK(t, "a"))
+	f := newFakeIDP(t, rsaJWK(t, "a"))
 	f.setDown(true)
 	p := auth.NewProvider(f.srv.URL)
 
@@ -319,7 +319,7 @@ func TestReadinessCheck(t *testing.T) {
 func TestKeyTypesAndSkips(t *testing.T) {
 	ec, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	edPub, _, _ := ed25519.GenerateKey(rand.Reader)
-	f := newFakeIdP(t,
+	f := newFakeIDP(t,
 		map[string]string{"kty": "EC", "kid": "ec", "crv": "P-256", "x": b64(ec.X.Bytes()), "y": b64(ec.Y.Bytes())},
 		map[string]string{"kty": "OKP", "kid": "ed", "crv": "Ed25519", "x": b64(edPub)},
 		map[string]string{"kty": "RSA", "kid": "enc", "use": "enc", "n": "AQAB", "e": "AQAB"},
@@ -347,7 +347,7 @@ func TestKeyTypesAndSkips(t *testing.T) {
 }
 
 func TestEmptyJWKSNotReady(t *testing.T) {
-	f := newFakeIdP(t)
+	f := newFakeIDP(t)
 	if err := auth.NewProvider(f.srv.URL).Ready(context.Background()); err == nil {
 		t.Fatal("a JWKS without usable keys must not count as loaded")
 	}
@@ -360,7 +360,7 @@ func TestIdPCallsAreChildSpans(t *testing.T) {
 	otel.SetTracerProvider(tp)
 	t.Cleanup(func() { otel.SetTracerProvider(prev) })
 
-	f := newFakeIdP(t, rsaJWK(t, "a"))
+	f := newFakeIDP(t, rsaJWK(t, "a"))
 	ctx, parent := tp.Tracer("test").Start(context.Background(), "request")
 	if _, err := auth.NewProvider(f.srv.URL).Key(ctx, "a"); err != nil {
 		t.Fatal(err)
