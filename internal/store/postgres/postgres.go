@@ -164,7 +164,7 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx store.Store) error) error
 			panic(p)
 		}
 	}()
-	if err := fn(&Store{db: s.db, q: rebinder{base.Tx(tx, span, ctx)}, tx: tx}); err != nil {
+	if err := fn(&Store{db: s.db, q: rebinder{base.Tx(ctx, tx, span)}, tx: tx}); err != nil {
 		tx.Rollback()
 		platform.EndSpan(span, err)
 		return err

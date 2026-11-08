@@ -253,7 +253,7 @@ func (s *LoginService) exchange(ctx context.Context, endpoint, code, verifier st
 		return "", fmt.Errorf("%w: %w", ErrExchange, err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxIdPBody))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxIDPBody))
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrExchange, err)
 	}

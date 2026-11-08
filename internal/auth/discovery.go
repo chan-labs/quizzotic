@@ -18,8 +18,8 @@ import (
 	"github.com/chan-labs/quizzotic/internal/platform"
 )
 
-// maxIdPBody bounds how much of an IdP response is read.
-const maxIdPBody = 1 << 20
+// maxIDPBody bounds how much of an IdP response is read.
+const maxIDPBody = 1 << 20
 
 // Discovery is the subset of the OIDC discovery document (OpenID Connect
 // Discovery 1.0, section 3) that Quizzotic uses.
@@ -88,10 +88,10 @@ func (p *Provider) getJSON(ctx context.Context, u string, v any) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxIdPBody))
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxIDPBody))
 		return fmt.Errorf("GET %s: status %d", u, resp.StatusCode)
 	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxIdPBody)).Decode(v); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxIDPBody)).Decode(v); err != nil {
 		return fmt.Errorf("GET %s: decode: %w", u, err)
 	}
 	return nil

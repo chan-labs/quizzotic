@@ -17,8 +17,8 @@ func mustLoc(t *testing.T, name string) *time.Location {
 }
 
 // at builds an instant from a local wall clock reading in loc.
-func at(loc *time.Location, y int, m time.Month, d, h, min int) time.Time {
-	return time.Date(y, m, d, h, min, 0, 0, loc)
+func at(loc *time.Location, y int, m time.Month, d, h, minute int) time.Time {
+	return time.Date(y, m, d, h, minute, 0, 0, loc)
 }
 
 func TestStudyDayRolloverEdges(t *testing.T) {

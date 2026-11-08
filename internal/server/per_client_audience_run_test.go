@@ -22,7 +22,7 @@ import (
 // authenticates and classifies web, CLI, agent and headless tokens, and
 // rejects an audience that is not listed.
 func TestRunPerClientAudiences(t *testing.T) {
-	idp := newFakeIdP(t)
+	idp := newFakeIDP(t)
 	const (
 		web, cli, agent, headless = "web-client-id", "cli-client-id", "agent-client-id", "headless-client-id"
 	)

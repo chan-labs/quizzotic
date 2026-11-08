@@ -78,7 +78,7 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx store.Store) error) error
 			panic(p)
 		}
 	}()
-	if err := fn(&Store{db: s.db, q: s.q.Tx(tx, span, ctx)}); err != nil {
+	if err := fn(&Store{db: s.db, q: s.q.Tx(ctx, tx, span)}); err != nil {
 		tx.Rollback()
 		platform.EndSpan(span, err)
 		return err
