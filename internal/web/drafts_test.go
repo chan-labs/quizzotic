@@ -84,7 +84,7 @@ func (e draftsEnv) post(path string, form url.Values, token string) *httptest.Re
 	if token != "" {
 		form.Set("csrf_token", token)
 	}
-	req := httptest.NewRequest("POST", path, strings.NewReader(form.Encode()))
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "ok", Value: "1"})
 	rec := httptest.NewRecorder()
@@ -131,7 +131,7 @@ func TestDraftsListShowsAuthorKind(t *testing.T) {
 func TestBulkPublishMakesTenAgentDraftsEligible(t *testing.T) {
 	e := newDraftsEnv(t)
 	form := url.Values{"action": {"publish"}}
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		v := e.create(t, e.owner, domain.ActorAgent, "agent draft "+string(rune('A'+i)))
 		form.Add("id", v.ID.String())
 	}

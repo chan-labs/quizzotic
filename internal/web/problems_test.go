@@ -333,7 +333,7 @@ func TestPostsNeedCSRFToken(t *testing.T) {
 
 func TestPagesRequireSession(t *testing.T) {
 	e := newProbEnv(t)
-	req := httptest.NewRequest("GET", "/problems", nil)
+	req := httptest.NewRequest(http.MethodGet, "/problems", nil)
 	rec := httptest.NewRecorder()
 	e.mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusSeeOther {

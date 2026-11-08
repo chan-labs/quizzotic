@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -111,9 +112,9 @@ func runTagRaces(t *testing.T, newStore NewStore) {
 
 	t.Run("slug namespace stays unique across tags and aliases", func(t *testing.T) {
 		f := setup(t)
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			var ts []tags.Tag
-			for i := 0; i < 4; i++ {
+			for i := range 4 {
 				ts = append(ts, mkTag(t, f, fmt.Sprintf("r%d-t%d", round, i)))
 			}
 			slug := func(i int) string { return ts[i].Slug }
@@ -166,11 +167,11 @@ func runTagRaces(t *testing.T, newStore NewStore) {
 
 	t.Run("merge and set-problem-tags never leave a mapping on a merged tag", func(t *testing.T) {
 		f := setup(t)
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			src := mkTag(t, f, fmt.Sprintf("m%d-src", round))
 			dst := mkTag(t, f, fmt.Sprintf("m%d-dst", round))
 			var ps []domain.ID
-			for i := 0; i < 8; i++ {
+			for range 8 {
 				ps = append(ps, mkProblem(t, f))
 			}
 			fns := []func() error{func() error {
@@ -223,11 +224,11 @@ func runTagRaces(t *testing.T, newStore NewStore) {
 	})
 	t.Run("a merge racing a batch's tag resolve leaves no mapping on the merged tag", func(t *testing.T) {
 		f := setup(t)
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			src := mkTag(t, f, fmt.Sprintf("b%d-src", round))
 			dst := mkTag(t, f, fmt.Sprintf("b%d-dst", round))
 			var ps []domain.ID
-			for i := 0; i < 8; i++ {
+			for range 8 {
 				ps = append(ps, mkProblem(t, f))
 			}
 			fns := []func() error{func() error {
@@ -250,7 +251,7 @@ func runTagRaces(t *testing.T, newStore NewStore) {
 
 	t.Run("opposing merges cannot merge both tags away", func(t *testing.T) {
 		f := setup(t)
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			a := mkTag(t, f, fmt.Sprintf("c%d-a", round))
 			b := mkTag(t, f, fmt.Sprintf("c%d-b", round))
 			merge := func(from, into tags.Tag) func() error {
@@ -274,10 +275,10 @@ func runTagRaces(t *testing.T, newStore NewStore) {
 
 	t.Run("revert cannot overwrite a later operation applied beside it", func(t *testing.T) {
 		f := setup(t)
-		for round := 0; round < rounds; round++ {
+		for round := range rounds {
 			tg := mkTag(t, f, fmt.Sprintf("v%d-a", round))
-			first := "v" + fmt.Sprint(round) + "-first"
-			second := "v" + fmt.Sprint(round) + "-second"
+			first := "v" + strconv.Itoa(round) + "-first"
+			second := "v" + strconv.Itoa(round) + "-second"
 			rn := func(to string) json.RawMessage {
 				b, _ := json.Marshal(tags.RenameInput{Tag: tg.ID.String(), Slug: &to})
 				return b

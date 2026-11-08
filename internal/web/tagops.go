@@ -334,7 +334,7 @@ func (w *Web) splitState(ctx context.Context, owner domain.ID, v url.Values, che
 		}
 	}
 	names, slugs := v["new_name"], v["new_slug"]
-	for i := 0; i < max(splitNewRows, len(names)); i++ {
+	for i := range max(splitNewRows, len(names)) {
 		row := newTargetRow{}
 		if i < len(names) {
 			row.Name = strings.TrimSpace(names[i])

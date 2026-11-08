@@ -36,7 +36,7 @@ func TestTracingServerSpanAndLogIDs(t *testing.T) {
 	})
 	h := Tracing(tp)(RequestID(logger)(TraceRoute(mux)))
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("GET", "/things/42", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/things/42", nil))
 
 	spans := exp.GetSpans()
 	if len(spans) != 2 {
@@ -96,7 +96,7 @@ func TestTracingNoopLogsNoIDs(t *testing.T) {
 	var buf bytes.Buffer
 	logger := NewLogger(&buf, config.Logging{Level: "info", Format: "json"})
 	h := Tracing(nooptrace.NewTracerProvider())(RequestID(logger)(http.NotFoundHandler()))
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/x", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
 	if strings.Contains(buf.String(), "trace_id") {
 		t.Errorf("unexpected trace_id: %s", buf.String())
 	}

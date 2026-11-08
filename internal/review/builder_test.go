@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,7 +74,7 @@ func (w *world) answer(id domain.ID, at time.Time) {
 func (w *world) builder() *review.Builder {
 	return review.NewBuilder(review.BuildSource{
 		Cards: cardList{w}, Attempts: attemptLog{w}, Problems: problemList{w},
-		Params: paramsFn(func() fsrs.Params { return fsrs.Default() }), Settings: settingsFn(func() settings.Settings { return w.cfg }),
+		Params: paramsFn(fsrs.Default), Settings: settingsFn(func() settings.Settings { return w.cfg }),
 	})
 }
 
@@ -146,13 +147,15 @@ func (f settingsFn) Get(context.Context, domain.ID) (settings.Settings, error) {
 
 func kinds(items []review.Item) string {
 	s := ""
+	var sSb149 strings.Builder
 	for _, it := range items {
 		if it.Kind == review.ItemNew {
-			s += "N"
+			sSb149.WriteString("N")
 		} else {
-			s += "R"
+			sSb149.WriteString("R")
 		}
 	}
+	s += sSb149.String()
 	return s
 }
 

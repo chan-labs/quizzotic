@@ -73,7 +73,7 @@ func validRequestID(id string) bool {
 	if id == "" || len(id) > maxRequestIDLen {
 		return false
 	}
-	for i := 0; i < len(id); i++ {
+	for i := range len(id) {
 		if id[i] <= ' ' || id[i] >= 0x7f {
 			return false
 		}

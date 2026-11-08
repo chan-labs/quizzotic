@@ -45,7 +45,7 @@ func settingsMux(t *testing.T) (*http.ServeMux, *settings.Service, *memSettings)
 }
 
 func post(mux *http.ServeMux, form url.Values) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "ok", Value: "1"})
 	rec := httptest.NewRecorder()

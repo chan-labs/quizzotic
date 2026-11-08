@@ -54,7 +54,7 @@ func toolNames(t *testing.T, cs *sdk.ClientSession) []string {
 
 func postMCP(t *testing.T, e *probEnv, token string) (*http.Response, string) {
 	t.Helper()
-	req, err := http.NewRequest("POST", e.srv.URL+"/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	req, err := http.NewRequest(http.MethodPost, e.srv.URL+"/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
 	if err != nil {
 		t.Fatal(err)
 	}

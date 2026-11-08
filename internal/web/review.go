@@ -572,8 +572,10 @@ func (w *Web) failReview(rw http.ResponseWriter, r *http.Request, err error) {
 // problemMessage is a problem's detail followed by its field errors.
 func problemMessage(pb *platform.Problem) string {
 	msg := pb.Detail
+	var extra strings.Builder
 	for _, f := range pb.Errors {
-		msg += "; " + f.Field + ": " + f.Detail
+		extra.WriteString("; " + f.Field + ": " + f.Detail)
 	}
+	msg += extra.String()
 	return msg
 }

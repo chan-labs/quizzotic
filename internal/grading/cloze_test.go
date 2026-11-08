@@ -62,7 +62,7 @@ func TestGradeClozeMaxEdits(t *testing.T) {
 	}{
 		{"planet", 0}, {"planit", 1}, {"plonit", 2}, {"blonit", 3}, {"blonix", 4},
 	}
-	for maxEdits := 0; maxEdits <= 3; maxEdits++ {
+	for maxEdits := range 4 {
 		for _, a := range answers {
 			b := ClozeBlank{ID: "b", Accepted: []string{"planet"}, MaxEdits: maxEdits}
 			got := GradeCloze([]ClozeBlank{b}, map[string]string{"b": a.answer}).Correct["b"]

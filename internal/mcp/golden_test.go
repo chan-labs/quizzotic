@@ -7,6 +7,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestGoldenToolList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := append(raw, '\n')
+	got := slices.Concat(raw, []byte{'\n'})
 	path := filepath.Join("testdata", "tools.golden.json")
 	if *update {
 		if err := os.MkdirAll("testdata", 0o755); err != nil {

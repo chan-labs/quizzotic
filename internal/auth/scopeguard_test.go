@@ -120,7 +120,7 @@ func TestScopeGuardPutsPrincipalInContext(t *testing.T) {
 	rt.HandleFunc("GET /problems", func(w http.ResponseWriter, r *http.Request) { got, _ = PrincipalFrom(r.Context()) })
 	mux := http.NewServeMux()
 	rt.Mount(mux)
-	mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/api/v1/problems", nil))
+	mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/problems", nil))
 	if got.ClientID != "c" {
 		t.Errorf("principal = %+v", got)
 	}
@@ -137,7 +137,7 @@ func TestScopeGuardDeniesUnspecifiedRoutes(t *testing.T) {
 	mux := http.NewServeMux()
 	rt.Mount(mux)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/secret", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/secret", nil))
 	if reached || rec.Code != 404 {
 		t.Errorf("reached=%v status=%d", reached, rec.Code)
 	}
@@ -174,9 +174,9 @@ func TestScopeGuardAdversarialRequests(t *testing.T) {
 			"/api/v1"+s+"%2f",
 			"/api/v1"+s+"%2F",
 			"/api/v1"+s+"%5c",
-			"/api/v1"+strings.Replace(s, "/", "%2f", -1),
-			"/api/v1"+strings.Replace(s, "/", "%2F", -1),
-			"/api/v1"+strings.Replace(s, "/", "%5C", -1),
+			"/api/v1"+strings.ReplaceAll(s, "/", "%2f"),
+			"/api/v1"+strings.ReplaceAll(s, "/", "%2F"),
+			"/api/v1"+strings.ReplaceAll(s, "/", "%5C"),
 			"/api/v1"+s+"?x=%2f",
 			"http://example.com/api/v1"+s, // absolute-form
 			"http://example.com/%61pi/v1"+s,
@@ -246,7 +246,7 @@ func TestGuardLogsCauseOfOpaque500(t *testing.T) {
 	mux := http.NewServeMux()
 	rt.Mount(mux)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/problems", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/problems", nil))
 	if rec.Code != 500 || strings.Contains(rec.Body.String(), "disk") {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}

@@ -10,14 +10,20 @@ linters:
   enable:
     - bodyclose
     - copyloopvar
+    - errorlint
+    - gocritic
+    - intrange
     - misspell
     - noctx
     - nolintlint
+    - perfsprint
     - rowserrcheck
     - sqlclosecheck
-  # More linters (revive, errorlint, gocritic,
-  # intrange, perfsprint, unconvert, unparam, usestdlibvars, wastedassign)
-  # come in follow-up PRs, one linter at a time, once their findings are fixed.
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+  # revive comes in a follow-up PR once its findings are fixed or excluded.
   settings:
     errcheck:
       # Unactionable errors, excluded on purpose:

@@ -182,7 +182,7 @@ func TestRandomTagOperationsKeepMasteryEqualToRebuild(t *testing.T) {
 			for _, s := range base {
 				f.tag(s)
 			}
-			for i := 0; i < 14; i++ {
+			for range 14 {
 				var pick []string
 				for _, s := range base {
 					if rng.Intn(2) == 0 {
@@ -207,7 +207,7 @@ func TestRandomTagOperationsKeepMasteryEqualToRebuild(t *testing.T) {
 
 			var applied []domain.ID
 			next, done := 0, 0
-			for step := 0; step < 24; step++ {
+			for step := range 24 {
 				var err error
 				switch rng.Intn(4) {
 				case 0, 1:
@@ -256,7 +256,7 @@ func (f *rebuildFx) randomSplit(rng *rand.Rand, next *int, applied *[]domain.ID)
 	src := act[rng.Intn(len(act))]
 	in := tags.SplitInput{Source: src, Assignments: map[domain.ID][]string{}, RetireSource: rng.Intn(2) == 0}
 	var slugs []string
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		*next++
 		s := fmt.Sprintf("n%d", *next)
 		slugs = append(slugs, s)
@@ -378,8 +378,8 @@ func TestApplyAndRevertRebuildMastery(t *testing.T) {
 	same := func(got []domain.ID, want ...domain.ID) {
 		t.Helper()
 		g, w := slices.Clone(got), slices.Clone(want)
-		slices.SortFunc(g, func(x, y domain.ID) int { return compareStr(x, y) })
-		slices.SortFunc(w, func(x, y domain.ID) int { return compareStr(x, y) })
+		slices.SortFunc(g, compareStr)
+		slices.SortFunc(w, compareStr)
 		if !slices.Equal(g, w) {
 			t.Fatalf("rebuilt tags = %v, want %v", g, w)
 		}

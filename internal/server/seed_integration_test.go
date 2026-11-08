@@ -57,7 +57,7 @@ func TestSeededContentIsManageableThroughTheAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 2; i++ { // twice: the second run must change nothing
+	for range 2 { // twice: the second run must change nothing
 		if _, err := seedrun.ApplyFile(ctx, e.st, owner, f); err != nil {
 			t.Fatal(err)
 		}

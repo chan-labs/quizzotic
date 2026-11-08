@@ -52,10 +52,10 @@ func fakeAPI(m mode) http.Handler {
 		}
 		path := strings.TrimPrefix(r.URL.Path, "/api/v1")
 		switch {
-		case r.Method == "POST" && path == "/things":
+		case r.Method == http.MethodPost && path == "/things":
 			owner = user
 			_ = json.NewEncoder(w).Encode(map[string]string{"id": "t1", "title": "secret-title"})
-		case r.Method == "GET" && path == "/things/t1":
+		case r.Method == http.MethodGet && path == "/things/t1":
 			switch {
 			case m == alwaysDeny:
 				prob(404)

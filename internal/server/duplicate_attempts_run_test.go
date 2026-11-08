@@ -115,7 +115,7 @@ func TestRunConcurrentDuplicateAttemptsRecordOne(t *testing.T) {
 	codes := make([]int, n)
 	var wg sync.WaitGroup
 	start := make(chan struct{})
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

@@ -34,13 +34,13 @@ func runCfg(t *testing.T, dir string, env map[string]string, args ...string) (in
 	return code, e.String()
 }
 
-func writeConfig(t *testing.T, content string, mode os.FileMode) string {
+func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "quizzotic"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "quizzotic", "config.yaml"), []byte(content), mode); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "quizzotic", "config.yaml"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return dir
@@ -61,7 +61,7 @@ func hitCounter(t *testing.T) (*httptest.Server, *int) {
 func TestConfigFileServer(t *testing.T) {
 	srv, hits := hitCounter(t)
 	// 0644 on purpose: the file holds no secrets, so no mode is required.
-	dir := writeConfig(t, "server: "+srv.URL+"\n", 0o644)
+	dir := writeConfig(t, "server: "+srv.URL+"\n")
 	if code, errOut := runCfg(t, dir, nil); code != 0 || *hits != 1 {
 		t.Fatalf("file only: code=%d hits=%d err=%s", code, *hits, errOut)
 	}
@@ -70,7 +70,7 @@ func TestConfigFileServer(t *testing.T) {
 func TestEnvOverridesConfigFile(t *testing.T) {
 	file, fileHits := hitCounter(t)
 	envSrv, envHits := hitCounter(t)
-	dir := writeConfig(t, "server: "+file.URL+"\n", 0o644)
+	dir := writeConfig(t, "server: "+file.URL+"\n")
 	if code, errOut := runCfg(t, dir, map[string]string{"QUIZZOTIC_SERVER": envSrv.URL}); code != 0 || *envHits != 1 || *fileHits != 0 {
 		t.Fatalf("env: code=%d env=%d file=%d err=%s", code, *envHits, *fileHits, errOut)
 	}
@@ -80,7 +80,7 @@ func TestFlagOverridesEnvAndConfigFile(t *testing.T) {
 	file, fileHits := hitCounter(t)
 	envSrv, envHits := hitCounter(t)
 	flagSrv, flagHits := hitCounter(t)
-	dir := writeConfig(t, "server: "+file.URL+"\n", 0o644)
+	dir := writeConfig(t, "server: "+file.URL+"\n")
 	code, errOut := runCfg(t, dir, map[string]string{"QUIZZOTIC_SERVER": envSrv.URL}, "--server", flagSrv.URL)
 	if code != 0 || *flagHits != 1 || *envHits != 0 || *fileHits != 0 {
 		t.Fatalf("flag: code=%d flag=%d env=%d file=%d err=%s", code, *flagHits, *envHits, *fileHits, errOut)
@@ -112,7 +112,7 @@ func TestMalformedConfigFile(t *testing.T) {
 		"unknown key": "servr: https://quiz.example.com\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			dir := writeConfig(t, content, 0o644)
+			dir := writeConfig(t, content)
 			code, errOut := runCfg(t, dir, nil)
 			if code == 0 || !strings.Contains(errOut, "config.yaml") || !strings.Contains(errOut, "not valid") {
 				t.Fatalf("code=%d err=%q", code, errOut)
@@ -122,7 +122,7 @@ func TestMalformedConfigFile(t *testing.T) {
 }
 
 func TestEmptyConfigFileFallsBackToDefault(t *testing.T) {
-	dir := writeConfig(t, "", 0o644)
+	dir := writeConfig(t, "")
 	// Default is localhost:8080; nothing listens there in tests, so expect a
 	// connection error mentioning it, not a config error.
 	code, errOut := runCfg(t, dir, nil)

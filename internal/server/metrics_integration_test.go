@@ -244,7 +244,7 @@ func TestMetricsTags(t *testing.T) {
 	// Paging walks the same three tags in ID order.
 	var seen []string
 	cursor := ""
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		q := "/metrics/tags?limit=2"
 		if cursor != "" {
 			q += "&cursor=" + url.QueryEscape(cursor)

@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -347,7 +348,7 @@ func scalar(v any) string {
 	case float64:
 		return json.Number(fmt.Sprint(x)).String()
 	case bool:
-		return fmt.Sprint(x)
+		return strconv.FormatBool(x)
 	default:
 		b, _ := json.Marshal(x)
 		return string(b)

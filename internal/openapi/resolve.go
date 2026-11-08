@@ -3,6 +3,7 @@
 package openapi
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -79,7 +80,7 @@ func (r *resolver) parameters(pathLevel, opLevel []any) ([]Parameter, error) {
 			name, _ := m["name"].(string)
 			in, _ := m["in"].(string)
 			if name == "" || in == "" {
-				return fmt.Errorf("parameter without name or in")
+				return errors.New("parameter without name or in")
 			}
 			param := Parameter{Name: name, In: in}
 			param.Required, _ = m["required"].(bool)

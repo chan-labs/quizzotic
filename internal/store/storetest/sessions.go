@@ -191,7 +191,7 @@ func runSessionService(t *testing.T, newStore NewStore) {
 	t.Run("review session mixes due and new, serves in order and appends learning cards", func(t *testing.T) {
 		f := newSessionFixture(t, newStore)
 		var due []problems.View
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			p := f.newProblem(k, problems.StatusLive)
 			if _, err := f.answer(p.ID, k.right, nil); err != nil {
 				t.Fatal(err)
@@ -200,7 +200,7 @@ func runSessionService(t *testing.T, newStore NewStore) {
 		}
 		f.clock.Advance(30 * 24 * time.Hour) // all three are now due
 		var fresh []problems.View
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			fresh = append(fresh, f.newProblem(k, problems.StatusLive))
 		}
 		f.newProblem(k, problems.StatusDraft) // never enters review
@@ -497,7 +497,7 @@ func runSessionService(t *testing.T, newStore NewStore) {
 		errs := make([]error, n)
 		var wg sync.WaitGroup
 		start := make(chan struct{})
-		for i := 0; i < n; i++ {
+		for i := range n {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -559,7 +559,7 @@ func runCardQuery(t *testing.T, newStore NewStore) {
 	f := newCardFixture(t, newStore)
 	k := pkinds[0]
 	var ps []problems.View
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		p := f.newProblem(k, problems.StatusLive)
 		if _, err := f.answer(p.ID, k.right, nil); err != nil {
 			t.Fatal(err)

@@ -5,6 +5,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/config"
@@ -112,13 +113,15 @@ type ValidationError struct{ Fields []FieldError }
 
 func (e *ValidationError) Error() string {
 	s := "settings: invalid"
+	var extra strings.Builder
 	for i, f := range e.Fields {
 		sep := ": "
 		if i > 0 {
 			sep = "; "
 		}
-		s += sep + f.Field + " " + f.Detail
+		extra.WriteString(sep + f.Field + " " + f.Detail)
 	}
+	s += extra.String()
 	return s
 }
 

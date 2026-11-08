@@ -45,7 +45,7 @@ func TestMeteredStoreCountsOnlyStoreErrors(t *testing.T) {
 	run(fakeStore{txErr: errors.New("connection")}, nil)
 
 	rec := httptest.NewRecorder()
-	m.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+	m.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	if !strings.Contains(rec.Body.String(), "quizzotic_store_errors_total 2\n") {
 		t.Errorf("want 2 store errors:\n%s", rec.Body.String())
 	}
@@ -64,7 +64,7 @@ func testHandler(t *testing.T, opts ...HandlerOption) http.Handler {
 
 func fetch(h http.Handler, path string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 	return rec
 }
 

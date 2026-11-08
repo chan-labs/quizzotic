@@ -43,7 +43,7 @@ func (a *envApplier) walk(v reflect.Value, name string) {
 	switch {
 	case v.Kind() == reflect.Struct:
 		t := v.Type()
-		for i := 0; i < t.NumField(); i++ {
+		for i := range t.NumField() {
 			key := strings.Split(t.Field(i).Tag.Get("yaml"), ",")[0]
 			if key == "" || key == "-" {
 				continue
@@ -73,7 +73,7 @@ func (a *envApplier) walk(v reflect.Value, name string) {
 		for v.Len() <= max {
 			v.Set(reflect.Append(v, reflect.Zero(v.Type().Elem())))
 		}
-		for i := 0; i < v.Len(); i++ {
+		for i := range v.Len() {
 			a.walk(v.Index(i), name+"_"+strconv.Itoa(i))
 		}
 	case v.Kind() == reflect.Slice:

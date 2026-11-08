@@ -72,7 +72,7 @@ func login(t *testing.T, dir string, env map[string]string, args ...string) (int
 
 func TestConfigIssuerPrecedence(t *testing.T) {
 	file, env, flag := newIdP(t), newIdP(t), newIdP(t)
-	dir := writeConfig(t, "issuer: "+file.srv.URL+"\n", 0o644)
+	dir := writeConfig(t, "issuer: "+file.srv.URL+"\n")
 
 	if code, e := login(t, dir, nil); code != 0 || file.discovery != 1 {
 		t.Fatalf("file only: code=%d file=%d err=%s", code, file.discovery, e)
@@ -88,7 +88,7 @@ func TestConfigIssuerPrecedence(t *testing.T) {
 
 func TestConfigLoginClientIDPrecedence(t *testing.T) {
 	idp := newIdP(t)
-	dir := writeConfig(t, "issuer: "+idp.srv.URL+"\nlogin_client_id: from-file\n", 0o644)
+	dir := writeConfig(t, "issuer: "+idp.srv.URL+"\nlogin_client_id: from-file\n")
 	for _, tc := range []struct {
 		name string
 		env  map[string]string
@@ -108,7 +108,7 @@ func TestConfigLoginClientIDPrecedence(t *testing.T) {
 
 func TestLoginMalformedConfig(t *testing.T) {
 	idp := newIdP(t)
-	dir := writeConfig(t, "issuer: [unclosed\n", 0o644)
+	dir := writeConfig(t, "issuer: [unclosed\n")
 	cases := map[string]map[string]string{
 		// client-id path: reached first when no flag/env supplies a client ID.
 		"client id path": nil,

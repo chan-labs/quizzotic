@@ -115,7 +115,7 @@ func TestTagOpsQueueShowsResultsAndRejected(t *testing.T) {
 	if strings.Contains(queue, "<b>Evil</b>") || strings.Contains(queue, "<i>Worse</i>") {
 		t.Errorf("queue contains unescaped tag names:\n%s", queue)
 	}
-	rejected := queue[strings.Index(queue, `id="rejected-h"`):]
+	_, rejected, _ := strings.Cut(queue, `id="rejected-h"`)
 	if !strings.Contains(rejected, `id="op-`+evil.ID+`"`) || strings.Contains(rejected, merge.ID) || strings.Contains(rejected, pending.ID) {
 		t.Errorf("rejected section is wrong:\n%s", rejected)
 	}

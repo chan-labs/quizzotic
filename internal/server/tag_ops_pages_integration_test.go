@@ -21,7 +21,7 @@ import (
 func (w *webAPI) formPost(t *testing.T, path string, form url.Values) (int, string, string) {
 	t.Helper()
 	form.Set("csrf_token", w.csrf)
-	req, err := http.NewRequest("POST", w.e.srv.URL+path, strings.NewReader(form.Encode()))
+	req, err := http.NewRequest(http.MethodPost, w.e.srv.URL+path, strings.NewReader(form.Encode()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestTagSplitProposedByAgentAppliedInBrowser(t *testing.T) {
 	}
 
 	// A forged request without the CSRF token cannot revert it.
-	req, _ := http.NewRequest("POST", e.srv.URL+"/tag-operations/"+op.ID+"/revert", strings.NewReader(""))
+	req, _ := http.NewRequest(http.MethodPost, e.srv.URL+"/tag-operations/"+op.ID+"/revert", strings.NewReader(""))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: web.cookie})
 	resp, err := http.DefaultClient.Do(req)

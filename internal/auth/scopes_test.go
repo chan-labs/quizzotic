@@ -192,7 +192,7 @@ func TestBearerAuthenticatorEndToEnd(t *testing.T) {
 		Resolver: NewResolver(testClients(t), &fakeUsers{}),
 	}
 	req := func(tok string) *http.Request {
-		r := httptest.NewRequest("GET", "/", nil)
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		if tok != "" {
 			r.Header.Set("Authorization", tok)
 		}

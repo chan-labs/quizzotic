@@ -39,12 +39,12 @@ func TestUseAfterAuth(t *testing.T) {
 	rt.Mount(mux)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/x", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/x", nil))
 	if rec.Code != 401 || len(order) != 0 {
 		t.Fatalf("unauthorized: code %d, ran %v", rec.Code, order)
 	}
 
-	req := httptest.NewRequest("GET", "/api/v1/x", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/x", nil)
 	req.Header.Set("X-Allow", "1")
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

@@ -228,7 +228,7 @@ func TestQuizShuffledStartMatchesBuilderShuffle(t *testing.T) {
 	e := newQuizEnv(t)
 	var adds []string
 	var authored []domain.ID
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		id := e.problem("P" + strconv.Itoa(i))
 		adds = append(adds, id.String())
 		authored = append(authored, id)
@@ -355,7 +355,7 @@ func TestQuizStartThroughReviewToCompletion(t *testing.T) {
 	hidden := regexp.MustCompile(`name="(problem_id|problem_version)" value="([^"]*)"`)
 	choice := regexp.MustCompile(`name="selected" value="([^"]+)"`)
 	var order []string
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		page := e.do("GET", "/review/"+sid.String(), nil, true)
 		body := page.Body.String()
 		if page.Code != http.StatusOK || !strings.Contains(body, "Quiz") || !strings.Contains(body, `data-review-phase="prompt"`) {

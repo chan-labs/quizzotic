@@ -26,7 +26,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"sort"
@@ -245,9 +244,9 @@ func (r *Registry) Coverage(ops []openapi.Operation) []string {
 		_, isEx := r.exempt[p]
 		switch {
 		case !isReg && !isEx:
-			problems = append(problems, fmt.Sprintf("%s: not registered with ownerscope; add Registry.Resource/Self or Registry.Exempt with a reason", p))
+			problems = append(problems, p+": not registered with ownerscope; add Registry.Resource/Self or Registry.Exempt with a reason")
 		case isReg && isEx:
-			problems = append(problems, fmt.Sprintf("%s: both registered and exempted", p))
+			problems = append(problems, p+": both registered and exempted")
 		}
 	}
 	seen := map[string]bool{}

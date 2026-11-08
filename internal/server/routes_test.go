@@ -37,7 +37,7 @@ func TestAPIRouterServesPublicOperation(t *testing.T) {
 	mux := http.NewServeMux()
 	rt.Mount(mux)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/openapi.yaml", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/openapi.yaml", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}

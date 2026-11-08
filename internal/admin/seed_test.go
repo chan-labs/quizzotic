@@ -36,7 +36,7 @@ func seededDB(t *testing.T, users int) (url, file string, ids []domain.ID) {
 	}
 	defer st.Close()
 	g := domain.NewIDGenerator(domain.SystemClock{})
-	for i := 0; i < users; i++ {
+	for range users {
 		id := g.New()
 		u := auth.User{ID: id, DisplayName: "u", Email: "u@example.com", CreatedAt: time.Now()}
 		if err := st.Users().Create(context.Background(), u); err != nil {
@@ -66,7 +66,7 @@ func TestSeedFileDefaultsToTheOnlyUserAndIsIdempotent(t *testing.T) {
 	src := filepath.Join(t.TempDir(), "pack.yaml")
 	writeFile(t, src, adminPack)
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		code, out, errs := run(t, "seed", src, "--storage-url", url)
 		if code != 0 {
 			t.Fatalf("run %d: exit %d: %s", i+1, code, errs)

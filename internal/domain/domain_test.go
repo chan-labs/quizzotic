@@ -12,7 +12,7 @@ func TestIDsSortByTime(t *testing.T) {
 	clock := NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	gen := NewIDGenerator(clock)
 	var ids []string
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		ids = append(ids, gen.New().String())
 		clock.Advance(time.Millisecond)
 	}
@@ -25,7 +25,7 @@ func TestIDsMonotonicWithinMillisecondAndBackwardsClock(t *testing.T) {
 	clock := NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	gen := NewIDGenerator(clock)
 	prev := gen.New().String()
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		if i == 5000 {
 			clock.Advance(-time.Hour)
 		}

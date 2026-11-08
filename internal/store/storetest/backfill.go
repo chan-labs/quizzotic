@@ -225,7 +225,7 @@ func runBackfillReplay(t *testing.T, newStore NewStore) {
 	// Seven study days. Each begins with the daily job at the rollover, then
 	// the day's activity. Day 0 starts before the data is created (t0), which
 	// is mid-day.
-	for k := 0; k < 7; k++ {
+	for k := range 7 {
 		f.eval.t = day.Start
 		if err := live.SnapshotUser(f.ctx, f.user); err != nil {
 			t.Fatal(err)
@@ -337,7 +337,7 @@ func runBackfillReplay(t *testing.T, newStore NewStore) {
 			Date: want[tagA][3].Date, Recall: 0.999, CardsSeen: 99}); err != nil {
 			t.Fatal(err)
 		}
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			if _, err := rewrite.BackfillUser(f.ctx, f.user, nil); err != nil {
 				t.Fatal(err)
 			}

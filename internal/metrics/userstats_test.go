@@ -30,7 +30,7 @@ func mustNY() *time.Location {
 	return loc
 }
 
-func local(m time.Month, d, h, min int) time.Time { return time.Date(2026, m, d, h, min, 0, 0, ny) }
+func local(d, h, min int) time.Time { return time.Date(2026, time.June, d, h, min, 0, 0, ny) }
 
 func TestReplayStates(t *testing.T) {
 	ids := domain.NewIDGenerator(domain.SystemClock{})
@@ -128,13 +128,13 @@ func TestTrueRetention(t *testing.T) {
 func TestDueLoad(t *testing.T) {
 	today := settings.StudyDayAt(now, ny, rollover)
 	due := []time.Time{
-		local(6, 1, 9, 0),   // long overdue: due today
-		local(6, 10, 3, 0),  // due before today's rollover: overdue, due today
-		local(6, 11, 3, 59), // last minute of today
-		local(6, 11, 4, 0),  // first minute of tomorrow
-		local(6, 12, 10, 0), // in two days
-		local(6, 18, 3, 59), // last minute of day 7
-		local(6, 18, 4, 0),  // day 8: beyond the horizon
+		local(1, 9, 0),   // long overdue: due today
+		local(10, 3, 0),  // due before today's rollover: overdue, due today
+		local(11, 3, 59), // last minute of today
+		local(11, 4, 0),  // first minute of tomorrow
+		local(12, 10, 0), // in two days
+		local(18, 3, 59), // last minute of day 7
+		local(18, 4, 0),  // day 8: beyond the horizon
 	}
 	got := DueLoad(due, today, ny, rollover)
 
@@ -148,7 +148,7 @@ func TestDueLoad(t *testing.T) {
 			t.Errorf("day %d = %s: %d cards, want %s: %d", i, got[i].Date, got[i].Cards, wantDates[i], wantCards[i])
 		}
 	}
-	if !got[7].End.Equal(local(6, 18, 4, 0)) {
+	if !got[7].End.Equal(local(18, 4, 0)) {
 		t.Errorf("horizon ends %v, want 2026-06-18 04:00 local", got[7].End)
 	}
 	if empty := DueLoad(nil, today, ny, rollover); empty[0].Cards != 0 || len(empty) != 8 {
@@ -162,16 +162,16 @@ func TestActivity(t *testing.T) {
 		return AnswerEvent{AnsweredAt: at, First: first, Scheduled: scheduled}
 	}
 	ev := []AnswerEvent{
-		answer(local(6, 7, 12, 0), false, true),  // before the range
-		answer(local(6, 9, 3, 59), true, true),   // study day 06-08: new card
-		answer(local(6, 8, 10, 0), false, false), // study day 06-08: unrated answer still counts as a review
-		answer(local(6, 9, 4, 0), false, true),   // study day 06-09 (rollover instant)
-		answer(local(6, 9, 20, 0), true, true),   // 06-09: new card
-		answer(local(6, 10, 3, 59), false, true), // 06-09
-		answer(local(6, 10, 4, 0), false, true),  // 06-10
-		answer(local(6, 10, 9, 0), true, true),   // 06-10: new card
-		answer(local(6, 10, 9, 30), false, true), // 06-10
-		answer(local(6, 11, 4, 0), false, true),  // tomorrow: after the range
+		answer(local(7, 12, 0), false, true),  // before the range
+		answer(local(9, 3, 59), true, true),   // study day 06-08: new card
+		answer(local(8, 10, 0), false, false), // study day 06-08: unrated answer still counts as a review
+		answer(local(9, 4, 0), false, true),   // study day 06-09 (rollover instant)
+		answer(local(9, 20, 0), true, true),   // 06-09: new card
+		answer(local(10, 3, 59), false, true), // 06-09
+		answer(local(10, 4, 0), false, true),  // 06-10
+		answer(local(10, 9, 0), true, true),   // 06-10: new card
+		answer(local(10, 9, 30), false, true), // 06-10
+		answer(local(11, 4, 0), false, true),  // tomorrow: after the range
 	}
 	got := Activity(ev, today, ny, rollover, 3)
 

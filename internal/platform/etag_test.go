@@ -4,6 +4,7 @@ package platform
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +13,10 @@ import (
 )
 
 func TestRequireIfMatch(t *testing.T) {
-	r := httptest.NewRequest("PATCH", "/x", nil)
+	r := httptest.NewRequest(http.MethodPatch, "/x", nil)
 	_, err := RequireIfMatch(r)
-	if p, ok := err.(*Problem); !ok || p.Status != 428 || p.Type != TypePreconditionReq {
+	var p *Problem
+	if !errors.As(err, &p) || p.Status != 428 || p.Type != TypePreconditionReq {
 		t.Fatalf("missing header: %v", err)
 	}
 	r.Header.Set("If-Match", "  ")
@@ -53,7 +55,8 @@ func TestCheckIfMatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := CheckIfMatch(`"b"`, `"a"`)
-	if p, ok := err.(*Problem); !ok || p.Status != 412 || p.Type != TypePreconditionFail {
+	var p *Problem
+	if !errors.As(err, &p) || p.Status != 412 || p.Type != TypePreconditionFail {
 		t.Fatalf("stale: %v", err)
 	}
 }
@@ -97,7 +100,7 @@ func (e *editable) handler() http.Handler {
 }
 
 func patch(h http.Handler, ifMatch, text string) *httptest.ResponseRecorder {
-	r := httptest.NewRequest("PATCH", "/r?text="+text, nil)
+	r := httptest.NewRequest(http.MethodPatch, "/r?text="+text, nil)
 	if ifMatch != "" {
 		r.Header.Set("If-Match", ifMatch)
 	}
@@ -111,7 +114,7 @@ func TestConcurrentEditSecondWriterGets412(t *testing.T) {
 	h := e.handler()
 
 	g := httptest.NewRecorder()
-	h.ServeHTTP(g, httptest.NewRequest("GET", "/r", nil))
+	h.ServeHTTP(g, httptest.NewRequest(http.MethodGet, "/r", nil))
 	etag := g.Header().Get("ETag")
 	if etag == "" {
 		t.Fatal("GET set no ETag")

@@ -24,7 +24,7 @@ func init() {
 
 func batchOf(n int, tags ...string) map[string]any {
 	items := make([]map[string]any, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		it := openBody(fmt.Sprintf("Batch problem %d", i))
 		if len(tags) > 0 {
 			it["tags"] = tags
@@ -185,7 +185,7 @@ func TestBatchCreateProblems(t *testing.T) {
 
 	t.Run("an unauthenticated request is refused", func(t *testing.T) {
 		// Unauthenticated requests never reach the handler.
-		req, _ := http.NewRequest("POST", e.srv.URL+"/api/v1/problems/batch", strings.NewReader(`{}`))
+		req, _ := http.NewRequest(http.MethodPost, e.srv.URL+"/api/v1/problems/batch", strings.NewReader(`{}`))
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)

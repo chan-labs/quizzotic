@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/chan-labs/quizzotic/internal/domain"
@@ -237,7 +238,7 @@ func readDocument(ctx context.Context, dec *json.Decoder, repo Repo) (Summary, e
 			if err := dec.Decode(&v); err != nil {
 				return sum, invalid("version is not a number")
 			}
-			if v.String() != fmt.Sprint(FormatVersion) {
+			if v.String() != strconv.Itoa(FormatVersion) {
 				return sum, invalid("unsupported export version %s (this build reads version %d)", v, FormatVersion)
 			}
 			haveVersion = true

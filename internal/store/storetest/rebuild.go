@@ -5,6 +5,7 @@ package storetest
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
@@ -41,7 +42,7 @@ func runListUserIDs(t *testing.T, newStore NewStore) {
 		t.Fatalf("no users: %v, %v", got, err)
 	}
 	var want []domain.ID
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		u := newUser(ids, fmt.Sprintf("u%d", i))
 		if err := s.Users().Create(ctx, u); err != nil {
 			t.Fatal(err)
@@ -81,7 +82,7 @@ func runListUserIDs(t *testing.T, newStore NewStore) {
 func runRebuildAll(t *testing.T, newStore NewStore) {
 	f := newCardFixture(t, newStore)
 	ids := domain.NewIDGenerator(domain.SystemClock{})
-	for i := 0; i < 3; i++ { // users with nothing to rebuild still count
+	for i := range 3 { // users with nothing to rebuild still count
 		if err := f.s.Users().Create(f.ctx, newUser(ids, fmt.Sprintf("extra%d", i))); err != nil {
 			t.Fatal(err)
 		}
@@ -118,7 +119,7 @@ func runRebuildAll(t *testing.T, newStore NewStore) {
 	if err != nil || one != (review.RebuildSummary{Users: 1, Cards: 1}) {
 		t.Errorf("RebuildOne = %+v, %v", one, err)
 	}
-	if _, err := svc.RebuildOne(f.ctx, ids.New()); err != review.ErrNotFound {
+	if _, err := svc.RebuildOne(f.ctx, ids.New()); !errors.Is(err, review.ErrNotFound) {
 		t.Errorf("unknown user: %v", err)
 	}
 }
@@ -153,14 +154,14 @@ func runRebuildLargeLog(t *testing.T, newStore NewStore, attempts int) {
 		k pkind
 	}
 	var ps []pv
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		k := pkinds[i%len(pkinds)]
 		ps = append(ps, pv{f.newProblem(k, problems.StatusLive), k})
 	}
 	// A couple of problems that have left review, whose attempts stay in the log.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		p := f.newProblem(pkinds[0], problems.StatusLive)
-		for j := 0; j < 5; j++ {
+		for range 5 {
 			if _, err := f.answer(p.ID, pkinds[0].right, nil); err != nil {
 				t.Fatal(err)
 			}
@@ -175,7 +176,7 @@ func runRebuildLargeLog(t *testing.T, newStore NewStore, attempts int) {
 	for answered := 0; answered < attempts; answered += 500 {
 		err := f.s.WithTx(f.ctx, func(tx store.Store) error {
 			g := f.onTx(tx)
-			for i := 0; i < 500; i++ {
+			for range 500 {
 				p := ps[rng.Intn(len(ps))]
 				response := p.k.right
 				if rng.Intn(3) == 0 {

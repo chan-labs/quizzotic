@@ -280,7 +280,7 @@ func (a *app) callback(resp *http.Response) *http.Response {
 // callbackAt requests callback path cb presenting resp's login cookie.
 func (a *app) callbackAt(resp *http.Response, cb string) *http.Response {
 	a.t.Helper()
-	req, err := http.NewRequest("GET", a.srv.URL+cb, nil)
+	req, err := http.NewRequest(http.MethodGet, a.srv.URL+cb, nil)
 	if err != nil {
 		a.t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestLoginSessionSurvivesRestartThenLogout(t *testing.T) {
 
 	me := a.do("GET", "/me", c.Value, nil)
 	who := a.body(me)
-	if me.StatusCode != 200 || who == "" {
+	if me.StatusCode != http.StatusOK || who == "" {
 		t.Fatalf("/me = %d %q", me.StatusCode, who)
 	}
 	userID, csrf, _ := strings.Cut(who, " ")
@@ -382,7 +382,7 @@ func TestLoginSessionSurvivesRestartThenLogout(t *testing.T) {
 	// Restart: new process state over the same store file.
 	a.stop()
 	b := newApp(t, db, idp, clock)
-	if r := b.do("GET", "/me", c.Value, nil); r.StatusCode != 200 || !strings.HasPrefix(b.body(r), userID) {
+	if r := b.do("GET", "/me", c.Value, nil); r.StatusCode != http.StatusOK || !strings.HasPrefix(b.body(r), userID) {
 		t.Fatalf("session did not survive restart: %d", r.StatusCode)
 	}
 	b.idp.mu.Lock()
@@ -399,7 +399,7 @@ func TestLoginSessionSurvivesRestartThenLogout(t *testing.T) {
 	if r := b.do("POST", "/auth/logout", c.Value, url.Values{"csrf_token": {"wrong"}}); r.StatusCode != http.StatusForbidden {
 		t.Fatalf("logout with wrong csrf = %d, want 403", r.StatusCode)
 	}
-	if r := b.do("GET", "/me", c.Value, nil); r.StatusCode != 200 {
+	if r := b.do("GET", "/me", c.Value, nil); r.StatusCode != http.StatusOK {
 		t.Fatal("failed logout attempts must not end the session")
 	}
 	out := b.do("POST", "/auth/logout", c.Value, url.Values{"csrf_token": {csrf}})
@@ -427,7 +427,7 @@ func TestLogoutHeaderCSRFAndNoSession(t *testing.T) {
 	c := sessionCookie(a.login(""))
 	csrf := strings.Fields(a.body(a.do("GET", "/me", c.Value, nil)))[1]
 
-	req, _ := http.NewRequest("POST", a.srv.URL+"/auth/logout", nil)
+	req, _ := http.NewRequest(http.MethodPost, a.srv.URL+"/auth/logout", nil)
 	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: c.Value})
 	req.Header.Set(auth.CSRFHeader, csrf)
 	resp, err := (&http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(req)
@@ -450,10 +450,10 @@ func TestSlidingExpiry(t *testing.T) {
 
 	// Active use every 20 days keeps the session alive well past 30 days, and
 	// re-issues the cookie each time the expiry slides.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		clock.Advance(20 * 24 * time.Hour)
 		r := a.do("GET", "/me", c.Value, nil)
-		if r.StatusCode != 200 {
+		if r.StatusCode != http.StatusOK {
 			t.Fatalf("visit %d: status %d, want 200 (sliding)", i, r.StatusCode)
 		}
 		rc := sessionCookie(r)
@@ -482,7 +482,7 @@ func TestSessionAuthenticatorReissuesSlidingCookie(t *testing.T) {
 
 	clock.Advance(20 * 24 * time.Hour)
 	r := a.do("GET", "/whoami", c.Value, nil)
-	if r.StatusCode != 200 {
+	if r.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", r.StatusCode)
 	}
 	rc := sessionCookie(r)
@@ -493,7 +493,7 @@ func TestSessionAuthenticatorReissuesSlidingCookie(t *testing.T) {
 		t.Errorf("expiry did not slide: %v -> %v", c.Expires, rc.Expires)
 	}
 	// Within the throttle window nothing is re-issued.
-	if r := a.do("GET", "/whoami", c.Value, nil); r.StatusCode != 200 || sessionCookie(r) != nil {
+	if r := a.do("GET", "/whoami", c.Value, nil); r.StatusCode != http.StatusOK || sessionCookie(r) != nil {
 		t.Fatalf("second request: status %d, cookie %+v", r.StatusCode, sessionCookie(r))
 	}
 }
@@ -503,7 +503,7 @@ func TestSlidingWritesAreThrottled(t *testing.T) {
 	a := newApp(t, db, idp, clock)
 	c := sessionCookie(a.login(""))
 	clock.Advance(10 * time.Second)
-	if r := a.do("GET", "/me", c.Value, nil); r.StatusCode != 200 || sessionCookie(r) != nil {
+	if r := a.do("GET", "/me", c.Value, nil); r.StatusCode != http.StatusOK || sessionCookie(r) != nil {
 		t.Fatalf("a request within a minute should not re-issue the cookie (status %d)", r.StatusCode)
 	}
 }
@@ -624,7 +624,7 @@ func TestRequireSessionRejectsMissingOrForgedCookie(t *testing.T) {
 func TestCheckCSRF(t *testing.T) {
 	ws := auth.WebSession{CSRFToken: "tok"}
 	post := func(header, field string) *http.Request {
-		r := httptest.NewRequest("POST", "/x", strings.NewReader(url.Values{auth.CSRFFormField: {field}}.Encode()))
+		r := httptest.NewRequest(http.MethodPost, "/x", strings.NewReader(url.Values{auth.CSRFFormField: {field}}.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		if header != "" {
 			r.Header.Set(auth.CSRFHeader, header)
