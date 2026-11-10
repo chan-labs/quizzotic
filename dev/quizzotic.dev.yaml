@@ -13,7 +13,9 @@ auth:
   issuers:
     - name: "dev-issuer"
       issuer: "http://localhost:8099/dev"
-      audience: "quizzotic"
+      # Like Pocket ID, the fake issuer sets aud (and azp) to the requesting
+      # client's ID (dev/mock-oauth2.json), so every client ID is an audience.
+      audience: ["quizzotic-web", "quizzotic-cli", "quizzotic-agent"]
       scopes: ["openid", "profile", "email"]
       clients:
         - id: "quizzotic-web"
