@@ -70,7 +70,6 @@ func blockedWhileLockHeld(t *testing.T, s store.Store, owner domain.ID, run func
 // a full rebuild after concurrent writers (a lost update would leave a card or
 // mastery row that misses an attempt). See docs/adr/0007-owner-tag-lock.md.
 func runProjectionRaces(t *testing.T, newStore NewStore) {
-	t.Helper()
 	const rounds = 25
 	right := pkinds[0].right // MCQ: graded, so every answer is scheduled
 

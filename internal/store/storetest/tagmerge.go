@@ -17,7 +17,6 @@ import (
 )
 
 func runTagMerge(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	now := t0.Add(time.Hour)

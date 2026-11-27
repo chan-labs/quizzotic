@@ -17,7 +17,6 @@ import (
 )
 
 func runTags(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 

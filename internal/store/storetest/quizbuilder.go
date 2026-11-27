@@ -18,7 +18,6 @@ import (
 // runQuizBuilder runs the quiz session builder over the real stores, and
 // answers its items through the normal attempt path to prove cards update.
 func runQuizBuilder(t *testing.T, newStore NewStore) {
-	t.Helper()
 	f := newCardFixture(t, newStore)
 	ids := domain.NewIDGenerator(f.clock)
 	k := pkinds[0]

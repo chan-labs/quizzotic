@@ -29,14 +29,12 @@ func (c *countRecorder) RecordSessionServed() { c.n++ }
 // runSessions runs the session repo and the session service over the real
 // stores, and the card query that backs GET /cards.
 func runSessions(t *testing.T, newStore NewStore) {
-	t.Helper()
 	t.Run("repo", func(t *testing.T) { runSessionRepo(t, newStore) })
 	t.Run("service", func(t *testing.T) { runSessionService(t, newStore) })
 	t.Run("card query", func(t *testing.T) { runCardQuery(t, newStore) })
 }
 
 func runSessionRepo(t *testing.T, newStore NewStore) {
-	t.Helper()
 	f := newCardFixture(t, newStore)
 	ids := domain.NewIDGenerator(f.clock)
 	k := pkinds[0]
@@ -188,7 +186,6 @@ func kinds(v review.SessionView) map[review.ItemKind]int {
 }
 
 func runSessionService(t *testing.T, newStore NewStore) {
-	t.Helper()
 	k := pkinds[0] // mcq
 
 	t.Run("review session mixes due and new, serves in order and appends learning cards", func(t *testing.T) {
@@ -559,7 +556,6 @@ func runSessionService(t *testing.T, newStore NewStore) {
 // runCardQuery covers the filters behind GET /cards and the attempt filter
 // behind a session's answered items.
 func runCardQuery(t *testing.T, newStore NewStore) {
-	t.Helper()
 	f := newCardFixture(t, newStore)
 	k := pkinds[0]
 	var ps []problems.View

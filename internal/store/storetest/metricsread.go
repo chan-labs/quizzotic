@@ -13,7 +13,6 @@ import (
 // runMetricsReads covers the inputs the metrics endpoints read beyond the
 // projection itself: tag labels and the studied cards with their problems.
 func runMetricsReads(t *testing.T, newStore NewStore) {
-	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	other := newUser(f.ids, "bob")
 	if err := f.s.Users().Create(f.ctx, other); err != nil {

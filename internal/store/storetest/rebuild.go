@@ -21,7 +21,6 @@ import (
 )
 
 func runRebuild(t *testing.T, newStore NewStore) {
-	t.Helper()
 	t.Run("list user ids", func(t *testing.T) { runListUserIDs(t, newStore) })
 	t.Run("rebuild all", func(t *testing.T) { runRebuildAll(t, newStore) })
 	// SQLite under the race detector is about 30x slower, so the shared suite
@@ -34,7 +33,6 @@ func runRebuild(t *testing.T, newStore NewStore) {
 }
 
 func runListUserIDs(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	s, _ := newStore(t)
@@ -81,7 +79,6 @@ func runListUserIDs(t *testing.T, newStore NewStore) {
 // runRebuildAll: RebuildAll visits every user across pages, RebuildOne refuses
 // an unknown user, and progress is logged.
 func runRebuildAll(t *testing.T, newStore NewStore) {
-	t.Helper()
 	f := newCardFixture(t, newStore)
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	for i := range 3 { // users with nothing to rebuild still count
@@ -143,12 +140,10 @@ const attempts10k = 10_000
 // 10,000 attempts, rebuilding finishes and gives exactly the state the
 // incremental updates maintained.
 func RunRebuild10k(t *testing.T, newStore NewStore) {
-	t.Helper()
 	runRebuildLargeLog(t, newStore, attempts10k)
 }
 
 func runRebuildLargeLog(t *testing.T, newStore NewStore, attempts int) {
-	t.Helper()
 	if testing.Short() {
 		t.Skip("10k-attempt rebuild skipped in -short mode")
 	}
