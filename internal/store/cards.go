@@ -120,17 +120,13 @@ func (p problemEpochs) Epoch(ctx context.Context, ownerID, id domain.ID) (review
 }
 
 func (p problemEpochs) LiveEpochs(ctx context.Context, ownerID domain.ID) ([]review.ProblemEpoch, error) {
-	live, err := p.r.List(ctx, ownerID, problems.ListFilter{Status: problems.StatusLive})
+	live, err := p.r.LiveEpochs(ctx, ownerID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]review.ProblemEpoch, 0, len(live))
-	for _, pr := range live {
-		pe, err := p.epoch(ctx, ownerID, pr)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, pe)
+	out := make([]review.ProblemEpoch, len(live))
+	for i, le := range live {
+		out[i] = review.ProblemEpoch{ID: le.ID, Live: true, Epoch: le.Epoch}
 	}
 	return out, nil
 }

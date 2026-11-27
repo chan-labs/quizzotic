@@ -99,6 +99,40 @@ func runWebSessions(t *testing.T, newStore NewStore) {
 			t.Fatalf("second delete: err = %v, want ErrNotFound", err)
 		}
 	})
+
+	t.Run("purge removes only expired sessions, for every user", func(t *testing.T) {
+		s, _ := newStore(t)
+		u1, u2 := newUser(ids, "a"), newUser(ids, "b")
+		_ = s.Users().Create(ctx, u1)
+		_ = s.Users().Create(ctx, u2)
+		old1, old2, live, edge := sess(u1.ID, "old1"), sess(u2.ID, "old2"), sess(u1.ID, "live"), sess(u2.ID, "edge")
+		old1.ExpiresAt, old2.ExpiresAt = t0.Add(time.Minute), t0.Add(2*time.Minute)
+		edge.ExpiresAt = t0.Add(10 * time.Minute) // expires exactly at now: purged
+		live.ExpiresAt = t0.Add(10*time.Minute + time.Millisecond)
+		for _, ws := range []auth.WebSession{old1, old2, live, edge} {
+			if err := s.WebSessions().Create(ctx, ws); err != nil {
+				t.Fatal(err)
+			}
+		}
+		n, err := s.WebSessions().PurgeExpired(ctx, t0.Add(10*time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != 3 {
+			t.Fatalf("purged %d sessions, want 3", n)
+		}
+		for _, h := range []string{"old1", "old2", "edge"} {
+			if _, err := s.WebSessions().GetByTokenHash(ctx, h); !errors.Is(err, auth.ErrNotFound) {
+				t.Fatalf("%s: err = %v, want ErrNotFound", h, err)
+			}
+		}
+		if got, err := s.WebSessions().GetByTokenHash(ctx, "live"); err != nil || got != live {
+			t.Fatalf("live session: got %+v err=%v", got, err)
+		}
+		if n, err := s.WebSessions().PurgeExpired(ctx, t0.Add(10*time.Minute)); err != nil || n != 0 {
+			t.Fatalf("second purge: n=%d err=%v, want 0", n, err)
+		}
+	})
 }
 
 func runLoginStates(t *testing.T, newStore NewStore) {
@@ -139,8 +173,12 @@ func runLoginStates(t *testing.T, newStore NewStore) {
 		s, _ := newStore(t)
 		_ = s.LoginStates().Create(ctx, st("old", t0.Add(time.Minute)))
 		_ = s.LoginStates().Create(ctx, st("new", t0.Add(time.Hour)))
-		if err := s.LoginStates().PurgeExpired(ctx, t0.Add(10*time.Minute)); err != nil {
+		n, err := s.LoginStates().PurgeExpired(ctx, t0.Add(10*time.Minute))
+		if err != nil {
 			t.Fatal(err)
+		}
+		if n != 1 {
+			t.Fatalf("purged %d states, want 1", n)
 		}
 		if _, err := s.LoginStates().Consume(ctx, "old", t0); !errors.Is(err, auth.ErrNotFound) {
 			t.Fatalf("old: err = %v", err)

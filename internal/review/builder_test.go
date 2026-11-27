@@ -103,15 +103,27 @@ func (c cardList) List(context.Context, domain.ID) ([]review.Card, error) {
 
 type attemptLog struct{ w *world }
 
-func (a attemptLog) ForCard(_ context.Context, _, p domain.ID, epoch int) ([]attempts.Attempt, error) {
-	var out []attempts.Attempt
+// CountFirstAnswers mirrors the repo: cards whose earliest attempt is in
+// [since, until).
+func (a attemptLog) CountFirstAnswers(_ context.Context, _ domain.ID, since, until time.Time) (int, error) {
+	type key struct {
+		p domain.ID
+		e int
+	}
+	first := map[key]time.Time{}
 	for _, x := range a.w.attempts {
-		if x.ProblemID == p && x.CardEpoch == epoch {
-			out = append(out, x)
+		k := key{x.ProblemID, x.CardEpoch}
+		if f, ok := first[k]; !ok || x.AnsweredAt.Before(f) {
+			first[k] = x.AnsweredAt
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].AnsweredAt.Before(out[j].AnsweredAt) })
-	return out, nil
+	n := 0
+	for _, f := range first {
+		if !f.Before(since) && f.Before(until) {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (a attemptLog) List(_ context.Context, _ domain.ID, f attempts.ListFilter) ([]attempts.Attempt, error) {
@@ -345,7 +357,11 @@ func TestAppendDue(t *testing.T) {
 		State: fsrs.Learning, Due: now.Add(5 * time.Minute), LastReview: now}}
 	dueReview := w.dueCard(3) // a plain review card is not a mid-session addition
 
-	got, err := w.builder().AppendDue(context.Background(), w.user, []domain.ID{waiting}, now)
+	live, err := problemList{w}.LiveEpochs(context.Background(), w.user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := w.builder().AppendDue(context.Background(), w.user, live, []domain.ID{waiting}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +370,7 @@ func TestAppendDue(t *testing.T) {
 		t.Errorf("appended = %+v, want %+v (dueReview %v, later %v)", got, want, dueReview, later)
 	}
 	// Once the five minutes pass, the later card comes due too.
-	got, _ = w.builder().AppendDue(context.Background(), w.user, []domain.ID{waiting, learning}, now.Add(6*time.Minute))
+	got, _ = w.builder().AppendDue(context.Background(), w.user, live, []domain.ID{waiting, learning}, now.Add(6*time.Minute))
 	if len(got) != 1 || got[0].ProblemID != later {
 		t.Errorf("later append = %+v", got)
 	}

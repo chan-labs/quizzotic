@@ -18,7 +18,7 @@ var md = goldmark.New()
 func RenderMarkdown(src string) template.HTML {
 	var buf bytes.Buffer
 	if err := md.Convert([]byte(src), &buf); err != nil {
-		return template.HTML(template.HTMLEscapeString(src))
+		return template.HTML(template.HTMLEscapeString(src)) //nolint:gosec // G203: HTML-escaped source
 	}
-	return template.HTML(buf.String())
+	return template.HTML(buf.String()) //nolint:gosec // G203: goldmark with raw HTML disabled and dangerous URLs filtered
 }

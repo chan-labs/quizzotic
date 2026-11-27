@@ -32,6 +32,11 @@ import (
 // deleted. Records are ignored once expired, so this only bounds table size.
 const IdempotencySweepInterval = time.Hour
 
+// SessionSweepInterval is how often expired web sessions and login states
+// are deleted. Both are refused once expired, so this only bounds table size
+// and how long dead credentials are kept.
+const SessionSweepInterval = time.Hour
+
 // SnapshotInterval is how often the mastery snapshot scheduler checks whether
 // a user's study day has turned over and needs its snapshot.
 const SnapshotInterval = 5 * time.Minute
@@ -39,12 +44,36 @@ const SnapshotInterval = 5 * time.Minute
 // ShutdownTimeout bounds how long in-flight requests get to finish.
 const ShutdownTimeout = 15 * time.Second
 
+// Connection limits of the HTTP server. There is deliberately no global write
+// timeout: the MCP streamable-HTTP endpoint and /export may stream, so a
+// handler that needs a write deadline sets its own with
+// http.NewResponseController(w).SetWriteDeadline.
+const (
+	// ReadHeaderTimeout bounds reading the request line and headers.
+	ReadHeaderTimeout = 10 * time.Second
+	// ReadTimeout bounds reading the whole request, body included, so a
+	// client cannot trickle a body indefinitely. Request bodies are capped in
+	// size separately (platform.MaxBodyBytes).
+	ReadTimeout = 30 * time.Second
+	// IdleTimeout bounds how long an idle keep-alive connection is held.
+	IdleTimeout = 120 * time.Second
+	// MaxHeaderBytes caps the request line plus headers; larger requests get
+	// 431 Request Header Fields Too Large.
+	MaxHeaderBytes = 64 << 10
+)
+
 // Options tunes Run. The zero value is valid.
 type Options struct {
 	// Listener, when set, replaces listening on cfg.Server.Listen.
 	Listener net.Listener
 	// HTTPClient, when set, is used for calls to the identity provider.
 	HTTPClient *http.Client
+	// ReadTimeout, when positive, replaces the ReadTimeout constant (tests
+	// use a short one).
+	ReadTimeout time.Duration
+	// SessionSweepInterval, when positive, replaces the SessionSweepInterval
+	// constant (tests use a short one).
+	SessionSweepInterval time.Duration
 }
 
 // Run serves until ctx is cancelled, then shuts down gracefully. It returns
@@ -106,6 +135,23 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 		<-sweepDone // finish before the deferred st.Close
 	}()
 
+	// Expired web sessions and login states are refused on read; this sweep
+	// deletes them.
+	sessionSweep := SessionSweepInterval
+	if opts.SessionSweepInterval > 0 {
+		sessionSweep = opts.SessionSweepInterval
+	}
+	sessCtx, stopSessSweep := context.WithCancel(ctx)
+	sessDone := make(chan struct{})
+	go func() {
+		defer close(sessDone)
+		auth.SweepSessions(sessCtx, st, domain.SystemClock{}, sessionSweep, logger)
+	}()
+	defer func() {
+		stopSessSweep()
+		<-sessDone // finish before the deferred st.Close
+	}()
+
 	// The daily mastery snapshots are written in-process: each pass ensures
 	// every user has a snapshot for the study day they are in, so one lands
 	// within SnapshotInterval of each user's rollover hour.
@@ -139,9 +185,16 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 	}
 	hopts = append(hopts, WithScheduling(cfg.Scheduling))
 
+	readTimeout := ReadTimeout
+	if opts.ReadTimeout > 0 {
+		readTimeout = opts.ReadTimeout
+	}
 	srv := &http.Server{
 		Handler:           Handler(logger, st, idp, hopts...),
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadHeaderTimeout: min(ReadHeaderTimeout, readTimeout),
+		ReadTimeout:       readTimeout,
+		IdleTimeout:       IdleTimeout,
+		MaxHeaderBytes:    MaxHeaderBytes,
 		// In-flight requests must outlive the signal that starts shutdown.
 		BaseContext: func(net.Listener) context.Context { return context.WithoutCancel(ctx) },
 	}
