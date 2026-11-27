@@ -6,6 +6,11 @@ go = "1.26.3"
 uv = "0.9"  # Python scripts (tools/fsrs-vectors)
 node = "22" # Redocly (openapi-lint)
 golangci-lint = "2.15.0" # lint + format (replaces go vet, staticcheck and gofmt)
+gh = "2.104.0" # GitHub CLI for agents: `mise exec -- gh` works in every checkout and worktree
+
+[tasks.doctor]
+description = "Check this machine (tools, gh auth, docker, git identity/signing, push access); changes nothing"
+run = "dev/doctor.sh"
 
 [tasks.build]
 description = "Build bin/quizzotic (version from git describe, or VERSION)"
