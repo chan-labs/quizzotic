@@ -4,6 +4,7 @@ package domain
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"sync"
@@ -68,15 +69,11 @@ func randSeq() uint16 {
 func build(ms uint64, seq uint16) ID {
 	var id ID
 	mustRand(id[8:])
-	id[0] = byte(ms >> 40)
-	id[1] = byte(ms >> 32)
-	id[2] = byte(ms >> 24)
-	id[3] = byte(ms >> 16)
-	id[4] = byte(ms >> 8)
-	id[5] = byte(ms)
-	id[6] = 0x70 | byte(seq>>8)&0x0f // version 7
-	id[7] = byte(seq)
-	id[8] = id[8]&0x3f | 0x80 // variant 10
+	// Bytes 0-5 hold the 48-bit timestamp; 6-7 the version nibble and the
+	// 12-bit sequence.
+	binary.BigEndian.PutUint64(id[0:8], ms<<16)
+	binary.BigEndian.PutUint16(id[6:8], 0x7000|seq&0x0fff) // version 7
+	id[8] = id[8]&0x3f | 0x80                              // variant 10
 	return id
 }
 

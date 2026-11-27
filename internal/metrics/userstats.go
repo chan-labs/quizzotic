@@ -51,7 +51,7 @@ func Replay(p fsrs.Params, log []attempts.Attempt, tags map[domain.ID][]domain.I
 	out := make([]AnswerEvent, 0, len(log))
 	var card fsrs.Card
 	for i, a := range log {
-		first := i == 0 || log[i-1].ProblemID != a.ProblemID || log[i-1].CardEpoch != a.CardEpoch
+		first := i == 0 || log[i-1].ProblemID != a.ProblemID || log[i-1].CardEpoch != a.CardEpoch //nolint:gosec // G602: i == 0 short-circuits before log[i-1]
 		if first {
 			card = fsrs.Card{}
 		}

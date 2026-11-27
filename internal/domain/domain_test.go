@@ -96,3 +96,16 @@ func TestActorValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildPacksTimestampAndSequence(t *testing.T) {
+	id := build(0x0123456789ab, 0xfcde) // seq bits above 12 must be dropped
+	want := []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0x7c, 0xde}
+	for i, b := range want {
+		if id[i] != b {
+			t.Fatalf("byte %d = %#x, want %#x (id %s)", i, id[i], b, id)
+		}
+	}
+	if id[8]&0xc0 != 0x80 {
+		t.Fatalf("variant bits = %#x", id[8]&0xc0)
+	}
+}
