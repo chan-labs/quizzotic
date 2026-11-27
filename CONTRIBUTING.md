@@ -93,6 +93,7 @@ Parallel features should touch only their own files.
 - **API spec.** `api/openapi.yaml` stays one file (Redocly lint, the contract test and the CLI/MCP generators read it whole). Add new paths and schemas in a block next to the feature's neighbours rather than appending at the end of the file, so two features do not both extend the same last lines.
 
 ## Tracing service methods
+
 Every exported method that takes a `context.Context` on a feature's service types (`Service`, and any other type named `*Service` such as `QueryService` or `SessionService`, in any file of the package) opens with a span, so each request's trace shows HTTP, then service, then repo:
 
 ```go
