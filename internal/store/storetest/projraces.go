@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -25,7 +24,7 @@ import (
 // timing.
 func holdOwnerLock(t *testing.T, s store.Store, owner domain.ID, during func()) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	err := store.TagsTx(s).InTx(ctx, func(r tags.Repos) error {
 		if err := r.Tags.LockOwner(ctx, owner); err != nil {
 			return err
@@ -71,6 +70,7 @@ func blockedWhileLockHeld(t *testing.T, s store.Store, owner domain.ID, run func
 // a full rebuild after concurrent writers (a lost update would leave a card or
 // mastery row that misses an attempt). See docs/adr/0007-owner-tag-lock.md.
 func runProjectionRaces(t *testing.T, newStore NewStore) {
+	t.Helper()
 	const rounds = 25
 	right := pkinds[0].right // MCQ: graded, so every answer is scheduled
 

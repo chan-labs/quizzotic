@@ -106,7 +106,7 @@ func (r *resolver) parameters(pathLevel, opLevel []any) ([]Parameter, error) {
 
 func (r *resolver) body(raw any) (*Body, error) {
 	if raw == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // no requestBody: nil Body means the operation takes none
 	}
 	v, err := r.resolve(raw, nil)
 	if err != nil {
@@ -117,7 +117,7 @@ func (r *resolver) body(raw any) (*Body, error) {
 	js, _ := content["application/json"].(map[string]any)
 	schema, _ := js["schema"].(map[string]any)
 	if schema == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // no JSON schema: nil Body means there is nothing to validate
 	}
 	b := &Body{Schema: schema}
 	b.Required, _ = m["required"].(bool)

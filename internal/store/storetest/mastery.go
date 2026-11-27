@@ -21,6 +21,7 @@ import (
 )
 
 func runMastery(t *testing.T, newStore NewStore) {
+	t.Helper()
 	t.Run("repo", func(t *testing.T) { runMasteryRepo(t, newStore) })
 	t.Run("inputs", func(t *testing.T) { runMasteryInputs(t, newStore) })
 	t.Run("user stats", func(t *testing.T) { runUserStats(t, newStore) })
@@ -86,6 +87,7 @@ func (f *masteryFixture) rebuild(owner domain.ID) {
 }
 
 func runMasteryRepo(t *testing.T, newStore NewStore) {
+	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	other := newUser(f.ids, "bob")
 	if err := f.s.Users().Create(f.ctx, other); err != nil {
@@ -209,6 +211,7 @@ func compareIDs(a, b domain.ID) int {
 
 // runMasteryInputs covers the reads the projection is computed from.
 func runMasteryInputs(t *testing.T, newStore NewStore) {
+	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	other := newUser(f.ids, "bob")
 	if err := f.s.Users().Create(f.ctx, other); err != nil {
@@ -370,6 +373,7 @@ func runMasteryInputs(t *testing.T, newStore NewStore) {
 // moments are comparable; a bug that skips a tag, reads a stale card or
 // miscounts shows up as a difference.
 func runMasteryProperty(t *testing.T, newStore NewStore) {
+	t.Helper()
 	for seed := int64(1); seed <= 6; seed++ {
 		t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
 			f := newMasteryFixture(t, newStore)

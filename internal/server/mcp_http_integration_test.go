@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -26,7 +25,7 @@ func (b bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func mcpHTTPSession(t *testing.T, e *probEnv, token string) *sdk.ClientSession {
 	t.Helper()
-	cs, err := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "0"}, nil).Connect(context.Background(),
+	cs, err := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "0"}, nil).Connect(t.Context(),
 		&sdk.StreamableClientTransport{
 			Endpoint:   e.srv.URL + "/mcp",
 			HTTPClient: &http.Client{Transport: bearerTransport{token}},
@@ -40,7 +39,7 @@ func mcpHTTPSession(t *testing.T, e *probEnv, token string) *sdk.ClientSession {
 
 func toolNames(t *testing.T, cs *sdk.ClientSession) []string {
 	t.Helper()
-	res, err := cs.ListTools(context.Background(), nil)
+	res, err := cs.ListTools(t.Context(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +105,7 @@ func TestMCPHTTPAuth(t *testing.T) {
 // its own token, under its owner's scope.
 func TestMCPHTTPTools(t *testing.T) {
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	cs := mcpHTTPSession(t, e, e.agent)
 
 	stdio := toolNames(t, mcpSession(t, e, e.agent))

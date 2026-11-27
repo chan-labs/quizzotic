@@ -3,7 +3,6 @@
 package admin
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +16,7 @@ import (
 // returns the tag IDs in user order.
 func withTags(t *testing.T, url string, users []domain.ID) []domain.ID {
 	t.Helper()
-	st, err := driver.Open(context.Background(), url)
+	st, err := driver.Open(t.Context(), url)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +27,7 @@ func withTags(t *testing.T, url string, users []domain.ID) []domain.ID {
 	for _, u := range users {
 		id := g.New()
 		tg := tags.Tag{ID: id, OwnerID: u, Slug: "t", Name: "t", Status: tags.StatusActive, CreatedAt: born, UpdatedAt: born}
-		if err := st.Tags().Create(context.Background(), u, tg); err != nil {
+		if err := st.Tags().Create(t.Context(), u, tg); err != nil {
 			t.Fatal(err)
 		}
 		out = append(out, id)

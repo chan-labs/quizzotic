@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -13,7 +12,8 @@ import (
 )
 
 func runSettings(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	t.Helper()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	t.Run("new user has no overrides", func(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 
 // runCardBuilder runs the review session builder over the real stores.
 func runCardBuilder(t *testing.T, newStore NewStore) {
+	t.Helper()
 	t.Run("builds from stored cards, attempts and problems", func(t *testing.T) {
 		f := newCardFixture(t, newStore)
 		one, two, four := 1, 2, 4

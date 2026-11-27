@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -18,7 +17,8 @@ import (
 )
 
 func runProblems(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	t.Helper()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	// setup returns a store with two users.

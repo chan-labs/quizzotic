@@ -3,7 +3,6 @@
 package problems_test
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -36,7 +35,7 @@ func TestTransitionTable(t *testing.T) {
 // problemIn creates a problem and drives it to status through the service.
 func problemIn(t *testing.T, f fixture, status problems.Status) problems.View {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	v, err := f.svc.Create(ctx, f.actor, mcqInput(false))
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +58,7 @@ func problemIn(t *testing.T, f fixture, status problems.Status) problems.View {
 // TestServiceTransitionsMatchTable runs both lifecycle actions from every
 // status and checks the outcome against the table.
 func TestServiceTransitionsMatchTable(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	actions := []struct {
 		name string
 		to   problems.Status
@@ -102,7 +101,7 @@ func TestServiceTransitionsMatchTable(t *testing.T) {
 }
 
 func TestLifecycleIfMatchAndDelete(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	f := newFixture(t)
 	v := problemIn(t, f, problems.StatusDraft)
 	var pb *platform.Problem

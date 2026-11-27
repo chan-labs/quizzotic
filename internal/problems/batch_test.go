@@ -44,7 +44,7 @@ func (f failingTx) InBatchTx(ctx context.Context, fn func(problems.BatchScope) e
 }
 
 func TestCreateBatchRollsBackOnMidBatchFailure(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	f := newFixture(t)
 	owner := f.actor.UserID
 	tag := tags.Tag{ID: domain.NewIDGenerator(f.clock).New(), OwnerID: owner, Slug: "bio", Name: "Bio",

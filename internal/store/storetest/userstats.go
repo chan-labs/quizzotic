@@ -17,6 +17,7 @@ import (
 // runUserStats covers the inputs of the user-level metrics (attempt log,
 // problem tags, due times) and the figures the service builds from them.
 func runUserStats(t *testing.T, newStore NewStore) {
+	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	other := newUser(f.ids, "bob")
 	if err := f.s.Users().Create(f.ctx, other); err != nil {

@@ -38,7 +38,7 @@ type flowEnv struct {
 
 func newFlowEnv(t *testing.T) *flowEnv {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +147,7 @@ func TestChangingNewPerDayChangesNextSessionNewCardCount(t *testing.T) {
 // Saving a changed desired retention recomputes the user's cards with it.
 func TestSavingRetentionRecomputesCards(t *testing.T) {
 	e := newFlowEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	p := e.liveProblem()
 	three := 3
 	for range 5 {

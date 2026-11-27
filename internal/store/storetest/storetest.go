@@ -68,7 +68,8 @@ func Run(t *testing.T, newStore NewStore) {
 }
 
 func runTx(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	t.Helper()
+	ctx := t.Context()
 	boom := errors.New("boom")
 
 	count := func(t *testing.T, s store.Store, sc Scratch) int {

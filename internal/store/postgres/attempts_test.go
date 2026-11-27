@@ -3,7 +3,6 @@
 package postgres
 
 import (
-	"context"
 	"database/sql"
 	"strings"
 	"testing"
@@ -13,7 +12,7 @@ import (
 // is the one-time rating fill.
 func TestAttemptsAppendOnly(t *testing.T) {
 	s := newSchemaStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := s.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +30,7 @@ func TestAttemptsAppendOnly(t *testing.T) {
 // and a rating cannot be filled in while altering the score.
 func TestAttemptsScoredScoreImmutable(t *testing.T) {
 	s := newSchemaStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := s.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +52,7 @@ func seedAttempt(t *testing.T, db *sql.DB, score string) {
 		`INSERT INTO attempts (id, user_id, problem_id, problem_version, card_epoch, response, score, latency_ms, answered_at, client_kind)
 			VALUES ('a', 'u', 'p', 1, 1, '{"text":"x"}', ` + score + `, 5, now(), 'human')`,
 	} {
-		if _, err := db.ExecContext(context.Background(), q); err != nil {
+		if _, err := db.ExecContext(t.Context(), q); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -63,7 +62,7 @@ func seedAttempt(t *testing.T, db *sql.DB, score string) {
 // message, so an unrelated error cannot make a test pass.
 func wantAppendOnly(t *testing.T, db *sql.DB, q string) {
 	t.Helper()
-	_, err := db.ExecContext(context.Background(), q)
+	_, err := db.ExecContext(t.Context(), q)
 	if err == nil || !strings.Contains(err.Error(), "append-only") {
 		t.Fatalf("%s: want append-only trigger error, got %v", q, err)
 	}

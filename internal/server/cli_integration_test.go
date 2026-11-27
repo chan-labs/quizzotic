@@ -4,7 +4,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -20,7 +19,7 @@ func TestCLIAgainstRealServer(t *testing.T) {
 	e := newProbEnv(t)
 	runCLI := func(token string, args ...string) (int, string, string) {
 		var o, er bytes.Buffer
-		code := cli.Run(context.Background(), args, cli.Env{
+		code := cli.Run(t.Context(), args, cli.Env{
 			Stdout: &o, Stderr: &er,
 			Getenv: func(k string) string {
 				if k == "QUIZZOTIC_TOKEN" {

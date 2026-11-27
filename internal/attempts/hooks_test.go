@@ -29,7 +29,7 @@ func TestAttemptRecorderCountsStoredAttemptsOnly(t *testing.T) {
 	}
 
 	e.cards.failed = errors.New("card store down")
-	if _, err := e.svc.Answer(context.Background(), human(e.user), AnswerInput{ProblemID: e.mcq, ProblemVersion: 2,
+	if _, err := e.svc.Answer(t.Context(), human(e.user), AnswerInput{ProblemID: e.mcq, ProblemVersion: 2,
 		Response: raw(`{"selected":["b"]}`)}); err == nil {
 		t.Fatal("want the card failure")
 	}

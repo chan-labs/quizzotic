@@ -16,12 +16,14 @@ import (
 )
 
 func runSnapshots(t *testing.T, newStore NewStore) {
+	t.Helper()
 	t.Run("repo", func(t *testing.T) { runSnapshotRepo(t, newStore) })
 	t.Run("scheduler", func(t *testing.T) { runSnapshotScheduler(t, newStore) })
 	t.Run("backfill", func(t *testing.T) { runBackfill(t, newStore) })
 }
 
 func runSnapshotRepo(t *testing.T, newStore NewStore) {
+	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	other := newUser(f.ids, "bob")
 	if err := f.s.Users().Create(f.ctx, other); err != nil {
@@ -125,6 +127,7 @@ func runSnapshotRepo(t *testing.T, newStore NewStore) {
 
 // runSnapshotScheduler drives the snapshotter with a fake clock across days.
 func runSnapshotScheduler(t *testing.T, newStore NewStore) {
+	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	bob := newUser(f.ids, "bob")
 	if err := f.s.Users().Create(f.ctx, bob); err != nil {

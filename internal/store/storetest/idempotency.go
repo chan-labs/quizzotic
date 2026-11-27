@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"reflect"
@@ -15,7 +14,8 @@ import (
 )
 
 func runIdempotency(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	t.Helper()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	rec := func(uid domain.ID, key, hash string, at time.Time) platform.IdempotencyRecord {

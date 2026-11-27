@@ -32,7 +32,7 @@ type splitFx struct {
 
 func newSplitFx(t *testing.T) *splitFx {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)

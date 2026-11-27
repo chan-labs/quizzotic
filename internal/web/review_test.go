@@ -22,7 +22,7 @@ import (
 
 func (e todayEnv) create(t *testing.T, typ, prompt, payload string) problems.View {
 	t.Helper()
-	v, err := e.problems.Create(context.Background(), domain.Actor{Kind: domain.ActorHuman, UserID: e.owner, ClientID: "c"}, problems.CreateInput{
+	v, err := e.problems.Create(t.Context(), domain.Actor{Kind: domain.ActorHuman, UserID: e.owner, ClientID: "c"}, problems.CreateInput{
 		Type: typ, Prompt: prompt, Payload: []byte(payload), Status: problems.StatusLive, Explanation: "Because *reasons*."})
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +256,7 @@ func TestReviewSessionFinishedWithKeysOnly(t *testing.T) {
 
 	// Every answer is an attempt in the session, with the latency the script
 	// measured and a rating in force.
-	res, err := e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 50})
+	res, err := e.answers.List(t.Context(), e.owner, attempts.ListQuery{Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func TestReviewSessionFinishedWithKeysOnly(t *testing.T) {
 	}
 	// Finishing completed the session.
 	id, _ := domain.ParseID(sid)
-	if s, err := e.sessions.Get(context.Background(), e.owner, id); err != nil || s.CompletedAt == nil {
+	if s, err := e.sessions.Get(t.Context(), e.owner, id); err != nil || s.CompletedAt == nil {
 		t.Errorf("session completed = %v, err %v", s.CompletedAt, err)
 	}
 }
@@ -316,7 +316,7 @@ func TestReviewWrongAnswerOffersNoRatingAndRateKeyAdjustsRight(t *testing.T) {
 		t.Errorf("right answer should offer exactly keys 2-4:\n%s", k.body)
 	}
 	k.Press("2") // Hard
-	res, _ := e2.answers.List(context.Background(), e2.owner, attempts.ListQuery{Limit: 5})
+	res, _ := e2.answers.List(t.Context(), e2.owner, attempts.ListQuery{Limit: 5})
 	if len(res.Items) != 1 || res.Items[0].Rating == nil || *res.Items[0].Rating != 2 {
 		t.Errorf("attempts = %+v, want one rated 2", res.Items)
 	}
@@ -372,12 +372,12 @@ func TestReviewOpenProblemUsesSpaceToReveal(t *testing.T) {
 		}
 	}
 	// Until it is rated the card is unscheduled.
-	res, _ := e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 5})
+	res, _ := e.answers.List(t.Context(), e.owner, attempts.ListQuery{Limit: 5})
 	if len(res.Items) != 1 || res.Items[0].Rating != nil {
 		t.Errorf("attempt before rating = %+v", res.Items)
 	}
 	k.Press("1")
-	res, _ = e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 5})
+	res, _ = e.answers.List(t.Context(), e.owner, attempts.ListQuery{Limit: 5})
 	if res.Items[0].Rating == nil || *res.Items[0].Rating != 1 {
 		t.Errorf("rating after key 1 = %v", res.Items[0].Rating)
 	}
@@ -397,7 +397,7 @@ func TestReviewWithoutScriptSubmitsPlainForm(t *testing.T) {
 	if body := e.do("GET", loc, nil).Body.String(); !strings.Contains(body, `class="verdict right"`) {
 		t.Fatalf("result page:\n%s", body)
 	}
-	res, _ := e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 5})
+	res, _ := e.answers.List(t.Context(), e.owner, attempts.ListQuery{Limit: 5})
 	if len(res.Items) != 1 || res.Items[0].LatencyMS != 0 {
 		t.Errorf("attempts = %+v", res.Items)
 	}
@@ -405,7 +405,7 @@ func TestReviewWithoutScriptSubmitsPlainForm(t *testing.T) {
 
 func (e todayEnv) attemptCount(t *testing.T) int {
 	t.Helper()
-	res, err := e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 50})
+	res, err := e.answers.List(t.Context(), e.owner, attempts.ListQuery{Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -504,7 +504,7 @@ func TestReviewResultIsScopedToSessionAndOwner(t *testing.T) {
 // A session belonging to another user is a 404, for the page, the result and the posts.
 func TestReviewIsNotVisibleToAnotherUser(t *testing.T) {
 	e := newQuizEnv(t)
-	theirs, err := e.sessions.Create(context.Background(), e.other, review.CreateSessionInput{Kind: review.SessionReview})
+	theirs, err := e.sessions.Create(t.Context(), e.other, review.CreateSessionInput{Kind: review.SessionReview})
 	if err != nil {
 		t.Fatal(err)
 	}

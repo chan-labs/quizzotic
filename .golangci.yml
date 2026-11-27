@@ -11,21 +11,39 @@ linters:
     - bodyclose
     - copyloopvar
     - errorlint
+    - exhaustive
     - gocritic
     - gosec
     - intrange
     - misspell
+    - nilnil
     - noctx
     - nolintlint
     - perfsprint
     - revive
     - rowserrcheck
+    - sloglint
     - sqlclosecheck
+    - thelper
     - unconvert
     - unparam
     - usestdlibvars
+    - usetesting
     - wastedassign
   settings:
+    exhaustive:
+      # A `default:` branch is a deliberate catch-all, not a missed case.
+      default-signifies-exhaustive: true
+      # Foreign enums with many members we never switch on exhaustively.
+      ignore-types: "^(gopkg\\.in/yaml\\.v3\\.Kind|reflect\\.Kind)$"
+    thelper:
+      # Helpers taking testing.TB name it t like every other test in the repo.
+      tb:
+        name: false
+    usetesting:
+      # Tests use t.Context() (Go 1.24) so their work is cancelled when they end.
+      context-background: true
+      context-todo: true
     gosec:
       excludes:
         # G104 (unchecked errors) duplicates errcheck, whose deliberate

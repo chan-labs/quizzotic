@@ -4,7 +4,6 @@ package storetest
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -40,7 +39,7 @@ type ExportFixture struct {
 // of everything too.
 func RichFixture(t testing.TB, st store.Store) ExportFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := domain.NewFakeClock(time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC))
 	ids := domain.NewIDGenerator(clock)
 	tick := func() time.Time { clock.Advance(time.Minute); return clock.Now() }
@@ -211,7 +210,7 @@ func RichFixture(t testing.TB, st store.Store) ExportFixture {
 func ExportBytes(t testing.TB, s store.Store, owner domain.ID) []byte {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := exportService(s).Export(context.Background(), owner, &buf); err != nil {
+	if err := exportService(s).Export(t.Context(), owner, &buf); err != nil {
 		t.Fatalf("export: %v", err)
 	}
 	return buf.Bytes()
@@ -220,7 +219,7 @@ func ExportBytes(t testing.TB, s store.Store, owner domain.ID) []byte {
 // ImportBytes imports a document into s with the real projection rebuild.
 func ImportBytes(t testing.TB, s store.Store, doc []byte) (export.Summary, error) {
 	t.Helper()
-	return exportService(s).Import(context.Background(), bytes.NewReader(doc))
+	return exportService(s).Import(t.Context(), bytes.NewReader(doc))
 }
 
 func exportService(s store.Store) *export.Service {
@@ -228,7 +227,8 @@ func exportService(s store.Store) *export.Service {
 }
 
 func runExport(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	t.Helper()
+	ctx := t.Context()
 
 	t.Run("exports only the owner's rows, in a stable order", func(t *testing.T) {
 		s, _ := newStore(t)
@@ -362,7 +362,7 @@ func runExport(t *testing.T, newStore NewStore) {
 func mustSole(t testing.TB, s store.Store) domain.ID {
 	t.Helper()
 	// The fixture has two users; the owner is the first created.
-	ids, err := s.Users().ListIDs(context.Background(), domain.ID{}, 10)
+	ids, err := s.Users().ListIDs(t.Context(), domain.ID{}, 10)
 	if err != nil || len(ids) == 0 {
 		t.Fatalf("users = %v, %v", ids, err)
 	}
@@ -371,7 +371,7 @@ func mustSole(t testing.TB, s store.Store) domain.ID {
 
 func mustFirstAttempt(t testing.TB, s store.Store, owner domain.ID) domain.ID {
 	t.Helper()
-	as, err := s.Attempts().List(context.Background(), owner, attempts.ListFilter{Limit: 1})
+	as, err := s.Attempts().List(t.Context(), owner, attempts.ListFilter{Limit: 1})
 	if err != nil || len(as) == 0 {
 		t.Fatalf("attempts = %v, %v", as, err)
 	}

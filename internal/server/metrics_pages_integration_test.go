@@ -4,7 +4,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -35,7 +34,7 @@ func (e *itEnv) webSession(t *testing.T) *webAPI {
 	t.Helper()
 	cookie := e.webLogin(t)
 	sum := sha256.Sum256([]byte(cookie))
-	ws, err := e.st.WebSessions().GetByTokenHash(context.Background(), hex.EncodeToString(sum[:]))
+	ws, err := e.st.WebSessions().GetByTokenHash(t.Context(), hex.EncodeToString(sum[:]))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +93,7 @@ func (w *webAPI) page(t *testing.T, path string) (int, string) {
 // recall values and history points the metrics endpoints report.
 func TestMetricsAndTagsPages(t *testing.T) {
 	e := newITEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	web := e.webSession(t)
 	uid, _ := e.userFor(t, "web-sub")
 	owner, err := domain.ParseID(uid)

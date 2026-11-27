@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"reflect"
 	"testing"
@@ -35,7 +34,7 @@ func (e *probEnv) answeredCard(t *testing.T, tok string) domain.ID {
 
 func TestAdminRebuild(t *testing.T) {
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	a := e.answeredCard(t, e.human)
 	b := e.answeredCard(t, e.other)
 	_, au := e.userFor(t, "author-sub")

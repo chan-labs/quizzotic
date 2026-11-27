@@ -30,6 +30,7 @@ func (c *stepClock) Now() time.Time          { return c.t }
 func (c *stepClock) Advance(d time.Duration) { c.t = c.t.Add(d).Truncate(time.Millisecond) }
 
 func runCards(t *testing.T, newStore NewStore) {
+	t.Helper()
 	t.Run("repo", func(t *testing.T) { runCardRepo(t, newStore) })
 	t.Run("projection", func(t *testing.T) { runCardProjection(t, newStore) })
 	t.Run("rebuild equals incremental", func(t *testing.T) { runCardRebuildProperty(t, newStore) })
@@ -39,7 +40,8 @@ func runCards(t *testing.T, newStore NewStore) {
 }
 
 func runCardRepo(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	t.Helper()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	setup := func(t *testing.T) (store.Store, auth.User, auth.User) {
@@ -242,12 +244,12 @@ func newCardFixture(t *testing.T, newStore NewStore) *cardFixture {
 	clock := &stepClock{t: t0}
 	ids := domain.NewIDGenerator(clock)
 	u := newUser(ids, "ada")
-	if err := s.Users().Create(context.Background(), u); err != nil {
+	if err := s.Users().Create(t.Context(), u); err != nil {
 		t.Fatal(err)
 	}
 	cards := store.DefaultCards()
 	probs := problems.NewService(s.Problems(), store.ProblemsEditTx(s, cards.MajorEdit), clock, ids)
-	return &cardFixture{t: t, ctx: context.Background(), s: s, clock: clock, cards: cards, probs: probs,
+	return &cardFixture{t: t, ctx: t.Context(), s: s, clock: clock, cards: cards, probs: probs,
 		atts: attempts.NewService(store.AttemptsCardTx(s, cards.CardUpdater), probs, clock, ids),
 		svc:  cards.Service(s), user: u.ID, actor: domain.Actor{Kind: domain.ActorHuman, UserID: u.ID}, ids: ids}
 }
@@ -349,6 +351,7 @@ func (f *cardFixture) card(id domain.ID) (review.Card, bool) {
 func ptrInt(n int) *int { return &n }
 
 func runCardProjection(t *testing.T, newStore NewStore) {
+	t.Helper()
 	t.Run("answers create and advance the card", func(t *testing.T) {
 		f := newCardFixture(t, newStore)
 		p := f.newProblem(pkinds[0], problems.StatusLive)
@@ -625,6 +628,7 @@ func runCardProjection(t *testing.T, newStore NewStore) {
 // late ratings and edits, dropping every card and rebuilding from the attempt
 // log gives exactly the rows the incremental updates produced.
 func runCardRebuildProperty(t *testing.T, newStore NewStore) {
+	t.Helper()
 	for seed := int64(1); seed <= 6; seed++ {
 		t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
 			f := newCardFixture(t, newStore)

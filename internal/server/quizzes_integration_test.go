@@ -41,6 +41,7 @@ func (q quizJSON) problemIDs() []string {
 func init() {
 	// createProblem makes an open problem as the client and returns its ID.
 	createProblem := func(t testing.TB, c *ownerscope.Client, prompt string) string {
+		t.Helper()
 		r := c.Do("POST", "/problems", openBody(prompt))
 		if r.Code != http.StatusCreated {
 			t.Fatalf("create problem = %d (%s)", r.Code, r.Body)
@@ -56,6 +57,7 @@ func init() {
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "quizzes",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			t.Helper()
 			pid := createProblem(t, c, "Quiz owner-scope prompt")
 			r := c.Do("POST", "/quizzes", map[string]any{
 				"title": "Secret quiz title", "description": "Secret quiz description", "problem_ids": []string{pid}})
@@ -84,6 +86,7 @@ func init() {
 				Body: func(ownerscope.Created) any { return map[string]string{"title": "Posted"} }},
 		},
 		Intact: func(t testing.TB, c *ownerscope.Client, created ownerscope.Created) {
+			t.Helper()
 			r := c.Do("GET", "/quizzes/"+created.Params["id"], nil)
 			var q quizJSON
 			if err := json.Unmarshal(r.Body, &q); err != nil || q.Title != "Secret quiz title" ||
