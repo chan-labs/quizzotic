@@ -51,8 +51,10 @@ const maxProvisionAttempts = 5
 
 // Provision resolves a verified token to its user, creating the identity and
 // user on the first valid login (just-in-time provisioning). Display name and
-// email are copied from the claims, and last_seen_at is updated. Concurrent
-// first logins for one (issuer, subject) yield exactly one user.
+// email are copied from the claims as soon as they change. last_seen_at is
+// updated at most once per touchInterval, so a burst of bearer requests does
+// not write on every request. Concurrent first logins for one (issuer,
+// subject) yield exactly one user.
 func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (_ User, err error) {
 	ctx, end := platform.TraceMethod(ctx, "auth.Provision")
 	defer end(&err)
@@ -117,8 +119,12 @@ func (s *Service) provision(ctx context.Context, r Repos, c ProvisionClaims) (Us
 	if err != nil {
 		return User{}, err
 	}
-	if err := r.Identities.TouchLastSeen(ctx, u.ID, ident.ID, now); err != nil {
-		return User{}, err
+	// Like web sessions, last_seen_at is coarse: skip the write while it is
+	// fresh. A clock that went backwards also counts as fresh.
+	if now.Sub(ident.LastSeenAt) >= touchInterval {
+		if err := r.Identities.TouchLastSeen(ctx, u.ID, ident.ID, now); err != nil {
+			return User{}, err
+		}
 	}
 	name, email := u.DisplayName, u.Email
 	if c.DisplayName != "" {
