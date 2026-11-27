@@ -109,7 +109,7 @@ The problem is the unit of learning; a card is one user's scheduling state for o
 
 | Entity | Key fields | Notes |
 | --- | --- | --- |
-| Problem | id, owner\_id, status (draft, live, archived), current\_version, created\_by, deleted\_at | Status set on create; soft delete only |
+| Problem | id, owner\_id, status (draft, live, archived), current\_version, created\_by, deleted\_at | Status is `draft` or `live` on create; afterwards it changes only through publish and archive (see Status lifecycle). Delete is soft |
 | ProblemVersion | problem\_id, version, type, prompt, payload, explanation, source, change\_kind (minor, major), created\_by | Immutable; payload shape depends on type |
 | Tag | id, owner\_id, slug, name, description, status (active, merged, retired), merged\_into | Slug unique per owner among active tags |
 | TagAlias | tag\_id, slug | Old slugs keep resolving after a merge or rename |
@@ -126,7 +126,9 @@ The problem is the unit of learning; a card is one user's scheduling state for o
 | ReviewSession | id, user\_id, kind (review, quiz), quiz\_id, items\[\], created\_at, completed\_at | Frozen list of problems served |
 | TagMastery | user\_id, tag\_id, recall, stability\_median, cards\_total, cards\_seen, last\_attempt\_at | Projection, current values |
 | MasterySnapshot | user\_id, tag\_id, date, recall, cards\_seen | Daily rollup for the over-time view |
-| TagOperation | id, kind (merge, split), payload, status (proposed, applied, rejected), proposed\_by, decided\_by, applied\_at | Audit trail for tag evolution |
+| TagOperation | id, kind (rename, merge, split), payload, status (proposed, applied, rejected), proposed\_by, decided\_by, applied\_at, reverted\_by, reverted\_at | Audit trail for tag evolution. A reverted operation keeps status `applied`; `reverted_at` and `reverted_by` mark the revert (there is no `reverted` status) |
+
+**Status lifecycle.** A problem is created `draft` (the default) or `live`; creating it `archived` is refused (422). After that, status moves only through `POST /problems/{id}/publish` (`draft` → `live`) and `POST /problems/{id}/archive` (`live` → `archived`). `archived` is terminal, and any other move (including same-status) is refused with 409. `PATCH /problems/{id}` cannot change status. Delete is a soft delete allowed from every status; versions are kept. A quiz's `status` is `draft`, `live` or `archived`, set at create (default `draft`) or through `PATCH /quizzes/{id}`; quizzes have no transition rules, so any value may follow any other, and an invalid value is a 422.
 
 **Versioning rule.** A `minor` edit (typo, wording) creates a new version and keeps the card. A `major` edit (different correct answer, different question) creates a new version and starts a new card epoch, so old attempts stay attached to the old epoch. Attempts always record the exact version answered.
 
@@ -152,7 +154,9 @@ The earlier boolean `case_sensitive` is replaced by `match`. It is still accepte
 1. Client fetches the problem in prompt view (`?view=prompt`): no correct answers, reference answer, or rubric; MCQ choices shuffled when `shuffle` is true.
 2. Client submits `POST /attempts` with `problem_id`, `problem_version`, `response`, `latency_ms`, optional `session_id`, and optional `rating`.
 3. Server grades, stores the attempt, updates the card, and returns the grade, the full answer, the explanation, and the card's next due date.
-4. If no rating was sent, the client may set it once with `POST /attempts/{id}/rating` within 15 minutes. After that, the default rating stands. For `open`, a rating is required in step 2 or the attempt stays unscheduled until rated.
+4. If no rating was sent, the client may set it once with `POST /attempts/{id}/rating` within 15 minutes of the answer. After that, the default rating stands. For `open`, a rating is required in step 2 or the attempt stays unscheduled until rated.
+
+**Attempt status codes.** Malformed JSON or an unknown field is 400; a missing or invalid token 401; a non-human caller or a token without `attempts:write` 403. 422 covers validation: a missing or malformed `problem_id`, `problem_version` below 1, negative `latency_ms`, a response that does not fit the problem type, an unknown or foreign `session_id`, and a rating outside 1–4, or 1 on a right `mcq` or `cloze` answer. An `open` answer sent without a rating is accepted and stays unscheduled; a missing `rating` on `POST /attempts/{id}/rating` is 422. 409 covers a stale `problem_version` (problem type `stale-problem-version`), a problem that is not `live`, every presentation of the problem in the session already answered, an attempt that already has a rating (including one sent with the answer), and a rating after the 15-minute window. An unknown or another user's problem or attempt is 404, never 403. There is no 412 on attempts. Both `POST`s accept `Idempotency-Key`; reusing a key with a different body is 422.
 
 **Validation on create**: MCQ needs ≥ 2 choices and ≥ 1 correct; single-answer MCQ needs exactly 1 correct. Cloze markers and `blanks` must match one-to-one, each blank with ≥ 1 accepted answer. Open needs a non-empty reference answer.
 
@@ -199,21 +203,21 @@ A tag's strength is the mean predicted recall, right now, of the cards you have 
 | Due load | User | Cards due today and in each of the next 7 days |
 | Activity | User | Reviews and new cards per day |
 
-**Updates.** Each attempt updates the mastery rows for that problem's tags. A tag operation or a full rebuild recomputes all mastery rows for the owner.
+**Updates.** Each attempt updates the mastery rows for that problem's tags. A tag operation (apply, apply on propose, or revert) recomputes the mastery rows, and rebuilds the history, of the tags it involved, not every tag of the owner. A full rebuild of the mastery rows for an owner runs when a snapshot day is found incomplete and after an import; `quizzotic admin rebuild` itself recomputes cards.
 
-**History.** A daily job at the user's rollover hour writes one MasterySnapshot per active tag. `quizzotic admin rebuild --history` backfills snapshots by replaying the attempt log up to each past date, so history stays consistent after tags are merged or split.
+**History.** A daily job writes one MasterySnapshot per active tag, filed under the study day that contains the moment it runs (the user's time zone and rollover hour; a check before the rollover hour is filed under the study day still in progress, never under one that has ended). The job checks every 5 minutes and writes any snapshot missing for the current study day, so the first check after the rollover writes it, a server that was down catches up, and a tag created mid-day is picked up on the next check. It records recall as of that moment. To visit every user, the job and `quizzotic admin rebuild --history` list all user IDs: the one read across owners, which returns IDs only and then acts on one user at a time. `quizzotic admin rebuild --history` backfills snapshots by replaying the attempt log up to each past date, so history stays consistent after tags are merged or split. The replay uses today's tag mappings and active tags, the user's current time zone and rollover hour, and the owner's current scheduler parameters (FSRS parameters and desired retention); past settings, past problem status and past mappings are not known. A problem counts as live from its creation until it is archived or deleted, and a problem that is a draft now never counts, and a late rating counts from the attempt's own time.
 
-**Endpoints**: `GET /metrics/overview`, `GET /metrics/tags`, `GET /metrics/tags/{id}/history?from=&to=`, `GET /metrics/problems?sort=recall&limit=` (weakest problems).
+**Endpoints**: `GET /metrics/overview`, `GET /metrics/tags`, `GET /metrics/tags/{tag}/history?from=&to=`, `GET /metrics/problems?sort=recall&limit=` (weakest problems). `{tag}` is an ID, slug or alias of an active tag of the caller (else 404); `from` and `to` are inclusive study dates, and an omitted bound is open. The web pages are `/stats` (overview, due forecast, activity), `/tags` (mastery table) and `/tags/{tag}` (history chart); `GET /metrics` is the unrelated Prometheus endpoint.
 
 ## Tag evolution
 
-Tags change through logged operations that rewrite problem-to-tag mappings and then rebuild mastery from the attempt log, so no learning history is lost. Every operation is a TagOperation with a before-snapshot of the mappings it touched.
+Tags change through logged operations that rewrite problem-to-tag mappings and then rebuild mastery from the attempt log, so no learning history is lost. Every operation made through `/tag-operations`, and every split, is recorded as a TagOperation with a before-snapshot of the mappings it touched.
 
 | Operation | Input | Effect |
 | --- | --- | --- |
 | Rename | tag, new slug and/or name | Old slug becomes an alias |
 | Merge | source tags\[\], target tag | Source mappings move to target (deduplicated); sources become `merged` with `merged_into`; their slugs become aliases of the target |
-| Split | source tag, target tags (new specs or existing IDs), `assignments{problem_id: [tag_id]}`, `retire_source` | Each problem moves to its assigned targets. If `retire_source` is true, every problem must have at least one assignment and the source is retired |
+| Split | source tag, target tags (new specs or existing IDs), `assignments{problem_id: [tag_id]}`, `retire_source` | Each problem moves to its assigned targets. If `retire_source` is true, every problem must have at least one assignment (else 422) and the source is retired. If it is false, a problem with no assignment keeps the source tag and the source stays active |
 
 **Lifecycle**
 
@@ -221,7 +225,9 @@ Tags change through logged operations that rewrite problem-to-tag mappings and t
 2. A proposed operation is shown with a preview: problems affected and the resulting tag counts.
 3. `POST /tag-operations/{id}/apply` or `/reject` decides it.
 4. Applying runs in one transaction: rewrite mappings, update tag rows and aliases, then recompute mastery and rebuild history for every tag involved.
-5. `POST /tag-operations/{id}/revert` restores the before-snapshot, refused if a later applied operation touched the same tags.
+5. `POST /tag-operations/{id}/revert` restores the before-snapshot, refused with 409 if a later applied, not reverted operation touched the same tags (revert that one first), if the operation is not `applied`, or if it is already reverted, or if a slug it restores is taken (all 409); a tag in the snapshot that no longer exists is a 404. Revert restores the snapshot literally: it replaces the mappings and aliases of every tag in the snapshot, so a mapping added to those tags after the operation, or outside any operation, is lost. Tags the operation created (a split's new targets) are deleted. Only recorded operations can be reverted: operations created through `/tag-operations`, and splits, are recorded; a rename or merge made any other way, including a slug change through `PATCH /tags/{tag}`, records no operation and cannot be reverted.
+
+**Deciding and withdrawing.** Apply and reject both need `tags:apply`; a caller without it gets 403, whoever proposed the operation, so an agent with only `tags:write` cannot withdraw its own proposal. Deciding an operation that is not `proposed` is a 409.
 
 **Agent-assisted split.** An agent reads `GET /tags/{id}/problems`, proposes target tags and per-problem assignments as a `proposed` split, and the human approves it in the web UI. Agents get `tags:apply` only if that agent client is allowed it in config.
 
@@ -261,6 +267,8 @@ Quizzotic trusts one configured OIDC issuer for every token, human or agent, and
 | `attempts:write`, `sessions:write` | Yes | Never |
 | `admin` | Yes | Never |
 
+`PUT /problems/{id}/tags` is exposed to agents over MCP (`problems_setTags`) and is authorized by either `problems:write` or `tags:apply` (a scope list means any one suffices). An agent with `problems:write` can therefore attach existing tags to problems directly, without the propose-and-approve flow, which covers only tag operations (rename, merge, split). Unknown or retired tags are refused (422); a merged tag resolves to its target.
+
 Pocket ID supports [Client ID Metadata Documents](https://pocket-id.org/docs/guides/client-id-metadata-documents) for public clients, which lets remote MCP clients register without manual setup; it also issues JWT access tokens whose `aud` is the client ID, so the API verifies them locally against JWKS by listing each client ID as an accepted audience.
 
 ## REST API surface
@@ -279,7 +287,7 @@ The API lives under `/api/v1`, speaks JSON, and is fully described by `api/opena
 | --- | --- | --- |
 | Meta | `GET /me`, `GET /openapi.yaml`, `GET /healthz`, `GET /.well-known/oauth-protected-resource` | any / public |
 | Web auth | `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout` | public / web session |
-| Problems | `GET`, `POST /problems`; `POST /problems/batch` (≤ 100); `GET`, `PATCH`, `DELETE /problems/{id}`; `POST /problems/{id}/publish`, `/archive`; `GET /problems/{id}/versions`; `PUT /problems/{id}/tags` | `problems:*` |
+| Problems | `GET`, `POST /problems`; `POST /problems/batch` (≤ 100); `GET`, `PATCH`, `DELETE /problems/{id}`; `POST /problems/{id}/publish`, `/archive`; `GET /problems/{id}/versions`; `PUT /problems/{id}/tags` | `problems:*`; `PUT .../tags` takes `problems:write` or `tags:apply` |
 | Duplicate check | `POST /problems/similar` — text in, ranked candidates with similarity score out | `problems:read` |
 | Tags | `GET`, `POST /tags`; `GET`, `PATCH /tags/{tag}`; `GET /tags/{tag}/problems` | `tags:*` |
 | Tag operations | `GET`, `POST /tag-operations`; `GET /tag-operations/{id}`; `POST /tag-operations/{id}/apply`, `/reject`, `/revert` | `tags:write`, `tags:apply` |
@@ -315,7 +323,7 @@ The website is for humans answering and approving; the CLI is for humans and scr
 - Request bodies come from `--data @file.json`, `--data -` (stdin), or repeated `--set key=value`.
 - Output is JSON by default; `--output table` uses the operation's `x-quizzotic-cli-columns`.
 - `quizzotic login` runs PKCE loopback (or device flow when the issuer advertises it) with the CLI client ID; `quizzotic login --agent` does the same with an agent client ID and stores those credentials separately. Both live in `~/.config/quizzotic/credentials.json` (mode 0600). `QUIZZOTIC_TOKEN` can supply an IdP access token for scripts.
-- Two hand-written commands sit beside the generated ones: `quizzotic review` (interactive terminal review loop) and `quizzotic serve` / `quizzotic admin`.
+- Hand-written commands sit beside the generated ones: `quizzotic review` (interactive terminal review loop), `quizzotic serve`, `quizzotic admin`, `quizzotic login`, `quizzotic logout`, `quizzotic mcp` and `quizzotic version`.
 
 **MCP** — `quizzotic mcp` runs over stdio using `QUIZZOTIC_TOKEN` or the agent login from quizzotic login --agent. `quizzotic serve` also exposes streamable HTTP at `/mcp`, protected as an OAuth resource.
 
@@ -327,12 +335,12 @@ The website is for humans answering and approving; the CLI is for humans and scr
 
 Storage is one Go interface, `store.Store`, with SQLite as the default and Postgres as the second implementation; a new backend is accepted when it passes the shared conformance suite.
 
-- `Store` composes narrow repositories: `Users`, `Identities`, `WebSessions`, `Problems`, `Tags`, `Quizzes`, `Attempts`, `Cards`, `ReviewSessions`, `Mastery`, `TagOperations`, `Idempotency`.
+- `Store` composes narrow repositories: `Users`, `Identities`, `WebSessions`, `LoginStates`, `Settings`, `Problems`, `Tags`, `Quizzes`, `Attempts`, `Cards`, `Sessions` (review and quiz sessions), `Mastery`, `MasterySnapshots`, `TagOperations`, `SeedKeys`, `Export` and `Idempotency`.
 - `Store.WithTx(ctx, func(tx Store) error)` runs a unit of work atomically. Grading + attempt + card update, and every tag operation, run inside one transaction.
-- Every repository method takes the owner user ID explicitly; there is no method that reads across owners.
+- Every repository method takes the owner user ID explicitly; the only reads across owners are the ID-only user listing used by background jobs and admin tooling, and the sole-user lookup used by seeding (below).
 - **SQLite**: single file, WAL mode, `busy_timeout` 5 s, timestamps as Unix milliseconds, JSON as TEXT.
 - **Postgres**: timestamps as `timestamptz`, JSON as `jsonb`.
-- **Migrations**: plain SQL per dialect, embedded with `embed`, numbered, recorded in `schema_migrations`, applied by `quizzotic admin migrate` or on `serve` start when `storage.auto_migrate` is true.
+- **Migrations**: plain SQL per dialect, embedded with `embed`, numbered `0001` to `0014` and timestamped (`YYYYMMDDHHMMSS_name.sql`) from then on, recorded in `schema_migrations`, applied by `quizzotic admin migrate` or on `serve` start when `storage.auto_migrate` is true.
 - **Driver selection**: the scheme of `storage.url` picks the backend — `sqlite://path/to/file.db` or `postgres://user:pass@host/db` (`postgresql://` is accepted as an alias). An unknown scheme refuses to start.
 - **Seeding**: `quizzotic admin seed <file>` and `storage.seed` (applied on start) load tags, problems and quizzes from YAML. Every item has a stable `key`, so re-running updates in place instead of duplicating. Seeded rows belong to `--owner` (default: the only user), are recorded with actor kind `system`, and are `live` unless the file says `draft`. Built-in packs are embedded and referenced as `builtin:<name>`. On start, `storage.seed` applies only when the store has exactly one user; with none or several it logs a warning and skips, and starting is not an error. A fresh instance has no users until the first sign-in, so seeding runs on the next restart after that, or at once with `quizzotic admin seed <file|builtin:name> --owner <user id>` (`--owner` may be omitted while there is exactly one user). Looking up the sole user and writing as the `system` actor are deliberate, narrow exceptions to the rule that every repo call carries the owner ID: they exist so operator tooling can seed without a signed-in principal, and seeded rows still belong to a single owner.
 - **Starter pack**: `builtin:fsrs-basics` ships about 40 problems on spaced repetition and FSRS — the forgetting curve, stability, difficulty, retrievability, ratings, desired retention — plus how to use Quizzotic. It also serves as the end-to-end test fixture.
@@ -340,7 +348,7 @@ Storage is one Go interface, `store.Store`, with SQLite as the default and Postg
 
 ## Configuration
 
-All behavior is set in one YAML file (`--config`, default `./quizzotic.yaml`), and any key can be overridden by an environment variable named `QUIZZOTIC_` + the path in upper snake case (`auth.issuers[0].client_secret` → `QUIZZOTIC_AUTH_ISSUERS_0_CLIENT_SECRET`). The server refuses to start on an unknown key or an invalid value, printing every error at once.
+All behavior is set in one YAML file (`--config`, default `./quizzotic.yaml`), and any key can be overridden by an environment variable named `QUIZZOTIC_` + the path in upper snake case (`auth.issuers[0].clients[0].secret` → `QUIZZOTIC_AUTH_ISSUERS_0_CLIENTS_0_SECRET`). The server refuses to start on an unknown key or an invalid value, printing every error at once.
 
 ```yaml
 server:
@@ -382,6 +390,8 @@ scheduling:
 logging:
   level: "info"
   format: "json"
+observability:
+  metrics_enabled: false       # serve Prometheus metrics at GET /metrics (unauthenticated; restrict at the network)
 # tracing: configured only by standard OTEL_* environment variables
 ```
 
