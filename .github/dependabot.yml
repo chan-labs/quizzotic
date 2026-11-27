@@ -1,0 +1,40 @@
+# Dependency update PRs. Review rules: CONTRIBUTING.md, "Dependency updates".
+# Major bumps are left out of the groups so each gets its own PR.
+# Dependabot cannot bump mise.toml tools (Go, golangci-lint, ...); bump those by hand.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      opentelemetry:
+        patterns:
+          - "go.opentelemetry.io/*"
+        update-types:
+          - minor
+          - patch
+      go-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
