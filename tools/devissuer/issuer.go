@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -141,6 +142,12 @@ func (s *Issuer) authorize(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "dev issuer: need response_type=code, client_id and an absolute redirect_uri", http.StatusBadRequest)
 		return
 	}
+	// A real issuer only redirects to registered URIs; the dev issuer has no
+	// registry, so it only redirects to the local machine.
+	if !isLoopback(redirect.Hostname()) {
+		http.Error(w, "dev issuer: redirect_uri must be on localhost", http.StatusBadRequest)
+		return
+	}
 	code := randomToken()
 	s.remember(code, grant{clientID: q.Get("client_id"), nonce: q.Get("nonce"), challenge: q.Get("code_challenge")})
 	rq := redirect.Query()
@@ -150,7 +157,16 @@ func (s *Issuer) authorize(w http.ResponseWriter, r *http.Request) {
 	}
 	rq.Set("iss", s.url)
 	redirect.RawQuery = rq.Encode()
-	http.Redirect(w, r, redirect.String(), http.StatusFound)
+	http.Redirect(w, r, redirect.String(), http.StatusFound) //nolint:gosec // G710: redirect_uri is checked to be loopback above
+}
+
+// isLoopback reports whether host is localhost or a loopback IP.
+func isLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // device starts a device authorization that is already approved: the first

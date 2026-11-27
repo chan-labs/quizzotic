@@ -167,6 +167,18 @@ func TestCLIAndAgentTokensAreAccepted(t *testing.T) {
 		t.Fatalf("CLI token: GET /me = %d", got)
 	}
 
+	// Only loopback redirect URIs are honoured.
+	evil := url.Values{}
+	for k, v := range q {
+		evil[k] = v
+	}
+	evil.Set("redirect_uri", "https://attacker.example.com/cb")
+	if r, err := noFollow.Get(iss.url + "/authorize?" + evil.Encode()); err != nil || r.StatusCode != http.StatusBadRequest {
+		t.Fatalf("non-loopback redirect_uri accepted: %v %v", r, err)
+	} else {
+		r.Body.Close()
+	}
+
 	// Device flow, approved at once.
 	resp, err = http.PostForm(iss.url+"/device", url.Values{"client_id": {"quizzotic-cli"}})
 	if err != nil {
