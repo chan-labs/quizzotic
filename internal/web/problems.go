@@ -341,7 +341,7 @@ func (w *Web) problemEdit(rw http.ResponseWriter, r *http.Request) {
 		w.editorError(rw, r, actor.UserID, w.reopen(v, f), err, "tag problem")
 		return
 	}
-	http.Redirect(rw, r, "/problems/"+id.String()+"?saved=edited", http.StatusSeeOther)
+	http.Redirect(rw, r, "/problems/"+id.String()+"?saved=edited", http.StatusSeeOther) //nolint:gosec // G710: server-built path from a parsed ID
 }
 
 // reopen turns a saved problem plus the submitted form into editor state for
@@ -436,7 +436,7 @@ func buildPreview(f problemForm) previewData {
 		// The rendered Markdown is already inert; the replacement is a fixed tag.
 		html = blankMarker.ReplaceAllString(html, `<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>`)
 	}
-	d.Prompt = template.HTML(html)
+	d.Prompt = template.HTML(html) //nolint:gosec // G203: rendered Markdown plus a fixed tag
 	if f.Type == problems.TypeOpen {
 		d.Reference = RenderMarkdown(f.Reference)
 		d.Rubric = lines(f.Rubric)

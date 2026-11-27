@@ -289,7 +289,7 @@ func (b *Builder) sampleNew(ctx context.Context, userID, sessionID domain.ID, cf
 		return nil, nil
 	}
 	sum := sha256.Sum256(sessionID[:])
-	rng := rand.New(rand.NewPCG(binary.BigEndian.Uint64(sum[0:8]), binary.BigEndian.Uint64(sum[8:16])))
+	rng := rand.New(rand.NewPCG(binary.BigEndian.Uint64(sum[0:8]), binary.BigEndian.Uint64(sum[8:16]))) //nolint:gosec // G404: shuffle order, not a secret
 	type keyed struct {
 		pe  ProblemEpoch
 		key float64

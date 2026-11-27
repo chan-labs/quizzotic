@@ -42,7 +42,7 @@ func loadFileConfig(getenv func(string) string) (fileConfig, error) {
 	if path == "" {
 		return c, nil
 	}
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: path chosen by the local operator (flag/env/config dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return c, nil
 	}
