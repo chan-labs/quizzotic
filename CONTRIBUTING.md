@@ -93,6 +93,7 @@ Parallel features should touch only their own files.
 - **API spec.** `api/openapi.yaml` stays one file (Redocly lint, the contract test and the CLI/MCP generators read it whole). Add new paths and schemas in a block next to the feature's neighbours rather than appending at the end of the file, so two features do not both extend the same last lines.
 
 ## Tracing service methods
+
 Every exported method that takes a `context.Context` on a feature's service types (`Service`, and any other type named `*Service` such as `QueryService` or `SessionService`, in any file of the package) opens with a span, so each request's trace shows HTTP, then service, then repo:
 
 ```go
@@ -123,6 +124,16 @@ Quizzotic works with any standards-compliant OIDC issuer; nothing is IdP-specifi
 2. Verify discovery (`/.well-known/openid-configuration`), JWKS signing algorithms (RS256, ES256 or EdDSA), and that access tokens are JWTs carrying the claims Quizzotic checks (`iss`, `aud`, `exp`, `nbf`, client ID, `scope`).
 3. If the IdP needs quirks handled (for example a non-standard claim for the client ID), add a narrowly scoped, tested option to `internal/auth` driven by config. Do not hard-code provider names.
 4. Add a deployment example under `deploy/` and a short note in the docs.
+
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens weekly PRs for Go modules (minor and patch grouped, OpenTelemetry grouped), GitHub Actions (grouped) and the Dockerfile base image, at most 5 open per ecosystem. Review a bump PR like any other:
+
+- It may only bump versions of modules already in `go.mod`. A bump that adds a new direct dependency is not allowed without the maintainer's approval and a [`docs/dependencies.md`](docs/dependencies.md) entry (ground rule 3).
+- Read the release notes for anything that changes behavior, and check that CI is green, including `test (postgres)`.
+- Major-version bumps get their own PR and a look at the upgrade guide; don't merge them as part of a group.
+
+Dependabot can't update the tools pinned in `mise.toml` (Go, golangci-lint, Node, ...). Bump those by hand in a normal PR. (Renovate can update `mise.toml` if that's ever wanted.)
 
 ## Reporting security issues
 

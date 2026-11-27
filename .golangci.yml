@@ -12,6 +12,7 @@ linters:
     - copyloopvar
     - errorlint
     - gocritic
+    - gosec
     - intrange
     - misspell
     - noctx
@@ -25,6 +26,12 @@ linters:
     - usestdlibvars
     - wastedassign
   settings:
+    gosec:
+      excludes:
+        # G104 (unchecked errors) duplicates errcheck, whose deliberate
+        # exclusions are documented below; keeping both would force a second
+        # suppression on every excluded call.
+        - G104
     revive:
       # revive's default rules minus two that are noise here:
       #  - unused-parameter: HTTP handler and callback signatures are fixed.
@@ -92,6 +99,19 @@ linters:
       # ~125 call sites would be churn with no gain.
       - path: _test\.go
         linters: [noctx, bodyclose]
+      # gosec in test code (and the storetest conformance suite), rule by rule:
+      #  - G101/G124: fake cookies and credentials a test client sends.
+      #  - G107/G710/G705/G703: fixture servers and fake IdPs echo or follow
+      #    test-controlled URLs, paths and bodies.
+      #  - G115: tiny counters turned into fixture IDs.
+      #  - G204: runs pinned tools (node, promtool) on repo files.
+      #  - G301/G304/G306: golden files and fixture I/O in testdata or t.TempDir.
+      #  - G404: seeded math/rand for reproducible randomized cases.
+      # Production code gets no blanket exclusion: each finding there is
+      # audited and suppressed in place with a reason.
+      - path: (_test\.go|internal/store/storetest/)
+        linters: [gosec]
+        text: "^G(101|107|115|124|204|301|304|306|404|703|705|710):"
 
 formatters:
   enable:

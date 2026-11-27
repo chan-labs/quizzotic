@@ -203,7 +203,7 @@ func Load(path string, environ []string) (*Config, error) {
 	if environ == nil {
 		environ = os.Environ()
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path chosen by the local operator (flag/env/config dir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("config file %s: %w", path, err)
