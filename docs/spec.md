@@ -267,6 +267,8 @@ Quizzotic trusts one configured OIDC issuer for every token, human or agent, and
 | `attempts:write`, `sessions:write` | Yes | Never |
 | `admin` | Yes | Never |
 
+`PUT /problems/{id}/tags` is exposed to agents over MCP (`problems_setTags`) and is authorized by either `problems:write` or `tags:apply` (a scope list means any one suffices). An agent with `problems:write` can therefore attach existing tags to problems directly, without the propose-and-approve flow, which covers only tag operations (rename, merge, split). Unknown or retired tags are refused (422); a merged tag resolves to its target.
+
 Pocket ID supports [Client ID Metadata Documents](https://pocket-id.org/docs/guides/client-id-metadata-documents) for public clients, which lets remote MCP clients register without manual setup; it also issues JWT access tokens whose `aud` is the client ID, so the API verifies them locally against JWKS by listing each client ID as an accepted audience.
 
 ## REST API surface
@@ -285,7 +287,7 @@ The API lives under `/api/v1`, speaks JSON, and is fully described by `api/opena
 | --- | --- | --- |
 | Meta | `GET /me`, `GET /openapi.yaml`, `GET /healthz`, `GET /.well-known/oauth-protected-resource` | any / public |
 | Web auth | `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout` | public / web session |
-| Problems | `GET`, `POST /problems`; `POST /problems/batch` (≤ 100); `GET`, `PATCH`, `DELETE /problems/{id}`; `POST /problems/{id}/publish`, `/archive`; `GET /problems/{id}/versions`; `PUT /problems/{id}/tags` | `problems:*` |
+| Problems | `GET`, `POST /problems`; `POST /problems/batch` (≤ 100); `GET`, `PATCH`, `DELETE /problems/{id}`; `POST /problems/{id}/publish`, `/archive`; `GET /problems/{id}/versions`; `PUT /problems/{id}/tags` | `problems:*`; `PUT .../tags` takes `problems:write` or `tags:apply` |
 | Duplicate check | `POST /problems/similar` — text in, ranked candidates with similarity score out | `problems:read` |
 | Tags | `GET`, `POST /tags`; `GET`, `PATCH /tags/{tag}`; `GET /tags/{tag}/problems` | `tags:*` |
 | Tag operations | `GET`, `POST /tag-operations`; `GET /tag-operations/{id}`; `POST /tag-operations/{id}/apply`, `/reject`, `/revert` | `tags:write`, `tags:apply` |
