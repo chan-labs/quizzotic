@@ -315,7 +315,7 @@ The website is for humans answering and approving; the CLI is for humans and scr
 - Request bodies come from `--data @file.json`, `--data -` (stdin), or repeated `--set key=value`.
 - Output is JSON by default; `--output table` uses the operation's `x-quizzotic-cli-columns`.
 - `quizzotic login` runs PKCE loopback (or device flow when the issuer advertises it) with the CLI client ID; `quizzotic login --agent` does the same with an agent client ID and stores those credentials separately. Both live in `~/.config/quizzotic/credentials.json` (mode 0600). `QUIZZOTIC_TOKEN` can supply an IdP access token for scripts.
-- Two hand-written commands sit beside the generated ones: `quizzotic review` (interactive terminal review loop) and `quizzotic serve` / `quizzotic admin`.
+- Hand-written commands sit beside the generated ones: `quizzotic review` (interactive terminal review loop), `quizzotic serve`, `quizzotic admin`, `quizzotic login`, `quizzotic logout`, `quizzotic mcp` and `quizzotic version`.
 
 **MCP** — `quizzotic mcp` runs over stdio using `QUIZZOTIC_TOKEN` or the agent login from quizzotic login --agent. `quizzotic serve` also exposes streamable HTTP at `/mcp`, protected as an OAuth resource.
 
@@ -327,12 +327,12 @@ The website is for humans answering and approving; the CLI is for humans and scr
 
 Storage is one Go interface, `store.Store`, with SQLite as the default and Postgres as the second implementation; a new backend is accepted when it passes the shared conformance suite.
 
-- `Store` composes narrow repositories: `Users`, `Identities`, `WebSessions`, `Problems`, `Tags`, `Quizzes`, `Attempts`, `Cards`, `ReviewSessions`, `Mastery`, `TagOperations`, `Idempotency`.
+- `Store` composes narrow repositories: `Users`, `Identities`, `WebSessions`, `LoginStates`, `Settings`, `Problems`, `Tags`, `Quizzes`, `Attempts`, `Cards`, `Sessions` (review and quiz sessions), `Mastery`, `MasterySnapshots`, `TagOperations`, `SeedKeys`, `Export` and `Idempotency`.
 - `Store.WithTx(ctx, func(tx Store) error)` runs a unit of work atomically. Grading + attempt + card update, and every tag operation, run inside one transaction.
 - Every repository method takes the owner user ID explicitly; there is no method that reads across owners.
 - **SQLite**: single file, WAL mode, `busy_timeout` 5 s, timestamps as Unix milliseconds, JSON as TEXT.
 - **Postgres**: timestamps as `timestamptz`, JSON as `jsonb`.
-- **Migrations**: plain SQL per dialect, embedded with `embed`, numbered, recorded in `schema_migrations`, applied by `quizzotic admin migrate` or on `serve` start when `storage.auto_migrate` is true.
+- **Migrations**: plain SQL per dialect, embedded with `embed`, numbered `0001` to `0014` and timestamped (`YYYYMMDDHHMMSS_name.sql`) from then on, recorded in `schema_migrations`, applied by `quizzotic admin migrate` or on `serve` start when `storage.auto_migrate` is true.
 - **Driver selection**: the scheme of `storage.url` picks the backend — `sqlite://path/to/file.db` or `postgres://user:pass@host/db` (`postgresql://` is accepted as an alias). An unknown scheme refuses to start.
 - **Seeding**: `quizzotic admin seed <file>` and `storage.seed` (applied on start) load tags, problems and quizzes from YAML. Every item has a stable `key`, so re-running updates in place instead of duplicating. Seeded rows belong to `--owner` (default: the only user), are recorded with actor kind `system`, and are `live` unless the file says `draft`. Built-in packs are embedded and referenced as `builtin:<name>`. On start, `storage.seed` applies only when the store has exactly one user; with none or several it logs a warning and skips, and starting is not an error. A fresh instance has no users until the first sign-in, so seeding runs on the next restart after that, or at once with `quizzotic admin seed <file|builtin:name> --owner <user id>` (`--owner` may be omitted while there is exactly one user). Looking up the sole user and writing as the `system` actor are deliberate, narrow exceptions to the rule that every repo call carries the owner ID: they exist so operator tooling can seed without a signed-in principal, and seeded rows still belong to a single owner.
 - **Starter pack**: `builtin:fsrs-basics` ships about 40 problems on spaced repetition and FSRS — the forgetting curve, stability, difficulty, retrievability, ratings, desired retention — plus how to use Quizzotic. It also serves as the end-to-end test fixture.
@@ -340,7 +340,7 @@ Storage is one Go interface, `store.Store`, with SQLite as the default and Postg
 
 ## Configuration
 
-All behavior is set in one YAML file (`--config`, default `./quizzotic.yaml`), and any key can be overridden by an environment variable named `QUIZZOTIC_` + the path in upper snake case (`auth.issuers[0].client_secret` → `QUIZZOTIC_AUTH_ISSUERS_0_CLIENT_SECRET`). The server refuses to start on an unknown key or an invalid value, printing every error at once.
+All behavior is set in one YAML file (`--config`, default `./quizzotic.yaml`), and any key can be overridden by an environment variable named `QUIZZOTIC_` + the path in upper snake case (`auth.issuers[0].clients[0].secret` → `QUIZZOTIC_AUTH_ISSUERS_0_CLIENTS_0_SECRET`). The server refuses to start on an unknown key or an invalid value, printing every error at once.
 
 ```yaml
 server:
@@ -382,6 +382,8 @@ scheduling:
 logging:
   level: "info"
   format: "json"
+observability:
+  metrics_enabled: false       # serve Prometheus metrics at GET /metrics (unauthenticated; restrict at the network)
 # tracing: configured only by standard OTEL_* environment variables
 ```
 
