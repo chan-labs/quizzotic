@@ -59,7 +59,7 @@ func (StubTagRecall) ProblemTagRecall(context.Context, domain.ID, domain.ID) (fl
 
 // AttemptReader reads the attempt log. attempts.Repo implements it.
 type AttemptReader interface {
-	AttemptLog
+	CountFirstAnswers(ctx context.Context, ownerID domain.ID, since, until time.Time) (int, error)
 	List(ctx context.Context, ownerID domain.ID, f attempts.ListFilter) ([]attempts.Attempt, error)
 }
 
@@ -199,15 +199,14 @@ func isDue(c Card, now time.Time) bool { return !c.Due.After(now) }
 // daily review cap, which only limits the list a session starts with.
 // outstanding is the set of problems on the list that have not been answered
 // yet; a card answered earlier in the session and due again is appended anew.
-func (b *Builder) AppendDue(ctx context.Context, userID domain.ID, outstanding []domain.ID, now time.Time) ([]Item, error) {
+// liveEpochs is the user's ProblemSource.LiveEpochs, which the caller has read in
+// the same transaction and reuses.
+func (b *Builder) AppendDue(ctx context.Context, userID domain.ID, liveEpochs []ProblemEpoch, outstanding []domain.ID, now time.Time) ([]Item, error) {
 	waiting := make(map[domain.ID]bool, len(outstanding))
 	for _, id := range outstanding {
 		waiting[id] = true
 	}
-	live, err := b.liveEpochs(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
+	live := epochMap(liveEpochs)
 	cards, err := b.src.Cards.List(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -240,13 +239,18 @@ func (b *Builder) liveEpochs(ctx context.Context, userID domain.ID) (map[domain.
 	if err != nil {
 		return nil, err
 	}
+	return epochMap(list), nil
+}
+
+// epochMap maps the live problems in list to their card epochs.
+func epochMap(list []ProblemEpoch) map[domain.ID]int {
 	m := make(map[domain.ID]int, len(list))
 	for _, pe := range list {
 		if pe.Live {
 			m[pe.ID] = pe.Epoch
 		}
 	}
-	return m, nil
+	return m
 }
 
 // usage counts the answers given in the study day. A card's first answer is
@@ -256,28 +260,11 @@ func (b *Builder) usage(ctx context.Context, userID domain.ID, day settings.Stud
 	if err != nil {
 		return Usage{}, err
 	}
-	type cardKey struct {
-		problem domain.ID
-		epoch   int
+	introduced, err := b.src.Attempts.CountFirstAnswers(ctx, userID, day.Start, day.End)
+	if err != nil {
+		return Usage{}, err
 	}
-	seen := map[cardKey]bool{}
-	var u Usage
-	for _, a := range today {
-		k := cardKey{a.ProblemID, a.CardEpoch}
-		if seen[k] {
-			continue
-		}
-		seen[k] = true
-		log, err := b.src.Attempts.ForCard(ctx, userID, a.ProblemID, a.CardEpoch)
-		if err != nil {
-			return Usage{}, err
-		}
-		if len(log) > 0 && day.Contains(log[0].AnsweredAt) {
-			u.NewCards++
-		}
-	}
-	u.Reviews = len(today) - u.NewCards
-	return u, nil
+	return Usage{NewCards: introduced, Reviews: len(today) - introduced}, nil
 }
 
 // sampleNew draws up to n problems from cands without replacement, with

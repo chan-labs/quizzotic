@@ -295,4 +295,41 @@ func runAttempts(t *testing.T, newStore NewStore) {
 			t.Fatalf("attempt survived a rollback: %v", err)
 		}
 	})
+
+	t.Run("count first answers in a window", func(t *testing.T) {
+		s, a, b := setup(t)
+		since, until := t0.Add(24*time.Hour), t0.Add(48*time.Hour)
+		answer := func(t *testing.T, u auth.User, p domain.ID, epoch int, at time.Time) {
+			t.Helper()
+			x := mk(u, p)
+			x.CardEpoch, x.AnsweredAt = epoch, at
+			if err := s.Attempts().Create(ctx, u.ID, x); err != nil {
+				t.Fatal(err)
+			}
+		}
+		fresh := mkProblem(t, s, a) // first answered in the window, twice
+		answer(t, a, fresh, 1, since)
+		answer(t, a, fresh, 1, since.Add(time.Hour))
+		old := mkProblem(t, s, a) // answered before the window and in it
+		answer(t, a, old, 1, since.Add(-time.Minute))
+		answer(t, a, old, 1, since.Add(time.Hour))
+		answer(t, a, old, 2, since.Add(2*time.Hour)) // a new epoch is a new card
+		after := mkProblem(t, s, a)                  // first answered at until: outside
+		answer(t, a, after, 1, until)
+		last := mkProblem(t, s, a) // just inside the end
+		answer(t, a, last, 1, until.Add(-time.Millisecond))
+		foreign := mkProblem(t, s, b) // another owner's card
+		answer(t, b, foreign, 1, since)
+
+		n, err := s.Attempts().CountFirstAnswers(ctx, a.ID, since, until)
+		if err != nil || n != 3 {
+			t.Fatalf("CountFirstAnswers = %d, %v; want 3 (fresh, old epoch 2, last)", n, err)
+		}
+		if n, err := s.Attempts().CountFirstAnswers(ctx, b.ID, since, until); err != nil || n != 1 {
+			t.Fatalf("b's CountFirstAnswers = %d, %v; want 1", n, err)
+		}
+		if n, err := s.Attempts().CountFirstAnswers(ctx, a.ID, until.Add(time.Hour), until.Add(2*time.Hour)); err != nil || n != 0 {
+			t.Fatalf("empty window = %d, %v; want 0", n, err)
+		}
+	})
 }

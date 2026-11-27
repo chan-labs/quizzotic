@@ -291,7 +291,7 @@ func loopbackLogin(ctx context.Context, hc *http.Client, d *discovery, clientID 
 		default:
 		}
 	})
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 64 << 10}
 	go func() { _ = srv.Serve(ln) }()
 	defer func() { _ = srv.Close() }()
 
