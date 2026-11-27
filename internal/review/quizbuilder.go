@@ -82,7 +82,7 @@ func (b *QuizBuilder) Build(ctx context.Context, userID, sessionID, quizID domai
 	}
 	if shuffle {
 		sum := sha256.Sum256(sessionID[:])
-		rng := rand.New(rand.NewPCG(binary.BigEndian.Uint64(sum[0:8]), binary.BigEndian.Uint64(sum[8:16])))
+		rng := rand.New(rand.NewPCG(binary.BigEndian.Uint64(sum[0:8]), binary.BigEndian.Uint64(sum[8:16]))) //nolint:gosec // G404: shuffle order, not a secret
 		rng.Shuffle(len(items), func(i, j int) { items[i], items[j] = items[j], items[i] })
 	}
 	return Plan{Items: items}, nil
