@@ -422,4 +422,79 @@ func runProblems(t *testing.T, newStore NewStore) {
 			}
 		}
 	})
+
+	t.Run("live epochs match CardEpoch in one call", func(t *testing.T) {
+		s, a, b := setup(t)
+		t1 := t0.Add(time.Hour)
+		appendV := func(t *testing.T, u auth.User, p problems.Problem, kind problems.ChangeKind) {
+			t.Helper()
+			if _, err := s.Problems().AppendVersion(ctx, u.ID, p.ID, extra(u, "edit", kind, t1)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		plain := create(t, s, a, problems.StatusLive)
+		minor := create(t, s, a, problems.StatusLive) // minor edits keep the epoch
+		appendV(t, a, minor, problems.ChangeMinor)
+		appendV(t, a, minor, problems.ChangeMinor)
+		major := create(t, s, a, problems.StatusLive) // each major edit starts an epoch
+		appendV(t, a, major, problems.ChangeMajor)
+		appendV(t, a, major, problems.ChangeMinor)
+		appendV(t, a, major, problems.ChangeMajor)
+		// A first version recorded as minor still has epoch 1.
+		pm, vm := mk(a, problems.StatusLive)
+		vm.ChangeKind = problems.ChangeMinor
+		if err := s.Problems().Create(ctx, a.ID, pm, vm); err != nil {
+			t.Fatal(err)
+		}
+		archived := create(t, s, a, problems.StatusLive)
+		appendV(t, a, archived, problems.ChangeMajor)
+		if err := s.Problems().SetStatus(ctx, a.ID, archived.ID, problems.StatusArchived, t1); err != nil {
+			t.Fatal(err)
+		}
+		create(t, s, a, problems.StatusDraft)
+		deleted := create(t, s, a, problems.StatusLive)
+		if err := s.Problems().SoftDelete(ctx, a.ID, deleted.ID, t1); err != nil {
+			t.Fatal(err)
+		}
+		other := create(t, s, b, problems.StatusLive) // another owner's problem
+		appendV(t, b, other, problems.ChangeMajor)
+
+		got, err := s.Problems().LiveEpochs(ctx, a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		live, err := s.Problems().List(ctx, a.ID, problems.ListFilter{Status: problems.StatusLive})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want []problems.LiveEpoch
+		for _, p := range live {
+			vs, err := s.Problems().ListVersions(ctx, a.ID, p.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want = append(want, problems.LiveEpoch{ID: p.ID, Epoch: problems.CardEpoch(vs, p.CurrentVersion)})
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("LiveEpochs = %+v, want %+v (from CardEpoch)", got, want)
+		}
+		epochs := map[domain.ID]int{}
+		for _, le := range got {
+			epochs[le.ID] = le.Epoch
+		}
+		wantEpochs := map[domain.ID]int{plain.ID: 1, minor.ID: 1, major.ID: 3, pm.ID: 1}
+		if len(epochs) != len(wantEpochs) {
+			t.Fatalf("LiveEpochs = %+v, want exactly %v", got, wantEpochs)
+		}
+		for id, e := range wantEpochs {
+			if epochs[id] != e {
+				t.Errorf("epoch of %s = %d, want %d", id, epochs[id], e)
+			}
+		}
+
+		if got, err := s.Problems().LiveEpochs(ctx, b.ID); err != nil || len(got) != 1 ||
+			got[0] != (problems.LiveEpoch{ID: other.ID, Epoch: 2}) {
+			t.Fatalf("b's LiveEpochs = %+v err %v", got, err)
+		}
+	})
 }

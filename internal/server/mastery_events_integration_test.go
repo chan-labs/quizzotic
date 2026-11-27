@@ -17,6 +17,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/seed"
 	"github.com/chan-labs/quizzotic/internal/seedrun"
+	"github.com/chan-labs/quizzotic/internal/server"
 	"github.com/chan-labs/quizzotic/internal/store/sqlite"
 	"github.com/chan-labs/quizzotic/internal/testsupport/serverrun"
 )
@@ -43,6 +44,13 @@ func startRunEnv(t *testing.T, idp *fakeIDP, dbPath string, seeds []string) (*pr
 // the server starts.
 func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, tweak func(*config.Config)) (*probEnv, func()) {
 	t.Helper()
+	return startRunEnvOpts(t, idp, dbPath, seeds, tweak, server.Options{})
+}
+
+// startRunEnvOpts is startRunEnvWith with extra server options; the listener
+// is always the test's own.
+func startRunEnvOpts(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, tweak func(*config.Config), opts server.Options) (*probEnv, func()) {
+	t.Helper()
 	cfg := config.Default()
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
 	cfg.Storage.URL = "sqlite://" + dbPath
@@ -61,7 +69,7 @@ func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 		tweak(&cfg)
 	}
 
-	srv := serverrun.Start(t, &cfg)
+	srv := serverrun.StartWith(t, &cfg, opts)
 	base := srv.URL
 	st, err := sqlite.Open(t.Context(), dbPath)
 	if err != nil {

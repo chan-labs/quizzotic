@@ -41,6 +41,13 @@ func (s *Server) Stop() { s.stop() }
 // returns before it is ready. cfg must not be changed after Start.
 func Start(t testing.TB, cfg *config.Config) *Server {
 	t.Helper()
+	return StartWith(t, cfg, server.Options{})
+}
+
+// StartWith is Start with extra server options; opts.Listener is always
+// replaced by Start's own.
+func StartWith(t testing.TB, cfg *config.Config, opts server.Options) *Server {
+	t.Helper()
 	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -48,11 +55,12 @@ func Start(t testing.TB, cfg *config.Config) *Server {
 	// t.Context is cancelled just before cleanups run, which starts the
 	// shutdown; Stop (a cleanup) then waits for it.
 	ctx, cancel := context.WithCancel(t.Context())
+	opts.Listener = ln
 	var runErr error
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runErr = server.Run(ctx, cfg, slog.New(slog.DiscardHandler), server.Options{Listener: ln})
+		runErr = server.Run(ctx, cfg, slog.New(slog.DiscardHandler), opts)
 	}()
 
 	var (
