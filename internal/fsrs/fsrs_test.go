@@ -16,6 +16,7 @@ import (
 const tol = 1e-6
 
 func TestVectorsMatch(t *testing.T) {
+	t.Parallel()
 	f := loadVectors(t)
 	p := Default()
 	if p.W != [21]float64(f.Parameters) {
@@ -73,6 +74,7 @@ func TestVectorsMatch(t *testing.T) {
 }
 
 func TestNextDoesNotMutateAndIgnoresInvalidRating(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	c := Next(Card{}, Good, now)
 	before := c
@@ -89,6 +91,7 @@ func TestNextDoesNotMutateAndIgnoresInvalidRating(t *testing.T) {
 }
 
 func TestDesiredRetentionLengthensIntervals(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	lo, hi := Default(), Default()
 	lo.DesiredRetention, hi.DesiredRetention = 0.8, 0.95
@@ -104,6 +107,7 @@ func TestDesiredRetentionLengthensIntervals(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
+	t.Parallel()
 	p := Default()
 	p.DesiredRetention = 1
 	if p.Validate() == nil {
@@ -119,6 +123,7 @@ func TestValidate(t *testing.T) {
 // TestStdlibOnlyImports enforces that non-test files import only the standard
 // library (leaf package, no I/O dependencies).
 func TestStdlibOnlyImports(t *testing.T) {
+	t.Parallel()
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)

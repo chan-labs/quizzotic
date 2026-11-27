@@ -47,6 +47,7 @@ func pathVars(p string) []string {
 // Every operation in the embedded spec is indexed, and every schema reachable
 // from it is resolved.
 func TestSpecOperationsIndexedWithResolvedSchemas(t *testing.T) {
+	t.Parallel()
 	ops, err := openapi.SpecOperations()
 	if err != nil {
 		t.Fatal(err)
@@ -86,6 +87,7 @@ func TestSpecOperationsIndexedWithResolvedSchemas(t *testing.T) {
 }
 
 func TestSpecOperationsExtensions(t *testing.T) {
+	t.Parallel()
 	ops, err := openapi.SpecOperations()
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +119,7 @@ func TestSpecOperationsExtensions(t *testing.T) {
 }
 
 func TestOperationsResolvesRefsAndCycles(t *testing.T) {
+	t.Parallel()
 	spec := `
 paths:
   /things/{id}:
@@ -157,6 +160,7 @@ components:
 }
 
 func TestOperationsRejectsDanglingRef(t *testing.T) {
+	t.Parallel()
 	spec := `
 paths:
   /x:

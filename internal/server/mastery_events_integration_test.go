@@ -3,27 +3,22 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/problems"
 	"github.com/chan-labs/quizzotic/internal/seed"
 	"github.com/chan-labs/quizzotic/internal/seedrun"
-	"github.com/chan-labs/quizzotic/internal/server"
 	"github.com/chan-labs/quizzotic/internal/store/sqlite"
+	"github.com/chan-labs/quizzotic/internal/testsupport/serverrun"
 )
 
 // newRunEnv starts the real server (server.Run on a listener, with a real
@@ -48,8 +43,6 @@ func startRunEnv(t *testing.T, idp *fakeIDP, dbPath string, seeds []string) (*pr
 // the server starts.
 func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, tweak func(*config.Config)) (*probEnv, func()) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(t.Context())
-
 	cfg := config.Default()
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
 	cfg.Storage.URL = "sqlite://" + dbPath
@@ -68,42 +61,9 @@ func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 		tweak(&cfg)
 	}
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() {
-		done <- server.Run(ctx, &cfg, slog.New(slog.DiscardHandler), server.Options{Listener: ln})
-	}()
-	var once sync.Once
-	stop := func() {
-		once.Do(func() {
-			cancel()
-			select {
-			case err := <-done:
-				if err != nil {
-					t.Errorf("Run returned %v", err)
-				}
-			case <-time.After(10 * time.Second):
-				t.Error("server did not shut down")
-			}
-		})
-	}
-	t.Cleanup(stop)
-	base := "http://" + ln.Addr().String()
-	for i := 0; ; i++ {
-		resp, err := http.Get(base + "/healthz")
-		if err == nil {
-			resp.Body.Close()
-			break
-		}
-		if i > 200 {
-			t.Fatalf("server did not start: %v", err)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	st, err := sqlite.Open(ctx, dbPath)
+	srv := serverrun.Start(t, &cfg)
+	base := srv.URL
+	st, err := sqlite.Open(t.Context(), dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +73,7 @@ func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 		itEnv: &itEnv{idp: idp, srv: &httptest.Server{URL: base}, st: st},
 		human: idp.access("quizzotic-cli", "author-sub", with("name", "Author"), with("email", "author@example.com")),
 		agent: idp.access("quizzotic-agent", "author-sub"),
-	}, stop
+	}, srv.Stop
 }
 
 // total returns the tag's cards_total from the mastery row the server keeps.
