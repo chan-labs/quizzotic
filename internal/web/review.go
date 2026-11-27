@@ -244,7 +244,7 @@ var reviewMarker = regexp.MustCompile(`\{\{([^{}<>]*)\}\}`)
 // fillBlanks swaps each {{id}} marker of already-rendered (inert) Markdown for
 // the markup render builds. The result is only as trusted as render's output.
 func fillBlanks(src template.HTML, known map[string]bool, render func(id string) string) template.HTML {
-	return template.HTML(reviewMarker.ReplaceAllStringFunc(string(src), func(m string) string {
+	return template.HTML(reviewMarker.ReplaceAllStringFunc(string(src), func(m string) string { //nolint:gosec // G203: inert rendered Markdown; render builds escaped markup
 		id := strings.TrimSpace(m[2 : len(m)-2])
 		if !known[id] {
 			return m
@@ -296,7 +296,7 @@ func (w *Web) reviewAnswer(rw http.ResponseWriter, r *http.Request) {
 	if !pending {
 		// A replayed post (refresh, double submit) must not append a second
 		// attempt: attempts are append-only and a duplicate skews the card.
-		http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther)
+		http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther) //nolint:gosec // G710: server-built path from parsed IDs
 		return
 	}
 	pv, err := rp.prompts.GetPrompt(r.Context(), ws.UserID, pid)
@@ -317,7 +317,7 @@ func (w *Web) reviewAnswer(rw http.ResponseWriter, r *http.Request) {
 		attempts.AnswerInput{ProblemID: pid, ProblemVersion: version, Response: response, LatencyMS: latency, SessionID: id.String()})
 	if errors.Is(err, attempts.ErrDuplicate) {
 		// A simultaneous identical post won the race and recorded the attempt.
-		http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther)
+		http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther) //nolint:gosec // G710: server-built path from parsed IDs
 		return
 	}
 	var pb *platform.Problem
@@ -332,7 +332,7 @@ func (w *Web) reviewAnswer(rw http.ResponseWriter, r *http.Request) {
 	}
 	// Post/Redirect/Get: the result lives at its own URL, so a refresh or
 	// back/forward only re-reads it.
-	http.Redirect(rw, r, reviewPath(id)+"/result/"+res.Attempt.ID.String(), http.StatusSeeOther)
+	http.Redirect(rw, r, reviewPath(id)+"/result/"+res.Attempt.ID.String(), http.StatusSeeOther) //nolint:gosec // G710: server-built path from parsed IDs
 }
 
 // reviewResult shows the stored result of one attempt of the session.
@@ -547,7 +547,7 @@ func (w *Web) reviewRate(rw http.ResponseWriter, r *http.Request) {
 		w.failReview(rw, r, err)
 		return
 	}
-	http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther)
+	http.Redirect(rw, r, reviewPath(id), http.StatusSeeOther) //nolint:gosec // G710: server-built path from parsed IDs
 }
 
 // failReview shows a client-facing problem as its status and detail, and
