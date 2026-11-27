@@ -223,7 +223,7 @@ Tags change through logged operations that rewrite problem-to-tag mappings and t
 2. A proposed operation is shown with a preview: problems affected and the resulting tag counts.
 3. `POST /tag-operations/{id}/apply` or `/reject` decides it.
 4. Applying runs in one transaction: rewrite mappings, update tag rows and aliases, then recompute mastery and rebuild history for every tag involved.
-5. `POST /tag-operations/{id}/revert` restores the before-snapshot, refused if a later applied operation touched the same tags.
+5. `POST /tag-operations/{id}/revert` restores the before-snapshot, refused with 409 if a later applied, not reverted operation touched the same tags (revert that one first), if the operation is not `applied`, or if it is already reverted. Revert restores the snapshot literally: it replaces the mappings and aliases of every tag in the snapshot, so a mapping added to those tags after the operation, or outside any operation, is lost. Tags the operation created (a split's new targets) are deleted. Only recorded operations can be reverted: operations created through `/tag-operations`, and splits, are recorded; direct rename and merge calls inside the service (not through `/tag-operations`) record no operation and cannot be reverted.
 
 **Deciding and withdrawing.** Apply and reject both need `tags:apply`; a caller without it gets 403, whoever proposed the operation, so an agent with only `tags:write` cannot withdraw its own proposal. Deciding an operation that is not `proposed` is a 409.
 
