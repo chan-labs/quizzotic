@@ -457,7 +457,7 @@ func buildBody(data string, sets []string, stdin io.Reader) ([]byte, error) {
 		if data == "-" {
 			raw, err = io.ReadAll(stdin)
 		} else if file, ok := strings.CutPrefix(data, "@"); ok {
-			raw, err = os.ReadFile(file)
+			raw, err = os.ReadFile(file) //nolint:gosec // G304: path chosen by the local operator (flag/env/config dir)
 		} else {
 			return nil, fmt.Errorf("--data must be @file.json or - (stdin), got %q", data)
 		}

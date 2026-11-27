@@ -312,7 +312,7 @@ func (w *Web) quizSave(rw http.ResponseWriter, r *http.Request) {
 		w.quizError(rw, r, actor.UserID, f, err, "set quiz items")
 		return
 	}
-	http.Redirect(rw, r, "/quizzes/"+id.String()+"?notice=saved", http.StatusSeeOther)
+	http.Redirect(rw, r, "/quizzes/"+id.String()+"?notice=saved", http.StatusSeeOther) //nolint:gosec // G710: server-built path from a parsed ID
 }
 
 func (w *Web) quizError(rw http.ResponseWriter, r *http.Request, owner domain.ID, f quizForm, err error, what string) {
