@@ -39,12 +39,33 @@ const SnapshotInterval = 5 * time.Minute
 // ShutdownTimeout bounds how long in-flight requests get to finish.
 const ShutdownTimeout = 15 * time.Second
 
+// Connection limits of the HTTP server. There is deliberately no global write
+// timeout: the MCP streamable-HTTP endpoint and /export may stream, so a
+// handler that needs a write deadline sets its own with
+// http.NewResponseController(w).SetWriteDeadline.
+const (
+	// ReadHeaderTimeout bounds reading the request line and headers.
+	ReadHeaderTimeout = 10 * time.Second
+	// ReadTimeout bounds reading the whole request, body included, so a
+	// client cannot trickle a body indefinitely. Request bodies are capped in
+	// size separately (platform.MaxBodyBytes).
+	ReadTimeout = 30 * time.Second
+	// IdleTimeout bounds how long an idle keep-alive connection is held.
+	IdleTimeout = 120 * time.Second
+	// MaxHeaderBytes caps the request line plus headers; larger requests get
+	// 431 Request Header Fields Too Large.
+	MaxHeaderBytes = 64 << 10
+)
+
 // Options tunes Run. The zero value is valid.
 type Options struct {
 	// Listener, when set, replaces listening on cfg.Server.Listen.
 	Listener net.Listener
 	// HTTPClient, when set, is used for calls to the identity provider.
 	HTTPClient *http.Client
+	// ReadTimeout, when positive, replaces the ReadTimeout constant (tests
+	// use a short one).
+	ReadTimeout time.Duration
 }
 
 // Run serves until ctx is cancelled, then shuts down gracefully. It returns
@@ -139,9 +160,16 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 	}
 	hopts = append(hopts, WithScheduling(cfg.Scheduling))
 
+	readTimeout := ReadTimeout
+	if opts.ReadTimeout > 0 {
+		readTimeout = opts.ReadTimeout
+	}
 	srv := &http.Server{
 		Handler:           Handler(logger, st, idp, hopts...),
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadHeaderTimeout: min(ReadHeaderTimeout, readTimeout),
+		ReadTimeout:       readTimeout,
+		IdleTimeout:       IdleTimeout,
+		MaxHeaderBytes:    MaxHeaderBytes,
 		// In-flight requests must outlive the signal that starts shutdown.
 		BaseContext: func(net.Listener) context.Context { return context.WithoutCancel(ctx) },
 	}
