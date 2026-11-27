@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/auth"
 	"github.com/chan-labs/quizzotic/internal/domain"
 	"github.com/chan-labs/quizzotic/internal/fsrs"
@@ -49,10 +50,14 @@ func counted(s *Store) (*Store, *countingExecer) {
 	return &Store{db: s.db, q: platform.NewTracedExecer(c, "sqlite")}, c
 }
 
+// benchNow is the time the review benchmarks build at.
+var benchNow = time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+
 // seedReview fills a fresh store with one user owning n live problems (every
 // third with a major and a minor edit), a card for every other problem, and
-// returns the store and the user.
-func seedReview(tb testing.TB, n int) (*Store, domain.ID) {
+// an answer an hour before benchNow on each of the first answered problems
+// with a card, and returns the store and the user.
+func seedReview(tb testing.TB, n, answered int) (*Store, domain.ID) {
 	tb.Helper()
 	ctx := context.Background()
 	s, err := Open(ctx, filepath.Join(tb.TempDir(), "bench.db"))
@@ -98,6 +103,15 @@ func seedReview(tb testing.TB, n int) (*Store, domain.ID) {
 				if err := tx.Cards().Put(ctx, u.ID, c); err != nil {
 					return err
 				}
+				if i/2 < answered {
+					right, score, rating := true, 1.0, 3
+					a := attempts.Attempt{ID: ids.New(), UserID: u.ID, ProblemID: id, ProblemVersion: 1,
+						CardEpoch: epoch, Response: json.RawMessage(`{"text":"x"}`), AutoCorrect: &right,
+						Score: &score, Rating: &rating, AnsweredAt: benchNow.Add(-time.Hour), Client: actor}
+					if err := tx.Attempts().Create(ctx, u.ID, a); err != nil {
+						return err
+					}
+				}
 			}
 		}
 		return nil
@@ -110,7 +124,7 @@ func seedReview(tb testing.TB, n int) (*Store, domain.ID) {
 
 func TestLiveEpochsIsOneQuery(t *testing.T) {
 	for _, n := range []int{1, 50} {
-		s, user := seedReview(t, n)
+		s, user := seedReview(t, n, 0)
 		cs, c := counted(s)
 		got, err := cs.Problems().LiveEpochs(context.Background(), user)
 		if err != nil {
@@ -125,13 +139,40 @@ func TestLiveEpochsIsOneQuery(t *testing.T) {
 	}
 }
 
-// BenchmarkReview2000 measures the review reads that list live problems at
-// 2000 live problems and 1000 cards.
+// TestBuildQueriesAreConstant checks the mastery-weighted session builder
+// issues the same number of statements however many new candidates there are
+// and however many cards were answered today (below the daily new limit of
+// 20, so new problems are still sampled).
+func TestBuildQueriesAreConstant(t *testing.T) {
+	count := func(n, answered int) int64 {
+		s, user := seedReview(t, n, answered)
+		cs, c := counted(s)
+		m := store.NewMastery(store.DefaultCards(), fixedClock{benchNow})
+		if _, err := m.Builder(cs).Build(context.Background(), user, domain.Nil, benchNow); err != nil {
+			t.Fatal(err)
+		}
+		return c.n.Load()
+	}
+	base := count(4, 1)
+	for _, c := range []struct{ n, answered int }{{40, 1}, {4, 2}, {60, 15}} {
+		if got := count(c.n, c.answered); got != base {
+			t.Errorf("Build with %d problems, %d answered today: %d statements, want %d (as with 4 and 1)",
+				c.n, c.answered, got, base)
+		}
+	}
+}
+
+type fixedClock struct{ t time.Time }
+
+func (c fixedClock) Now() time.Time { return c.t }
+
+// BenchmarkReview2000 measures the review reads at 2000 live problems, 1000
+// cards (all due), 1000 new candidates and 100 cards answered today.
 func BenchmarkReview2000(b *testing.B) {
-	s, user := seedReview(b, 2000)
+	s, user := seedReview(b, 2000, 100)
 	ctx := context.Background()
 	builder := store.DefaultCards().Builder(s)
-	now := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	now := benchNow
 	b.Run("AppendDue", func(b *testing.B) {
 		for b.Loop() {
 			got, err := s.Problems().LiveEpochs(ctx, user)
@@ -157,6 +198,14 @@ func BenchmarkReview2000(b *testing.B) {
 	b.Run("Build", func(b *testing.B) {
 		for b.Loop() {
 			if _, err := builder.Build(ctx, user, domain.Nil, now); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	mastery := store.NewMastery(store.DefaultCards(), fixedClock{now})
+	b.Run("BuildMastery", func(b *testing.B) {
+		for b.Loop() {
+			if _, err := mastery.Builder(s).Build(ctx, user, domain.Nil, now); err != nil {
 				b.Fatal(err)
 			}
 		}

@@ -20,73 +20,76 @@ const NoDataRecall = 0.5
 //
 // Recall is predicted at clock.Now() from the cards themselves (the same
 // Compute the projection uses), so it is current even when stored rows are
-// stale. The per-owner tag recalls are computed once and cached, so a reader
-// is meant to be short-lived: one per session build.
+// stale. The per-owner tag recalls, and which active tags each live problem
+// carries, are read once (two queries) and cached, so a reader is meant to be
+// short-lived: one per session build.
 type RecallReader struct {
 	sc    Scope
 	clock domain.Clock
 
 	mu    sync.Mutex
-	cache map[domain.ID]map[domain.ID]float64 // owner -> active tag -> recall or NoDataRecall
+	cache map[domain.ID]ownerRecall
+}
+
+// ownerRecall is one owner's cached recall.
+type ownerRecall struct {
+	byTag     map[domain.ID]float64     // active tag -> recall or NoDataRecall
+	byProblem map[domain.ID][]domain.ID // live problem -> its active tags
 }
 
 // NewRecallReader builds a RecallReader over sc.
 func NewRecallReader(sc Scope, clock domain.Clock) *RecallReader {
-	return &RecallReader{sc: sc, clock: clock, cache: map[domain.ID]map[domain.ID]float64{}}
+	return &RecallReader{sc: sc, clock: clock, cache: map[domain.ID]ownerRecall{}}
 }
 
 // ProblemTagRecall returns the mean recall, in [0,1], of the owner's active
 // tags on the problem. A tag with no studied cards counts as NoDataRecall; a
-// problem with no active tags is NoDataRecall.
+// problem with no active tags is NoDataRecall. Only live problems carry tags
+// here (the builder asks only about live ones); any other is NoDataRecall.
 func (r *RecallReader) ProblemTagRecall(ctx context.Context, ownerID, problemID domain.ID) (float64, error) {
-	byTag, err := r.owner(ctx, ownerID)
+	o, err := r.owner(ctx, ownerID)
 	if err != nil {
 		return 0, err
 	}
-	ids, err := r.sc.Repo.ProblemTagIDs(ctx, ownerID, problemID)
-	if err != nil {
-		return 0, err
-	}
-	var sum float64
-	var n int
-	for _, id := range ids {
-		if v, ok := byTag[id]; ok { // inactive tags are absent
-			sum += v
-			n++
-		}
-	}
-	if n == 0 {
+	ids := o.byProblem[problemID]
+	if len(ids) == 0 {
 		return NoDataRecall, nil
 	}
-	return sum / float64(n), nil
+	var sum float64
+	for _, id := range ids {
+		sum += o.byTag[id]
+	}
+	return sum / float64(len(ids)), nil
 }
 
-func (r *RecallReader) owner(ctx context.Context, ownerID domain.ID) (map[domain.ID]float64, error) {
+func (r *RecallReader) owner(ctx context.Context, ownerID domain.ID) (ownerRecall, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if m, ok := r.cache[ownerID]; ok {
-		return m, nil
+	if o, ok := r.cache[ownerID]; ok {
+		return o, nil
 	}
 	params, err := r.sc.Params.Params(ctx, ownerID)
 	if err != nil {
-		return nil, err
+		return ownerRecall{}, err
 	}
 	if err := params.Validate(); err != nil {
-		return nil, err
+		return ownerRecall{}, err
 	}
 	active, err := r.sc.Repo.ActiveTagIDs(ctx, ownerID)
 	if err != nil {
-		return nil, err
+		return ownerRecall{}, err
 	}
 	m := make(map[domain.ID]float64, len(active))
+	byProblem := map[domain.ID][]domain.ID{}
 	if len(active) > 0 {
 		cards, err := r.sc.Repo.TagCards(ctx, ownerID, active)
 		if err != nil {
-			return nil, err
+			return ownerRecall{}, err
 		}
 		byTag := make(map[domain.ID][]TagCard, len(active))
 		for _, tc := range cards {
 			byTag[tc.TagID] = append(byTag[tc.TagID], tc)
+			byProblem[tc.ProblemID] = append(byProblem[tc.ProblemID], tc.TagID)
 		}
 		now := r.clock.Now()
 		for _, id := range active {
@@ -98,6 +101,7 @@ func (r *RecallReader) owner(ctx context.Context, ownerID domain.ID) (map[domain
 			}
 		}
 	}
-	r.cache[ownerID] = m
-	return m, nil
+	o := ownerRecall{byTag: m, byProblem: byProblem}
+	r.cache[ownerID] = o
+	return o, nil
 }
