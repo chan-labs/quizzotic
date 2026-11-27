@@ -109,7 +109,7 @@ The problem is the unit of learning; a card is one user's scheduling state for o
 
 | Entity | Key fields | Notes |
 | --- | --- | --- |
-| Problem | id, owner\_id, status (draft, live, archived), current\_version, created\_by, deleted\_at | Status set on create; soft delete only |
+| Problem | id, owner\_id, status (draft, live, archived), current\_version, created\_by, deleted\_at | Status is `draft` or `live` on create; afterwards it changes only through publish and archive (see Status lifecycle). Delete is soft |
 | ProblemVersion | problem\_id, version, type, prompt, payload, explanation, source, change\_kind (minor, major), created\_by | Immutable; payload shape depends on type |
 | Tag | id, owner\_id, slug, name, description, status (active, merged, retired), merged\_into | Slug unique per owner among active tags |
 | TagAlias | tag\_id, slug | Old slugs keep resolving after a merge or rename |
@@ -127,6 +127,8 @@ The problem is the unit of learning; a card is one user's scheduling state for o
 | TagMastery | user\_id, tag\_id, recall, stability\_median, cards\_total, cards\_seen, last\_attempt\_at | Projection, current values |
 | MasterySnapshot | user\_id, tag\_id, date, recall, cards\_seen | Daily rollup for the over-time view |
 | TagOperation | id, kind (merge, split), payload, status (proposed, applied, rejected), proposed\_by, decided\_by, applied\_at | Audit trail for tag evolution |
+
+**Status lifecycle.** A problem is created `draft` (the default) or `live`; creating it `archived` is refused (422). After that, status moves only through `POST /problems/{id}/publish` (`draft` → `live`) and `POST /problems/{id}/archive` (`live` → `archived`). `archived` is terminal, and any other move (including same-status) is refused with 409. `PATCH /problems/{id}` cannot change status. Delete is a soft delete allowed from every status; versions are kept. A quiz's `status` is `draft`, `live` or `archived`, set at create (default `draft`) or through `PATCH /quizzes/{id}`; quizzes have no transition rules, so any value may follow any other, and an invalid value is a 422.
 
 **Versioning rule.** A `minor` edit (typo, wording) creates a new version and keeps the card. A `major` edit (different correct answer, different question) creates a new version and starts a new card epoch, so old attempts stay attached to the old epoch. Attempts always record the exact version answered.
 
