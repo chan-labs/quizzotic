@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/chan-labs/quizzotic/internal/attempts"
 	"github.com/chan-labs/quizzotic/internal/domain"
@@ -217,6 +218,20 @@ func (r attemptRepo) List(ctx context.Context, ownerID domain.ID, f attempts.Lis
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+// CountFirstAnswers counts the cards answered in [since, until) that have
+// no earlier attempt.
+func (r attemptRepo) CountFirstAnswers(ctx context.Context, ownerID domain.ID, since, until time.Time) (int, error) {
+	var n int
+	err := r.q.QueryRowContext(ctx, `SELECT COUNT(*) FROM (
+			SELECT DISTINCT problem_id, card_epoch FROM attempts
+			WHERE user_id = ? AND answered_at >= ? AND answered_at < ?) d
+		WHERE NOT EXISTS (SELECT 1 FROM attempts a
+			WHERE a.user_id = ? AND a.problem_id = d.problem_id AND a.card_epoch = d.card_epoch
+				AND a.answered_at < ?)`,
+		ownerID.String(), Millis(since), Millis(until), ownerID.String(), Millis(since)).Scan(&n)
+	return n, err
 }
 
 // ForCard lists the owner's attempts at one problem and card epoch, oldest

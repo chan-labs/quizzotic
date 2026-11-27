@@ -32,6 +32,11 @@ import (
 // deleted. Records are ignored once expired, so this only bounds table size.
 const IdempotencySweepInterval = time.Hour
 
+// SessionSweepInterval is how often expired web sessions and login states
+// are deleted. Both are refused once expired, so this only bounds table size
+// and how long dead credentials are kept.
+const SessionSweepInterval = time.Hour
+
 // SnapshotInterval is how often the mastery snapshot scheduler checks whether
 // a user's study day has turned over and needs its snapshot.
 const SnapshotInterval = 5 * time.Minute
@@ -66,6 +71,9 @@ type Options struct {
 	// ReadTimeout, when positive, replaces the ReadTimeout constant (tests
 	// use a short one).
 	ReadTimeout time.Duration
+	// SessionSweepInterval, when positive, replaces the SessionSweepInterval
+	// constant (tests use a short one).
+	SessionSweepInterval time.Duration
 }
 
 // Run serves until ctx is cancelled, then shuts down gracefully. It returns
@@ -125,6 +133,23 @@ func Run(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts Opti
 	defer func() {
 		stopSweep()
 		<-sweepDone // finish before the deferred st.Close
+	}()
+
+	// Expired web sessions and login states are refused on read; this sweep
+	// deletes them.
+	sessionSweep := SessionSweepInterval
+	if opts.SessionSweepInterval > 0 {
+		sessionSweep = opts.SessionSweepInterval
+	}
+	sessCtx, stopSessSweep := context.WithCancel(ctx)
+	sessDone := make(chan struct{})
+	go func() {
+		defer close(sessDone)
+		auth.SweepSessions(sessCtx, st, domain.SystemClock{}, sessionSweep, logger)
+	}()
+	defer func() {
+		stopSessSweep()
+		<-sessDone // finish before the deferred st.Close
 	}()
 
 	// The daily mastery snapshots are written in-process: each pass ensures
