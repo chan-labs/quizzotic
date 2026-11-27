@@ -61,7 +61,7 @@ func loadCredentials(path string) (credentialsFile, error) {
 	if path == "" {
 		return cf, nil
 	}
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: path chosen by the local operator (flag/env/config dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return cf, nil
 	}
@@ -90,7 +90,7 @@ func saveCredentials(path string, cf credentialsFile) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	raw, err := json.MarshalIndent(cf, "", "  ")
+	raw, err := json.MarshalIndent(cf, "", "  ") //nolint:gosec // G117: this is the credentials file; written 0600
 	if err != nil {
 		return err
 	}

@@ -16,7 +16,7 @@ import (
 // ReviewPlanner builds review sessions. *Builder implements it.
 type ReviewPlanner interface {
 	Build(ctx context.Context, userID, sessionID domain.ID, now time.Time) (Plan, error)
-	AppendDue(ctx context.Context, userID domain.ID, outstanding []domain.ID, now time.Time) ([]Item, error)
+	AppendDue(ctx context.Context, userID domain.ID, live []ProblemEpoch, outstanding []domain.ID, now time.Time) ([]Item, error)
 }
 
 // QuizPlanner builds quiz sessions. *QuizBuilder implements it.
@@ -269,6 +269,11 @@ func (s *SessionService) Next(ctx context.Context, userID, id domain.ID) (_ Next
 			if sess.CompletedAt != nil {
 				return errSessionCompleted
 			}
+			// Read once: AppendDue and the live filter below share it.
+			live, err := sc.Problems.LiveEpochs(ctx, userID)
+			if err != nil {
+				return err
+			}
 			if sess.Kind == SessionReview {
 				var waiting []domain.ID
 				for i, it := range sess.Items {
@@ -276,7 +281,7 @@ func (s *SessionService) Next(ctx context.Context, userID, id domain.ID) (_ Next
 						waiting = append(waiting, it.ProblemID)
 					}
 				}
-				extra, err := sc.Review.AppendDue(ctx, userID, waiting, s.clock.Now())
+				extra, err := sc.Review.AppendDue(ctx, userID, live, waiting, s.clock.Now())
 				if err != nil {
 					return err
 				}
@@ -287,10 +292,6 @@ func (s *SessionService) Next(ctx context.Context, userID, id domain.ID) (_ Next
 					sess.Items = append(sess.Items, extra...)
 					answered = append(answered, make([]bool, len(extra))...)
 				}
-			}
-			live, err := sc.Problems.LiveEpochs(ctx, userID)
-			if err != nil {
-				return err
 			}
 			isLive := make(map[domain.ID]bool, len(live))
 			for _, pe := range live {

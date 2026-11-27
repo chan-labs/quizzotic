@@ -598,6 +598,7 @@ func TestReturnToIsLocalOnly(t *testing.T) {
 		"/\\evil.example.com":    "/",
 		"relative":               "/",
 		"/ok\r\nSet-Cookie: x=1": "/",
+		"/\t/evil.example.com":   "/",
 	} {
 		if got := auth.SafeReturnTo(in); got != want {
 			t.Errorf("SafeReturnTo(%q) = %q, want %q", in, got, want)
