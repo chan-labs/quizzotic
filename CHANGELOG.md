@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The server now deletes expired web sessions and abandoned login states in an hourly background sweep, instead of keeping them forever. `auth.WebSessionRepo` gains `PurgeExpired`, and `auth.LoginStateRepo.PurgeExpired` now returns the number removed.
 - The HTTP server now bounds whole-request reads (30s), idle keep-alive connections (120s) and request headers (64 KiB, larger gets 431). The CLI's loopback login server has the same limits.
 
 ## [0.3.1] - 2026-11-07

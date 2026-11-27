@@ -64,6 +64,10 @@ func (r webSessionRepo) Delete(ctx context.Context, userID, sessionID domain.ID)
 	return requireRow(res, err)
 }
 
+func (r webSessionRepo) PurgeExpired(ctx context.Context, now time.Time) (int64, error) {
+	return execCount(r.q.ExecContext(ctx, `DELETE FROM web_sessions WHERE expires_at <= ?`, Millis(now)))
+}
+
 type loginStateRepo struct{ q execer }
 
 func (r loginStateRepo) Create(ctx context.Context, s auth.LoginState) error {
@@ -91,7 +95,14 @@ func (r loginStateRepo) Consume(ctx context.Context, stateHash string, now time.
 	return s, nil
 }
 
-func (r loginStateRepo) PurgeExpired(ctx context.Context, now time.Time) error {
-	_, err := r.q.ExecContext(ctx, `DELETE FROM login_states WHERE expires_at <= ?`, Millis(now))
-	return err
+func (r loginStateRepo) PurgeExpired(ctx context.Context, now time.Time) (int64, error) {
+	return execCount(r.q.ExecContext(ctx, `DELETE FROM login_states WHERE expires_at <= ?`, Millis(now)))
+}
+
+// execCount returns the rows a DELETE removed.
+func execCount(res sql.Result, err error) (int64, error) {
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
