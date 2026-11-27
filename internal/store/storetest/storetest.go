@@ -68,7 +68,6 @@ func Run(t *testing.T, newStore NewStore) {
 }
 
 func runTx(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	boom := errors.New("boom")
 

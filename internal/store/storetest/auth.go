@@ -21,7 +21,6 @@ func newUser(ids *domain.IDGenerator, name string) auth.User {
 }
 
 func runUsers(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
@@ -90,7 +89,6 @@ func runUsers(t *testing.T, newStore NewStore) {
 }
 
 func runIdentities(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	const iss = "https://idp.example.com"
@@ -159,7 +157,6 @@ func runIdentities(t *testing.T, newStore NewStore) {
 }
 
 func runProvision(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	const iss = "https://idp.example.com"
 

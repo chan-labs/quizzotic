@@ -227,7 +227,6 @@ func exportService(s store.Store) *export.Service {
 }
 
 func runExport(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 
 	t.Run("exports only the owner's rows, in a stable order", func(t *testing.T) {

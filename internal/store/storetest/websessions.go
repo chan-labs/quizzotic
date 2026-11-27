@@ -12,7 +12,6 @@ import (
 )
 
 func runWebSessions(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
@@ -102,7 +101,6 @@ func runWebSessions(t *testing.T, newStore NewStore) {
 }
 
 func runLoginStates(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	st := func(h string, exp time.Time) auth.LoginState {
 		return auth.LoginState{StateHash: h, Nonce: "n-" + h, CodeVerifier: "v-" + h, ReturnTo: "/x", ExpiresAt: exp}

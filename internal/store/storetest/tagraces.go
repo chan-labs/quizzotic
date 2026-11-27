@@ -24,7 +24,6 @@ import (
 // it passes trivially). Each round starts all goroutines behind one barrier.
 // See docs/adr/0007-owner-tag-lock.md.
 func runTagRaces(t *testing.T, newStore NewStore) {
-	t.Helper()
 	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	const rounds = 60

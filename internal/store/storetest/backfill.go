@@ -16,14 +16,12 @@ import (
 )
 
 func runBackfill(t *testing.T, newStore NewStore) {
-	t.Helper()
 	t.Run("repo", func(t *testing.T) { runBackfillRepo(t, newStore) })
 	t.Run("equals the live snapshots", func(t *testing.T) { runBackfillReplay(t, newStore) })
 }
 
 // runBackfillRepo covers the repo methods history rewriting is built on.
 func runBackfillRepo(t *testing.T, newStore NewStore) {
-	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	bob := newUser(f.ids, "bob")
 	if err := f.s.Users().Create(f.ctx, bob); err != nil {
@@ -179,7 +177,6 @@ func sortedIDs(ids ...domain.ID) []domain.ID {
 // exactly the snapshots the daily job wrote live, for a history that includes
 // answers, a major edit, an archive and a delete.
 func runBackfillReplay(t *testing.T, newStore NewStore) {
-	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	bob := newUser(f.ids, "bob")
 	if err := f.s.Users().Create(f.ctx, bob); err != nil {

@@ -123,6 +123,12 @@ linters:
       # no state; elsewhere tests share fixtures, ports and process state.
       - path-except: internal/(fsrs|grading|domain|config|openapi)/
         linters: [paralleltest, tparallel]
+      # The conformance suite bodies (run*/Run* taking t and a store factory)
+      # are tests, not helpers: t.Helper() there would report every failed
+      # assertion at the caller's t.Run line.
+      - path: internal/store/storetest/
+        linters: [thelper]
+        source: '^func (run|Run)\w*\(t \*testing\.T'
       # gosec in test code (and the storetest conformance suite), rule by rule:
       #  - G101/G124: fake cookies and credentials a test client sends.
       #  - G107/G710/G705/G703: fixture servers and fake IdPs echo or follow

@@ -20,7 +20,6 @@ import (
 // mastery, introduces problems of weak tags more often, and that doing so
 // leaves every card (and so every due date) untouched.
 func runWeakTagWeighting(t *testing.T, newStore NewStore) {
-	t.Helper()
 	f := newMasteryFixture(t, newStore)
 	live := store.NewMastery(f.cards, f.clock) // recall predicted at the fixture's own clock
 	k := pkinds[0]
