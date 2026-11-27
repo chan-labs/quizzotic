@@ -52,7 +52,8 @@ func newSchemaStore(t *testing.T) *Store {
 	}
 	t.Cleanup(func() {
 		s.Close()
-		_, _ = admin.DB().ExecContext(t.Context(), `DROP SCHEMA `+name+` CASCADE`)
+		// t.Context is already cancelled when cleanups run.
+		_, _ = admin.DB().ExecContext(context.WithoutCancel(t.Context()), `DROP SCHEMA `+name+` CASCADE`)
 		admin.Close()
 	})
 	return s
