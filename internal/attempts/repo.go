@@ -70,6 +70,11 @@ type Repo interface {
 	// unknown problem or foreign owner yields an empty list.
 	ForCard(ctx context.Context, ownerID, problemID domain.ID, epoch int) ([]Attempt, error)
 
+	// CountFirstAnswers returns how many of the owner's cards (problem and card
+	// epoch) had their first attempt answered in [since, until): the cards
+	// introduced in that window. It is one query.
+	CountFirstAnswers(ctx context.Context, ownerID domain.ID, since, until time.Time) (int, error)
+
 	// List returns the owner's attempts ordered by ID, which is answer order.
 	List(ctx context.Context, ownerID domain.ID, f ListFilter) ([]Attempt, error)
 }

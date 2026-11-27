@@ -47,7 +47,7 @@ func Load(spec string) (*File, error) {
 		}
 		return f, nil
 	}
-	fh, err := os.Open(spec)
+	fh, err := os.Open(spec) //nolint:gosec // G304: path chosen by the local operator (flag/env/config dir)
 	if err != nil {
 		return nil, fmt.Errorf("seed: %w", err)
 	}

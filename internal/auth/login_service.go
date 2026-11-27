@@ -121,7 +121,7 @@ func (s *LoginService) BeginLogin(ctx context.Context, returnTo string) (_ strin
 	state, nonce, verifier := randomToken(), randomToken(), randomToken()
 
 	now := s.clock.Now()
-	if err := s.repos.LoginStates().PurgeExpired(ctx, now); err != nil {
+	if _, err := s.repos.LoginStates().PurgeExpired(ctx, now); err != nil {
 		return "", err
 	}
 	err = s.repos.LoginStates().Create(ctx, LoginState{
