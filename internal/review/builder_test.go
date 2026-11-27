@@ -345,7 +345,11 @@ func TestAppendDue(t *testing.T) {
 		State: fsrs.Learning, Due: now.Add(5 * time.Minute), LastReview: now}}
 	dueReview := w.dueCard(3) // a plain review card is not a mid-session addition
 
-	got, err := w.builder().AppendDue(context.Background(), w.user, []domain.ID{waiting}, now)
+	live, err := problemList{w}.LiveEpochs(context.Background(), w.user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := w.builder().AppendDue(context.Background(), w.user, live, []domain.ID{waiting}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +358,7 @@ func TestAppendDue(t *testing.T) {
 		t.Errorf("appended = %+v, want %+v (dueReview %v, later %v)", got, want, dueReview, later)
 	}
 	// Once the five minutes pass, the later card comes due too.
-	got, _ = w.builder().AppendDue(context.Background(), w.user, []domain.ID{waiting, learning}, now.Add(6*time.Minute))
+	got, _ = w.builder().AppendDue(context.Background(), w.user, live, []domain.ID{waiting, learning}, now.Add(6*time.Minute))
 	if len(got) != 1 || got[0].ProblemID != later {
 		t.Errorf("later append = %+v", got)
 	}
