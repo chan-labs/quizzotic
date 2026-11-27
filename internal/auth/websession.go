@@ -33,6 +33,11 @@ type WebSessionRepo interface {
 	Touch(ctx context.Context, userID, sessionID domain.ID, lastSeen, expiresAt time.Time) error
 	// Delete removes one of the user's sessions, or returns ErrNotFound.
 	Delete(ctx context.Context, userID, sessionID domain.ID) error
+	// PurgeExpired removes every user's sessions that expired at or before
+	// now and returns how many it removed. It is the background sweep's
+	// cross-user delete, like the idempotency purge: an expired session is
+	// already refused, so this only reclaims rows and dead credentials.
+	PurgeExpired(ctx context.Context, now time.Time) (int64, error)
 }
 
 // LoginState is the pre-login state of one authorization request.
@@ -52,8 +57,9 @@ type LoginStateRepo interface {
 	// Consume atomically removes and returns the state, or ErrNotFound when it
 	// is unknown, already consumed, or expired at now.
 	Consume(ctx context.Context, stateHash string, now time.Time) (LoginState, error)
-	// PurgeExpired removes states that expired at or before now.
-	PurgeExpired(ctx context.Context, now time.Time) error
+	// PurgeExpired removes states that expired at or before now and returns
+	// how many it removed.
+	PurgeExpired(ctx context.Context, now time.Time) (int64, error)
 }
 
 // SessionRepos is what the login service needs from the store; store.Store

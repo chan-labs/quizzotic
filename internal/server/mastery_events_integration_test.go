@@ -49,6 +49,13 @@ func startRunEnv(t *testing.T, idp *fakeIDP, dbPath string, seeds []string) (*pr
 // the server starts.
 func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, tweak func(*config.Config)) (*probEnv, func()) {
 	t.Helper()
+	return startRunEnvOpts(t, idp, dbPath, seeds, tweak, server.Options{})
+}
+
+// startRunEnvOpts is startRunEnvWith with extra server options; the listener
+// is always the test's own.
+func startRunEnvOpts(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, tweak func(*config.Config), opts server.Options) (*probEnv, func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cfg := config.Default()
@@ -75,7 +82,7 @@ func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 	}
 	done := make(chan error, 1)
 	go func() {
-		done <- server.Run(ctx, &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), server.Options{Listener: ln})
+		done <- server.Run(ctx, &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), func() server.Options { opts.Listener = ln; return opts }())
 	}()
 	var once sync.Once
 	stop := func() {
