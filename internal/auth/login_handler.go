@@ -60,7 +60,7 @@ func (h *LoginHandler) Login(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, "begin login", errors.New("authorization URL has no state"), nil)
 		return
 	}
-	http.Redirect(w, r, loc, http.StatusSeeOther)
+	http.Redirect(w, r, loc, http.StatusSeeOther) //nolint:gosec // G710: loc is the configured issuer's authorization endpoint from discovery, not request input
 }
 
 // Callback completes the flow and sets the session cookie.

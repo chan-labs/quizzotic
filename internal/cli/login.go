@@ -71,11 +71,11 @@ func openBrowser(u string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.CommandContext(context.Background(), "open", u)
+		cmd = exec.CommandContext(context.Background(), "open", u) //nolint:gosec // G204: fixed opener binary; the URL is one argv entry, no shell
 	case "windows":
-		cmd = exec.CommandContext(context.Background(), "rundll32", "url.dll,FileProtocolHandler", u)
+		cmd = exec.CommandContext(context.Background(), "rundll32", "url.dll,FileProtocolHandler", u) //nolint:gosec // G204: fixed opener binary; the URL is one argv entry, no shell
 	default:
-		cmd = exec.CommandContext(context.Background(), "xdg-open", u)
+		cmd = exec.CommandContext(context.Background(), "xdg-open", u) //nolint:gosec // G204: fixed opener binary; the URL is one argv entry, no shell
 	}
 	if err := cmd.Start(); err != nil {
 		return err
