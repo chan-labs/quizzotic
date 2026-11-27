@@ -211,7 +211,7 @@ A tag's strength is the mean predicted recall, right now, of the cards you have 
 
 ## Tag evolution
 
-Tags change through logged operations that rewrite problem-to-tag mappings and then rebuild mastery from the attempt log, so no learning history is lost. Every operation is a TagOperation with a before-snapshot of the mappings it touched.
+Tags change through logged operations that rewrite problem-to-tag mappings and then rebuild mastery from the attempt log, so no learning history is lost. Every operation made through `/tag-operations`, and every split, is recorded as a TagOperation with a before-snapshot of the mappings it touched.
 
 | Operation | Input | Effect |
 | --- | --- | --- |
