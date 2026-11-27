@@ -126,7 +126,7 @@ The problem is the unit of learning; a card is one user's scheduling state for o
 | ReviewSession | id, user\_id, kind (review, quiz), quiz\_id, items\[\], created\_at, completed\_at | Frozen list of problems served |
 | TagMastery | user\_id, tag\_id, recall, stability\_median, cards\_total, cards\_seen, last\_attempt\_at | Projection, current values |
 | MasterySnapshot | user\_id, tag\_id, date, recall, cards\_seen | Daily rollup for the over-time view |
-| TagOperation | id, kind (merge, split), payload, status (proposed, applied, rejected), proposed\_by, decided\_by, applied\_at | Audit trail for tag evolution |
+| TagOperation | id, kind (rename, merge, split), payload, status (proposed, applied, rejected), proposed\_by, decided\_by, applied\_at, reverted\_by, reverted\_at | Audit trail for tag evolution. A reverted operation keeps status `applied`; `reverted_at` and `reverted_by` mark the revert (there is no `reverted` status) |
 
 **Status lifecycle.** A problem is created `draft` (the default) or `live`; creating it `archived` is refused (422). After that, status moves only through `POST /problems/{id}/publish` (`draft` → `live`) and `POST /problems/{id}/archive` (`live` → `archived`). `archived` is terminal, and any other move (including same-status) is refused with 409. `PATCH /problems/{id}` cannot change status. Delete is a soft delete allowed from every status; versions are kept. A quiz's `status` is `draft`, `live` or `archived`, set at create (default `draft`) or through `PATCH /quizzes/{id}`; quizzes have no transition rules, so any value may follow any other, and an invalid value is a 422.
 
@@ -215,7 +215,7 @@ Tags change through logged operations that rewrite problem-to-tag mappings and t
 | --- | --- | --- |
 | Rename | tag, new slug and/or name | Old slug becomes an alias |
 | Merge | source tags\[\], target tag | Source mappings move to target (deduplicated); sources become `merged` with `merged_into`; their slugs become aliases of the target |
-| Split | source tag, target tags (new specs or existing IDs), `assignments{problem_id: [tag_id]}`, `retire_source` | Each problem moves to its assigned targets. If `retire_source` is true, every problem must have at least one assignment and the source is retired |
+| Split | source tag, target tags (new specs or existing IDs), `assignments{problem_id: [tag_id]}`, `retire_source` | Each problem moves to its assigned targets. If `retire_source` is true, every problem must have at least one assignment (else 422) and the source is retired. If it is false, a problem with no assignment keeps the source tag and the source stays active |
 
 **Lifecycle**
 
@@ -224,6 +224,8 @@ Tags change through logged operations that rewrite problem-to-tag mappings and t
 3. `POST /tag-operations/{id}/apply` or `/reject` decides it.
 4. Applying runs in one transaction: rewrite mappings, update tag rows and aliases, then recompute mastery and rebuild history for every tag involved.
 5. `POST /tag-operations/{id}/revert` restores the before-snapshot, refused if a later applied operation touched the same tags.
+
+**Deciding and withdrawing.** Apply and reject both need `tags:apply`; a caller without it gets 403, whoever proposed the operation, so an agent with only `tags:write` cannot withdraw its own proposal. Deciding an operation that is not `proposed` is a 409.
 
 **Agent-assisted split.** An agent reads `GET /tags/{id}/problems`, proposes target tags and per-problem assignments as a `proposed` split, and the human approves it in the web UI. Agents get `tags:apply` only if that agent client is allowed it in config.
 
