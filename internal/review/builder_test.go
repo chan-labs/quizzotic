@@ -103,15 +103,27 @@ func (c cardList) List(context.Context, domain.ID) ([]review.Card, error) {
 
 type attemptLog struct{ w *world }
 
-func (a attemptLog) ForCard(_ context.Context, _, p domain.ID, epoch int) ([]attempts.Attempt, error) {
-	var out []attempts.Attempt
+// CountFirstAnswers mirrors the repo: cards whose earliest attempt is in
+// [since, until).
+func (a attemptLog) CountFirstAnswers(_ context.Context, _ domain.ID, since, until time.Time) (int, error) {
+	type key struct {
+		p domain.ID
+		e int
+	}
+	first := map[key]time.Time{}
 	for _, x := range a.w.attempts {
-		if x.ProblemID == p && x.CardEpoch == epoch {
-			out = append(out, x)
+		k := key{x.ProblemID, x.CardEpoch}
+		if f, ok := first[k]; !ok || x.AnsweredAt.Before(f) {
+			first[k] = x.AnsweredAt
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].AnsweredAt.Before(out[j].AnsweredAt) })
-	return out, nil
+	n := 0
+	for _, f := range first {
+		if !f.Before(since) && f.Before(until) {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (a attemptLog) List(_ context.Context, _ domain.ID, f attempts.ListFilter) ([]attempts.Attempt, error) {

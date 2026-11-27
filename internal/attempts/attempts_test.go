@@ -70,6 +70,10 @@ func (m *memRepo) ForCard(_ context.Context, owner, problem domain.ID, epoch int
 	return out, nil
 }
 
+func (m *memRepo) CountFirstAnswers(context.Context, domain.ID, time.Time, time.Time) (int, error) {
+	panic("unused")
+}
+
 func (m *memRepo) List(_ context.Context, owner domain.ID, _ ListFilter) ([]Attempt, error) {
 	var out []Attempt
 	for _, a := range m.rows {
