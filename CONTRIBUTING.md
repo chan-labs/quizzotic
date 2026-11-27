@@ -124,6 +124,16 @@ Quizzotic works with any standards-compliant OIDC issuer; nothing is IdP-specifi
 3. If the IdP needs quirks handled (for example a non-standard claim for the client ID), add a narrowly scoped, tested option to `internal/auth` driven by config. Do not hard-code provider names.
 4. Add a deployment example under `deploy/` and a short note in the docs.
 
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens weekly PRs for Go modules (minor and patch grouped, OpenTelemetry grouped), GitHub Actions (grouped) and the Dockerfile base image, at most 5 open per ecosystem. Review a bump PR like any other:
+
+- It may only bump versions of modules already in `go.mod`. A bump that adds a new direct dependency is not allowed without the maintainer's approval and a [`docs/dependencies.md`](docs/dependencies.md) entry (ground rule 3).
+- Read the release notes for anything that changes behavior, and check that CI is green, including `test (postgres)`.
+- Major-version bumps get their own PR and a look at the upgrade guide; don't merge them as part of a group.
+
+Dependabot can't update the tools pinned in `mise.toml` (Go, golangci-lint, Node, ...). Bump those by hand in a normal PR. (Renovate can update `mise.toml` if that's ever wanted.)
+
 ## Reporting security issues
 
 Do not file public issues for vulnerabilities. See [SECURITY.md](SECURITY.md).
