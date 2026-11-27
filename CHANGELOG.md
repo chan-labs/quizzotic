@@ -18,6 +18,7 @@ No changes since 0.3.0: `v0.3.1` tags the same commit as `v0.3.0`.
 
 ### Added
 
+- `tools/devissuer`, a stdlib-only fake OIDC issuer for local development. `mise run dev` uses it when Docker is not available (or with `QUIZZOTIC_DEV_ISSUER=go`), so the dev stack runs with only Go installed.
 - OpenTelemetry tracing now covers service methods, repo calls (SQLite and Postgres, one span per SQL statement and per transaction; SQL text and arguments are never recorded), OIDC discovery and JWKS fetches, and the CLI and MCP clients, which send `traceparent` so a client call and the server work it triggers form one trace. See `docs/tracing.md`.
 - `mise run dev-otel`, a local Grafana, Tempo and collector stack for looking at traces (see CONTRIBUTING.md, "Local tracing").
 - `golangci-lint` and a gofmt/goimports format check in `mise run lint` and CI.
