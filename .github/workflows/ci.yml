@@ -153,18 +153,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Prebuilt goreleaser from mise.toml: no Go toolchain or module downloads.
       - uses: jdx/mise-action@v5.2.5
         with:
           cache: true
-          install_args: go
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: go-release-config-${{ hashFiles('go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            go-release-config-${{ hashFiles('go.sum') }}-
-            go-release-config-
+          install_args: goreleaser
       - name: goreleaser check
         run: mise run release-check

@@ -28,8 +28,9 @@ mise run release-check   # validate .goreleaser.yaml
 mise run snapshot        # build archives, checksums and local images into ./dist
 ```
 
-Both run GoReleaser through `go run`, so no separate install is needed;
-`mise run snapshot` also needs Docker with buildx for the image step.
+Both run the prebuilt GoReleaser binary pinned in `mise.toml` (`mise install`
+fetches it; no Go modules are downloaded). `release.yml` pins the same version,
+so keep the two in step. `mise run snapshot` also needs Docker with buildx for the image step.
 
 ## Running the image
 

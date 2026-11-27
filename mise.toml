@@ -6,6 +6,7 @@ go = "1.26.3"
 uv = "0.9"  # Python scripts (tools/fsrs-vectors)
 node = "22" # Redocly (openapi-lint)
 golangci-lint = "2.15.0" # lint + format (replaces go vet, staticcheck and gofmt)
+goreleaser = "2.12.0" # prebuilt binary; keep in step with goreleaser-action `version:` in release.yml
 
 [tasks.build]
 description = "Build bin/quizzotic (version from git describe, or VERSION)"
@@ -79,11 +80,11 @@ run = "docker compose -f dev/docker-compose.otel.yaml down"
 
 [tasks.release-check]
 description = "Validate the GoReleaser config (publishes nothing)"
-run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 check"
+run = "goreleaser check"
 
 [tasks.snapshot]
 description = "Local build of archives, checksums and images (publishes nothing)"
-run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 release --snapshot --clean --skip=publish"
+run = "goreleaser release --snapshot --clean --skip=publish"
 
 # Same command CI runs against its postgres:17 service container. Starts a
 # throwaway container unless QUIZZOTIC_TEST_POSTGRES_URL is already set.
