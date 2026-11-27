@@ -337,7 +337,7 @@ Storage is one Go interface, `store.Store`, with SQLite as the default and Postg
 
 - `Store` composes narrow repositories: `Users`, `Identities`, `WebSessions`, `LoginStates`, `Settings`, `Problems`, `Tags`, `Quizzes`, `Attempts`, `Cards`, `Sessions` (review and quiz sessions), `Mastery`, `MasterySnapshots`, `TagOperations`, `SeedKeys`, `Export` and `Idempotency`.
 - `Store.WithTx(ctx, func(tx Store) error)` runs a unit of work atomically. Grading + attempt + card update, and every tag operation, run inside one transaction.
-- Every repository method takes the owner user ID explicitly; there is no method that reads across owners.
+- Every repository method takes the owner user ID explicitly; the only reads across owners are the ID-only user listing used by background jobs and admin tooling, and the sole-user lookup used by seeding (below).
 - **SQLite**: single file, WAL mode, `busy_timeout` 5 s, timestamps as Unix milliseconds, JSON as TEXT.
 - **Postgres**: timestamps as `timestamptz`, JSON as `jsonb`.
 - **Migrations**: plain SQL per dialect, embedded with `embed`, numbered `0001` to `0014` and timestamped (`YYYYMMDDHHMMSS_name.sql`) from then on, recorded in `schema_migrations`, applied by `quizzotic admin migrate` or on `serve` start when `storage.auto_migrate` is true.
