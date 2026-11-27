@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The HTTP server now bounds whole-request reads (30s), idle keep-alive connections (120s) and request headers (64 KiB, larger gets 431). The CLI's loopback login server has the same limits.
 - Cloze blanks now have a named `match` mode instead of the `case_sensitive` flag: `relaxed` (default; trim, ignore case, collapse spaces, drop trailing `.,;:!?`) or `case-insensitive` (ignores case only; whitespace and punctuation must match exactly). The migration maps both old values to `relaxed`, so **case no longer matters on blanks that had `case_sensitive: true`**; stored problem versions are rewritten and past attempts and their grades are not touched. `case_sensitive` is still accepted on input (API, seed files, import, MCP, CLI, web form) for one version, means `relaxed`, and loses to `match` when both are sent. Responses carry only `match`. The web editor's checkbox became a select.
 
 ### Added
