@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, so new advisories against an unchanged main are caught.
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
@@ -168,3 +171,24 @@ jobs:
             go-release-config-
       - name: goreleaser check
         run: mise run release-check
+
+  vulncheck:
+    name: vulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v5.2.5
+        with:
+          cache: true
+          install_args: go go:golang.org/x/vuln/cmd/govulncheck
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-vulncheck-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-vulncheck-${{ hashFiles('go.sum') }}-
+            go-vulncheck-
+      - name: govulncheck
+        run: mise run vulncheck
