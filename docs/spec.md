@@ -205,7 +205,7 @@ A tag's strength is the mean predicted recall, right now, of the cards you have 
 
 **Updates.** Each attempt updates the mastery rows for that problem's tags. A tag operation or a full rebuild recomputes all mastery rows for the owner.
 
-**History.** A daily job at the user's rollover hour writes one MasterySnapshot per active tag. `quizzotic admin rebuild --history` backfills snapshots by replaying the attempt log up to each past date, so history stays consistent after tags are merged or split.
+**History.** A daily job writes one MasterySnapshot per active tag, filed under the study day that contains the moment it runs (the user's time zone and rollover hour; never the previous day). The job checks every 5 minutes and writes any snapshot missing for the current study day, so the first check after the rollover writes it, a server that was down catches up, and a tag created mid-day is picked up on the next check. It records recall as of that moment. To visit every user, the job and `quizzotic admin rebuild --history` list all user IDs: the one read across owners, which returns IDs only and then acts on one user at a time. `quizzotic admin rebuild --history` backfills snapshots by replaying the attempt log up to each past date, so history stays consistent after tags are merged or split.
 
 **Endpoints**: `GET /metrics/overview`, `GET /metrics/tags`, `GET /metrics/tags/{id}/history?from=&to=`, `GET /metrics/problems?sort=recall&limit=` (weakest problems).
 
