@@ -34,6 +34,12 @@ type ListFilter struct {
 	Limit int       // <= 0: no limit
 }
 
+// LiveEpoch is a live problem's card epoch (see CardEpoch).
+type LiveEpoch struct {
+	ID    domain.ID
+	Epoch int
+}
+
 // Current is a problem with its current version.
 type Current struct {
 	Problem Problem
@@ -60,6 +66,10 @@ type Repo interface {
 
 	// List returns the owner's problems ordered by ID.
 	List(ctx context.Context, ownerID domain.ID, f ListFilter) ([]Problem, error)
+
+	// LiveEpochs returns every live, non-deleted problem of the owner with its
+	// card epoch, CardEpoch over its versions, ordered by ID, in one query.
+	LiveEpochs(ctx context.Context, ownerID domain.ID) ([]LiveEpoch, error)
 
 	// ListCurrent is List with each problem's current version, in one query.
 	ListCurrent(ctx context.Context, ownerID domain.ID, f ListFilter) ([]Current, error)
