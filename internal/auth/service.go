@@ -61,6 +61,21 @@ func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (_ User, err
 	if c.Issuer == "" || c.Subject == "" {
 		return User{}, errors.New("auth: claims need an issuer and a subject")
 	}
+	// Most bearer requests change nothing: the identity exists, last_seen_at
+	// is fresh and the profile matches. Check that in a read-only transaction
+	// so those requests never take the write lock.
+	var cur User
+	var settled bool
+	if err = s.tx.InTx(platform.ReadOnlyTx(ctx), func(r Repos) error {
+		var err error
+		cur, settled, err = s.provisionUnchanged(ctx, r, c)
+		return err
+	}); err != nil {
+		return User{}, err
+	}
+	if settled {
+		return cur, nil
+	}
 	for range maxProvisionAttempts {
 		var u User
 		err = s.tx.InTx(ctx, func(r Repos) error {
@@ -80,6 +95,7 @@ func (s *Service) Provision(ctx context.Context, c ProvisionClaims) (_ User, err
 func (s *Service) GetUser(ctx context.Context, userID domain.ID) (_ User, err error) {
 	ctx, end := platform.TraceMethod(ctx, "auth.GetUser")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	var u User
 	err = s.tx.InTx(ctx, func(r Repos) error {
 		var err error
@@ -87,6 +103,30 @@ func (s *Service) GetUser(ctx context.Context, userID domain.ID) (_ User, err er
 		return err
 	})
 	return u, err
+}
+
+// provisionUnchanged reports the user and true when the identity exists and
+// provision would write nothing: last_seen_at is fresh and the claims match the
+// stored profile.
+func (s *Service) provisionUnchanged(ctx context.Context, r Repos, c ProvisionClaims) (User, bool, error) {
+	ident, err := r.Identities.GetByIssuerSubject(ctx, c.Issuer, c.Subject)
+	if errors.Is(err, ErrNotFound) {
+		return User{}, false, nil
+	}
+	if err != nil {
+		return User{}, false, err
+	}
+	u, err := r.Users.Get(ctx, ident.UserID)
+	if err != nil {
+		return User{}, false, err
+	}
+	if s.clock.Now().Sub(ident.LastSeenAt) >= touchInterval {
+		return User{}, false, nil
+	}
+	if (c.DisplayName != "" && c.DisplayName != u.DisplayName) || (c.Email != "" && c.Email != u.Email) {
+		return User{}, false, nil
+	}
+	return u, true, nil
 }
 
 func (s *Service) provision(ctx context.Context, r Repos, c ProvisionClaims) (User, error) {

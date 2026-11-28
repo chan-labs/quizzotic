@@ -193,6 +193,7 @@ func (s *SessionService) Create(ctx context.Context, userID domain.ID, in Create
 func (s *SessionService) Get(ctx context.Context, userID, id domain.ID) (_ SessionView, err error) {
 	ctx, end := platform.TraceMethod(ctx, "review.SessionService.Get")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	var v SessionView
 	err = s.tx.InTx(ctx, func(sc SessionScope) error {
 		sess, answered, err := loadSession(ctx, sc, userID, id)
@@ -212,6 +213,7 @@ func (s *SessionService) Get(ctx context.Context, userID, id domain.ID) (_ Sessi
 func (s *SessionService) Exists(ctx context.Context, userID, id domain.ID) (_ bool, err error) {
 	ctx, end := platform.TraceMethod(ctx, "review.SessionService.Exists")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	found := true
 	err = s.tx.InTx(ctx, func(sc SessionScope) error {
 		_, err := sc.Sessions.Get(ctx, userID, id)

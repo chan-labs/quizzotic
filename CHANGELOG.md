@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Read paths (metrics queries, user lookup, bearer provisioning when nothing changed, session, tag and quiz reads) now use read-only transactions (`store.Store.WithReadTx`; `BEGIN READ ONLY` on Postgres, a deferred `BEGIN` with `query_only` on SQLite), so SQLite reads no longer queue behind writers or each other for the write lock.
 - Web static assets (`/static/*`) are now served with a strong `ETag` (`If-None-Match` answers 304), `Cache-Control: public, max-age=3600`, and a gzip body precompressed at startup when the client accepts it (`Vary: Accept-Encoding`).
 - Bearer-authenticated requests no longer write on every call: an identity's `last_seen_at` advances at most once a minute (like web sessions), while display name and email changes in the token still apply immediately.
 - The server now deletes expired web sessions and abandoned login states in an hourly background sweep, instead of keeping them forever. `auth.WebSessionRepo` gains `PurgeExpired`, and `auth.LoginStateRepo.PurgeExpired` now returns the number removed.

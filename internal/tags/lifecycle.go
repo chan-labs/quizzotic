@@ -140,6 +140,7 @@ func (s *Service) Propose(ctx context.Context, ownerID domain.ID, actor domain.A
 func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (_ OpDetail, err error) {
 	ctx, end := platform.TraceMethod(ctx, "tags.GetOperation")
 	defer end(&err)
+	// Not read-only: the preview executes the operation, then rolls back.
 	var d OpDetail
 	err = s.tx.InTx(ctx, func(r Repos) error {
 		op, err := r.Ops.Get(ctx, ownerID, id)
@@ -180,6 +181,7 @@ func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (_ Op
 func (s *Service) ListOperationDetails(ctx context.Context, ownerID domain.ID, status OpStatus, p platform.Page) (_ []OpDetail, _ string, err error) {
 	ctx, end := platform.TraceMethod(ctx, "tags.ListOperationDetails")
 	defer end(&err)
+	// Not read-only: the preview executes the operation, then rolls back.
 	ops, next, err := s.ListOperations(ctx, ownerID, status, p)
 	if err != nil {
 		return nil, "", err
@@ -224,6 +226,7 @@ func previewError(err error) string {
 func (s *Service) ListOperations(ctx context.Context, ownerID domain.ID, status OpStatus, p platform.Page) (_ []Operation, _ string, err error) {
 	ctx, end := platform.TraceMethod(ctx, "tags.ListOperations")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	if status != "" && !status.Valid() {
 		return nil, "", platform.Validation("invalid status", platform.FieldError{
 			Field: "status", Detail: "must be proposed, applied or rejected"})

@@ -112,6 +112,7 @@ func (s *Service) Create(ctx context.Context, actor domain.Actor, in CreateInput
 func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (_ Quiz, err error) {
 	ctx, end := platform.TraceMethod(ctx, "quizzes.Get")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	var q Quiz
 	err = s.tx.InTx(ctx, func(r Repo) (err error) {
 		q, err = r.Get(ctx, ownerID, id)
@@ -125,6 +126,7 @@ func (s *Service) Get(ctx context.Context, ownerID, id domain.ID) (_ Quiz, err e
 func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p platform.Page) (_ []Quiz, _ string, err error) {
 	ctx, end := platform.TraceMethod(ctx, "quizzes.List")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	if status != "" && !status.Valid() {
 		return nil, "", platform.Validation("invalid status", platform.FieldError{Field: "status", Detail: "must be draft, live or archived"})
 	}

@@ -185,6 +185,7 @@ func (s *Service) Create(ctx context.Context, ownerID domain.ID, in CreateInput)
 func (s *Service) Get(ctx context.Context, ownerID domain.ID, ref string) (_ Tag, err error) {
 	ctx, end := platform.TraceMethod(ctx, "tags.Get")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	var t Tag
 	err = s.tx.InTx(ctx, func(r Repos) (err error) {
 		t, err = Resolve(ctx, r.Tags, ownerID, ref)
@@ -198,6 +199,7 @@ func (s *Service) Get(ctx context.Context, ownerID domain.ID, ref string) (_ Tag
 func (s *Service) List(ctx context.Context, ownerID domain.ID, status Status, p platform.Page) (_ []Tag, _ string, err error) {
 	ctx, end := platform.TraceMethod(ctx, "tags.List")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	if status == "" {
 		status = StatusActive
 	}
@@ -278,6 +280,7 @@ func (s *Service) Update(ctx context.Context, ownerID domain.ID, ref, ifMatch st
 func (s *Service) ListProblems(ctx context.Context, ownerID domain.ID, ref string, p platform.Page) (_ []problems.View, _ string, err error) {
 	ctx, end := platform.TraceMethod(ctx, "tags.ListProblems")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	after, err := parseCursor(p.Cursor)
 	if err != nil {
 		return nil, "", err
@@ -332,6 +335,7 @@ func (s *Service) ProblemTags(ctx context.Context, ownerID, problemID domain.ID)
 func (s *Service) ResolveTagFilter(ctx context.Context, ownerID domain.ID, ref string) (id domain.ID, found bool, err error) {
 	ctx, end := platform.TraceMethod(ctx, "tags.ResolveTagFilter")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	err = s.tx.InTx(ctx, func(r Repos) error {
 		t, err := Resolve(ctx, r.Tags, ownerID, ref)
 		if err != nil {

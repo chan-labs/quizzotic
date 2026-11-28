@@ -154,6 +154,7 @@ func ptr(v float64) *float64 { return &v }
 func (s *QueryService) Overview(ctx context.Context, userID domain.ID) (_ OverviewView, err error) {
 	ctx, end := platform.TraceMethod(ctx, "metrics.QueryService.Overview")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	now := s.clock.Now()
 	var out OverviewView
 	err = s.tx.InTx(ctx, func(sc SnapshotScope) error {
@@ -217,6 +218,7 @@ func (s *QueryService) Overview(ctx context.Context, userID domain.ID) (_ Overvi
 func (s *QueryService) Tags(ctx context.Context, userID domain.ID, cursor string, limit int) (_ platform.PageResult[TagMasteryView], err error) {
 	ctx, end := platform.TraceMethod(ctx, "metrics.QueryService.Tags")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	var after domain.ID
 	if cursor != "" {
 		b, err := base64.RawURLEncoding.DecodeString(cursor)
@@ -319,6 +321,7 @@ func (s *QueryService) tagViews(ctx context.Context, sc SnapshotScope, userID do
 func (s *QueryService) TagHistory(ctx context.Context, userID domain.ID, ref, from, to string) (_ TagHistoryView, err error) {
 	ctx, end := platform.TraceMethod(ctx, "metrics.QueryService.TagHistory")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	var fields []platform.FieldError
 	for _, b := range []struct{ name, v string }{{"from", from}, {"to", to}} {
 		if b.v == "" {
@@ -383,6 +386,7 @@ func (s *QueryService) TagHistory(ctx context.Context, userID domain.ID, ref, fr
 func (s *QueryService) WeakProblems(ctx context.Context, userID domain.ID, limit int) (_ []WeakProblemView, err error) {
 	ctx, end := platform.TraceMethod(ctx, "metrics.QueryService.WeakProblems")
 	defer end(&err)
+	ctx = platform.ReadOnlyTx(ctx)
 	if limit <= 0 {
 		limit = DefaultWeakProblems
 	}

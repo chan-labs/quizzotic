@@ -124,3 +124,59 @@ func TestProblemVersionsAreImmutable(t *testing.T) {
 		t.Fatal("delete of a version succeeded")
 	}
 }
+
+// A read-only transaction takes no write lock: it completes while another
+// transaction holds it, where WithTx would wait out busy_timeout.
+func TestWithReadTxDoesNotWaitForWriter(t *testing.T) {
+	s := open(t)
+	locked, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		done <- s.WithTx(t.Context(), func(tx store.Store) error {
+			if _, err := tx.(*Store).q.ExecContext(t.Context(), `INSERT INTO t VALUES (1)`); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+	<-locked
+	start := time.Now()
+	var n int
+	err := s.WithReadTx(t.Context(), func(tx store.Store) error {
+		return tx.(*Store).q.QueryRowContext(t.Context(), `SELECT count(*) FROM t`).Scan(&n)
+	})
+	took := time.Since(start)
+	close(release)
+	if werr := <-done; werr != nil {
+		t.Fatal(werr)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("read saw %d rows, want 0 (the writer had not committed)", n)
+	}
+	if took > 100*time.Millisecond {
+		t.Errorf("read took %v with a writer open, want < 100ms", took)
+	}
+}
+
+// query_only is scoped to the read transaction: the pooled connection is
+// writable again afterwards.
+func TestWithReadTxLeavesConnectionWritable(t *testing.T) {
+	s := open(t)
+	s.DB().SetMaxOpenConns(1) // every call reuses the one connection
+	if err := s.WithReadTx(t.Context(), func(store.Store) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.WithTx(t.Context(), func(tx store.Store) error {
+		_, err := tx.(*Store).q.ExecContext(t.Context(), `INSERT INTO t VALUES (1)`)
+		return err
+	}); err != nil {
+		t.Fatalf("write after a read tx: %v", err)
+	}
+	if n := count(t, s); n != 1 {
+		t.Fatalf("count = %d, want 1", n)
+	}
+}

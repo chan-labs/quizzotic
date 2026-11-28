@@ -147,12 +147,21 @@ func (s *Store) DB() *sql.DB { return s.db }
 
 // WithTx implements store.Store.
 func (s *Store) WithTx(ctx context.Context, fn func(tx store.Store) error) error {
+	return s.runTx(ctx, false, fn)
+}
+
+// WithReadTx implements store.Store: BEGIN READ ONLY.
+func (s *Store) WithReadTx(ctx context.Context, fn func(tx store.Store) error) error {
+	return s.runTx(ctx, true, fn)
+}
+
+func (s *Store) runTx(ctx context.Context, readOnly bool, fn func(tx store.Store) error) error {
 	if s.tx != nil {
 		return fn(s)
 	}
 	base := platform.NewTracedExecer(s.db, dbSystem)
 	txCtx, span := base.TraceTx(ctx)
-	tx, err := s.db.BeginTx(txCtx, nil)
+	tx, err := s.db.BeginTx(txCtx, &sql.TxOptions{ReadOnly: readOnly})
 	if err != nil {
 		platform.EndSpan(span, err)
 		return err

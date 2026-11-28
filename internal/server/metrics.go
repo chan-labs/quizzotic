@@ -23,8 +23,16 @@ type meteredStore struct {
 }
 
 func (s *meteredStore) WithTx(ctx context.Context, fn func(tx store.Store) error) error {
+	return s.count(ctx, s.Store.WithTx, fn)
+}
+
+func (s *meteredStore) WithReadTx(ctx context.Context, fn func(tx store.Store) error) error {
+	return s.count(ctx, s.Store.WithReadTx, fn)
+}
+
+func (s *meteredStore) count(ctx context.Context, with func(context.Context, func(store.Store) error) error, fn func(tx store.Store) error) error {
 	var fnErr error
-	err := s.Store.WithTx(ctx, func(tx store.Store) error {
+	err := with(ctx, func(tx store.Store) error {
 		fnErr = fn(tx)
 		return fnErr
 	})
