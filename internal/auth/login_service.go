@@ -26,8 +26,9 @@ import (
 const (
 	DefaultSessionTTL = 30 * 24 * time.Hour
 	DefaultStateTTL   = 10 * time.Minute
-	// touchInterval throttles sliding-expiry writes: a session is extended at
-	// most once per interval, not on every request.
+	// touchInterval throttles last-seen writes: a web session is extended,
+	// and an identity's last_seen_at advanced, at most once per interval, not
+	// on every request.
 	touchInterval = time.Minute
 )
 

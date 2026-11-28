@@ -23,7 +23,8 @@ mise run fmt          # gofmt + goimports, in place
 mise run golden       # regenerate CLI help and MCP tool-list goldens
 mise run test-postgres  # Postgres store suite in a throwaway postgres:17 container (needs docker)
 mise run build-all    # cross-compile for linux, darwin, windows (CGO_ENABLED=0)
-mise run ci           # everything CI runs: lint, test, test-postgres, build-all, release-check
+mise run vulncheck    # govulncheck ./... (reachable known vulnerabilities; CI also runs it weekly)
+mise run ci           # everything CI runs: lint, test, test-postgres, build-all, release-check, vulncheck
 mise run test ::: lint  # several tasks in one go
 ```
 
