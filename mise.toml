@@ -6,9 +6,14 @@ go = "1.26.11"
 uv = "0.9"  # Python scripts (tools/fsrs-vectors)
 node = "22" # Redocly (openapi-lint)
 golangci-lint = "2.15.0" # lint + format (replaces go vet, staticcheck and gofmt)
+gh = "2.104.0" # GitHub CLI for agents: `mise exec -- gh` works in every checkout and worktree
 goreleaser = "2.12.0" # prebuilt binary; keep in step with goreleaser-action `version:` in release.yml
 actionlint = "1.7.12" # lints .github/workflows (and their shell steps via shellcheck when present)
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0" # known-vulnerability check (not in go.mod)
+
+[tasks.doctor]
+description = "Check this machine (tools, gh auth, docker, git identity/signing, push access); changes nothing"
+run = "dev/doctor.sh"
 
 [tasks.build]
 description = "Build bin/quizzotic (version from git describe, or VERSION)"
