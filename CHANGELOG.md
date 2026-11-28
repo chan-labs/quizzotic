@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The server now deletes expired web sessions and abandoned login states in an hourly background sweep, instead of keeping them forever. `auth.WebSessionRepo` gains `PurgeExpired`, and `auth.LoginStateRepo.PurgeExpired` now returns the number removed.
 - The HTTP server now bounds whole-request reads (30s), idle keep-alive connections (120s) and request headers (64 KiB, larger gets 431). The CLI's loopback login server has the same limits.
 
+### Added
+
+- `tools/devissuer`, a stdlib-only fake OIDC issuer for local development. `mise run dev` uses it when Docker is not available (or with `QUIZZOTIC_DEV_ISSUER=go`), so the dev stack runs with only Go installed.
+
 ## [0.3.1] - 2026-11-07
 
 No changes since 0.3.0: `v0.3.1` tags the same commit as `v0.3.0`.
