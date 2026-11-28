@@ -4,6 +4,11 @@ version: "2"
 
 run:
   timeout: 5m
+  # Agents lint several git worktrees at once. Without this, every run after the
+  # first blocks on golangci-lint's machine-wide lock and then fails with
+  # "parallel golangci-lint is running". Each worktree lints its own files; the
+  # shared analysis cache is safe for concurrent use.
+  allow-parallel-runners: true
 
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
