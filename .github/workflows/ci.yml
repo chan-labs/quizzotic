@@ -23,7 +23,7 @@ jobs:
     if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: jdx/mise-action@v5.3.0
         with:
           cache: true
           install_args: go golangci-lint
@@ -46,7 +46,7 @@ jobs:
     if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: jdx/mise-action@v5.3.0
         with:
           cache: true
           install_args: node
@@ -59,7 +59,7 @@ jobs:
     if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: jdx/mise-action@v5.3.0
         with:
           cache: true
           install_args: go
@@ -105,7 +105,7 @@ jobs:
       QUIZZOTIC_REQUIRE_POSTGRES: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: jdx/mise-action@v5.3.0
         with:
           cache: true
           install_args: go
@@ -137,7 +137,7 @@ jobs:
             goos: windows
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: jdx/mise-action@v5.3.0
         with:
           cache: true
           install_args: go
@@ -164,7 +164,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Prebuilt goreleaser from mise.toml: no Go toolchain or module downloads.
-      - uses: jdx/mise-action@v5.2.5
+      - uses: jdx/mise-action@v5.3.0
         with:
           cache: true
           install_args: goreleaser
@@ -176,7 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: jdx/mise-action@v5.3.0
         with:
           cache: true
           install_args: go go:golang.org/x/vuln/cmd/govulncheck
