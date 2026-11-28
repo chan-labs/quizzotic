@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -13,7 +12,7 @@ import (
 // most once a minute, while profile claim changes still apply at once.
 func TestRunBearerRequestsThrottleLastSeen(t *testing.T) {
 	e := newRunEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	issuer := e.idp.srv.URL
 
 	get := func(tok string) {
