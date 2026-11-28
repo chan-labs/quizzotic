@@ -57,6 +57,7 @@ auth:
 `
 
 func TestParse_File(t *testing.T) {
+	t.Parallel()
 	cfg, err := Parse([]byte(validYAML), []string{})
 	if err != nil {
 		t.Fatal(err)
@@ -80,6 +81,7 @@ func TestParse_File(t *testing.T) {
 }
 
 func TestParse_Defaults(t *testing.T) {
+	t.Parallel()
 	cfg, err := Parse([]byte(minimalYAML), []string{})
 	if err != nil {
 		t.Fatal(err)
@@ -104,11 +106,13 @@ func TestParse_Defaults(t *testing.T) {
 }
 
 func TestParse_EmptyFileReportsRequiredKeys(t *testing.T) {
+	t.Parallel()
 	_, err := Parse(nil, []string{})
 	assertProblems(t, err, "auth.issuers: exactly one")
 }
 
 func TestValidateForServe(t *testing.T) {
+	t.Parallel()
 	// Load alone accepts a config that lacks serve-only keys.
 	cfg, err := Parse([]byte("auth:\n  issuers:\n    - {}\n"), []string{})
 	if err != nil {
@@ -135,6 +139,7 @@ func TestValidateForServe(t *testing.T) {
 }
 
 func TestParse_UnmatchedEnvIgnored(t *testing.T) {
+	t.Parallel()
 	env := []string{"QUIZZOTIC_TOKEN=abc", "QUIZZOTIC_CONFIG=/x.yaml", "QUIZZOTIC_SERVER_LISTN=:1", "QUIZZOTIC_NOPE=1"}
 	cfg, err := Parse([]byte(minimalYAML), env)
 	if err != nil {
@@ -146,6 +151,7 @@ func TestParse_UnmatchedEnvIgnored(t *testing.T) {
 }
 
 func TestParse_EnvOverrides(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		env   []string
@@ -228,6 +234,7 @@ func TestParse_EnvOverrides(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg, err := Parse([]byte(minimalYAML), tt.env)
 			if err != nil {
 				t.Fatal(err)
@@ -238,6 +245,7 @@ func TestParse_EnvOverrides(t *testing.T) {
 }
 
 func TestParse_EnvCanBuildListFromNothing(t *testing.T) {
+	t.Parallel()
 	env := []string{
 		"QUIZZOTIC_SERVER_PUBLIC_URL=https://quizzotic.example.com",
 		"QUIZZOTIC_AUTH_ISSUERS_0_NAME=idp",
@@ -255,6 +263,7 @@ func TestParse_EnvCanBuildListFromNothing(t *testing.T) {
 }
 
 func TestParse_EnvErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		env  []string
@@ -269,6 +278,7 @@ func TestParse_EnvErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := Parse([]byte(minimalYAML), tt.env)
 			assertProblems(t, err, tt.want...)
 		})
@@ -276,6 +286,7 @@ func TestParse_EnvErrors(t *testing.T) {
 }
 
 func TestParse_UnknownKeys(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		yaml string
@@ -287,6 +298,7 @@ func TestParse_UnknownKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := Parse([]byte(tt.yaml), []string{})
 			assertProblems(t, err, tt.want)
 		})
@@ -294,6 +306,7 @@ func TestParse_UnknownKeys(t *testing.T) {
 }
 
 func TestParse_InvalidValues(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		patch string // appended after minimalYAML-compatible base
@@ -316,6 +329,7 @@ func TestParse_InvalidValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// The patch comes first; duplicate top-level keys are avoided by
 			// using a base that only contains what the patch does not.
 			base := "auth:\n  issuers:\n    - {name: idp, issuer: \"https://auth.example.com\", audience: q, scopes: [openid]}\n"
@@ -329,6 +343,7 @@ func TestParse_InvalidValues(t *testing.T) {
 }
 
 func TestParse_IssuerAndClientValidation(t *testing.T) {
+	t.Parallel()
 	base := "server:\n  public_url: \"https://quizzotic.example.com\"\n"
 	tests := []struct {
 		name string
@@ -345,6 +360,7 @@ func TestParse_IssuerAndClientValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := Parse([]byte(base+tt.auth), []string{})
 			assertProblems(t, err, tt.want...)
 		})
@@ -352,6 +368,7 @@ func TestParse_IssuerAndClientValidation(t *testing.T) {
 }
 
 func TestParse_ReportsEveryErrorAtOnce(t *testing.T) {
+	t.Parallel()
 	y := `
 bogus: true
 server:
@@ -379,6 +396,7 @@ logging:
 }
 
 func TestParseStorageURL(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		raw     string
 		driver  Driver
@@ -406,6 +424,7 @@ func TestParseStorageURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.raw, func(t *testing.T) {
+			t.Parallel()
 			d, target, err := ParseStorageURL(tt.raw)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
@@ -424,6 +443,7 @@ func TestParseStorageURL(t *testing.T) {
 }
 
 func TestParseStorageURL_ErrorsDoNotLeakSecrets(t *testing.T) {
+	t.Parallel()
 	for _, raw := range []string{"user:hunter2@db.example.com/q", "hunter2", "mysql://user:hunter2@db.example.com/q", "postgres://user:hunter2@/q", "postgresql://user:hunter2@/q"} {
 		_, _, err := ParseStorageURL(raw)
 		if err == nil {
@@ -436,6 +456,7 @@ func TestParseStorageURL_ErrorsDoNotLeakSecrets(t *testing.T) {
 }
 
 func TestStorageDriver(t *testing.T) {
+	t.Parallel()
 	for _, u := range []string{"postgres://db.example.com/q", "postgresql://db.example.com/q"} {
 		cfg, err := Parse([]byte(minimalYAML), []string{"QUIZZOTIC_STORAGE_URL=" + u})
 		if err != nil {
@@ -448,6 +469,7 @@ func TestStorageDriver(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "quizzotic.yaml")
 	if err := os.WriteFile(path, []byte(validYAML), 0o600); err != nil {
@@ -468,6 +490,7 @@ func TestLoad(t *testing.T) {
 }
 
 func TestObservability_MetricsOffByDefault(t *testing.T) {
+	t.Parallel()
 	cfg, err := Parse([]byte(minimalYAML), []string{})
 	if err != nil {
 		t.Fatal(err)
@@ -478,6 +501,7 @@ func TestObservability_MetricsOffByDefault(t *testing.T) {
 }
 
 func TestObservability_MetricsEnabledFromYAMLAndEnv(t *testing.T) {
+	t.Parallel()
 	cfg, err := Parse([]byte(minimalYAML+"observability:\n  metrics_enabled: true\n"), []string{})
 	if err != nil || !cfg.Observability.MetricsEnabled {
 		t.Fatalf("yaml: %v", err)
@@ -530,6 +554,7 @@ func assertProblems(t *testing.T, err error, want ...string) {
 }
 
 func TestAudienceForms(t *testing.T) {
+	t.Parallel()
 	issuer := func(aud string) []byte {
 		return []byte("auth:\n  issuers:\n    - {name: a, issuer: \"https://a.example.com\", audience: " + aud + ", scopes: [openid]}\n")
 	}
@@ -566,6 +591,7 @@ func TestAudienceForms(t *testing.T) {
 		"none":      {`[]`, "audience: required"},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			cfg, err := Parse(issuer(tc.aud), []string{})
 			if err == nil {
 				err = cfg.ValidateForServe()

@@ -10,6 +10,7 @@ import (
 func ratingPtr(i int) *int { return &i }
 
 func TestOpenScore(t *testing.T) {
+	t.Parallel()
 	want := map[int]float64{1: 0, 2: 0.33, 3: 0.67, 4: 1}
 	for r, w := range want {
 		got, err := OpenScore(r)
@@ -25,8 +26,10 @@ func TestOpenScore(t *testing.T) {
 }
 
 func TestResolveRatingAutoGraded(t *testing.T) {
+	t.Parallel()
 	for _, typ := range []string{"mcq", "cloze"} {
 		t.Run(typ, func(t *testing.T) {
+			t.Parallel()
 			// Wrong forces Again, even over a chosen rating.
 			for _, c := range []*int{nil, ratingPtr(4), ratingPtr(3)} {
 				if got, err := ResolveRating(typ, false, c); err != nil || got != RatingAgain {
@@ -54,6 +57,7 @@ func TestResolveRatingAutoGraded(t *testing.T) {
 }
 
 func TestResolveRatingOpen(t *testing.T) {
+	t.Parallel()
 	// correct is ignored: no auto-grade.
 	for _, correct := range []bool{true, false} {
 		if _, err := ResolveRating("open", correct, nil); !errors.Is(err, ErrRatingRequired) {
@@ -73,6 +77,7 @@ func TestResolveRatingOpen(t *testing.T) {
 }
 
 func TestResolveRatingUnknownType(t *testing.T) {
+	t.Parallel()
 	if _, err := ResolveRating("essay", true, nil); !errors.Is(err, ErrUnknownProblemType) {
 		t.Errorf("err = %v", err)
 	}
