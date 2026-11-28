@@ -250,7 +250,9 @@ func (r problemRepo) List(ctx context.Context, ownerID domain.ID, f problems.Lis
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 func (r problemRepo) ListCurrent(ctx context.Context, ownerID domain.ID, f problems.ListFilter) ([]problems.Current, error) {
-	// LIKE is case-insensitive for ASCII in SQLite, which is the contract.
+	// Query matches case-insensitively with Unicode folding: both sides go
+	// through strings.ToLower (unicode_lower, registered in sqlite.go), as
+	// lower() does on Postgres. SQLite's own LIKE folds ASCII only.
 	q := `SELECT ` + prefixed("p.", problemCols) + `, ` + prefixed("v.", versionCols) + `
 		FROM problems p JOIN problem_versions v ON v.problem_id = p.id AND v.version = p.current_version
 		WHERE p.owner_id = ?`
@@ -275,8 +277,8 @@ func (r problemRepo) ListCurrent(ctx context.Context, ownerID domain.ID, f probl
 		args = append(args, f.TagID.String())
 	}
 	if f.Query != "" {
-		q += ` AND v.prompt LIKE ? ESCAPE '\'`
-		args = append(args, "%"+likeEscaper.Replace(f.Query)+"%")
+		q += ` AND unicode_lower(v.prompt) LIKE ? ESCAPE '\'`
+		args = append(args, "%"+likeEscaper.Replace(strings.ToLower(f.Query))+"%")
 	}
 	if !f.After.IsNil() {
 		q += ` AND p.id > ?`
