@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Bearer-authenticated requests no longer write on every call: an identity's `last_seen_at` advances at most once a minute (like web sessions), while display name and email changes in the token still apply immediately.
 - The server now deletes expired web sessions and abandoned login states in an hourly background sweep, instead of keeping them forever. `auth.WebSessionRepo` gains `PurgeExpired`, and `auth.LoginStateRepo.PurgeExpired` now returns the number removed.
 - The HTTP server now bounds whole-request reads (30s), idle keep-alive connections (120s) and request headers (64 KiB, larger gets 431). The CLI's loopback login server has the same limits.
 
