@@ -96,7 +96,7 @@ func TestTagOpsPagesNeedLoginAndCSRF(t *testing.T) {
 			t.Errorf("%s without CSRF = %d, want 403", verb, rec.Code)
 		}
 	}
-	if d, _ := e.tags.GetOperation(context.Background(), e.owner, op.Operation.ID); d.Operation.Status != tags.OpProposed {
+	if d, _ := e.tags.GetOperation(t.Context(), e.owner, op.Operation.ID); d.Operation.Status != tags.OpProposed {
 		t.Errorf("operation status %s after forged requests", d.Operation.Status)
 	}
 }
@@ -126,7 +126,7 @@ func TestTagRenameProposeThenApply(t *testing.T) {
 		t.Fatalf("rename = %d\n%s", rec.Code, rec.Body)
 	}
 	id := e.proposedID(rec.Header().Get("Location"))
-	if got, _ := e.tags.Get(context.Background(), e.owner, a.ID.String()); got.Slug != a.Slug {
+	if got, _ := e.tags.Get(t.Context(), e.owner, a.ID.String()); got.Slug != a.Slug {
 		t.Fatal("proposing renamed the tag")
 	}
 
@@ -231,7 +231,7 @@ func TestTagOpReject(t *testing.T) {
 	if rec := e.do("POST", "/tag-operations/"+id+"/reject", url.Values{}, true); rec.Code != http.StatusSeeOther {
 		t.Fatalf("reject = %d", rec.Code)
 	}
-	got, _ := e.tags.GetOperation(context.Background(), e.owner, op.Operation.ID)
+	got, _ := e.tags.GetOperation(t.Context(), e.owner, op.Operation.ID)
 	if got.Operation.Status != tags.OpRejected {
 		t.Errorf("status = %s", got.Operation.Status)
 	}
@@ -250,7 +250,7 @@ func TestTagOpRevertConflictShownGracefully(t *testing.T) {
 	e := newProbEnv(t)
 	a := e.tag("Alpha")
 	e.problem("one", a.Slug)
-	ctx := context.Background()
+	ctx := t.Context()
 	ok := domain.Actor{Kind: domain.ActorHuman, UserID: e.owner, ClientID: "web-session"}
 	apply := func(name string) tags.OpDetail {
 		raw, _ := json.Marshal(tags.RenameInput{Tag: a.ID.String(), Name: ptr(name)})
@@ -273,7 +273,7 @@ func TestTagOpRevertConflictShownGracefully(t *testing.T) {
 
 func TestSplitWizard(t *testing.T) {
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	src, other := e.tag("Networking"), e.tag("Security")
 	p1 := e.problem("What is TCP?", src.Slug)
 	p2 := e.problem("What is TLS?", src.Slug)

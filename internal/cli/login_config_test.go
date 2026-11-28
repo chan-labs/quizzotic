@@ -56,7 +56,7 @@ func newIDP(t *testing.T) *fakeIDP {
 func login(t *testing.T, dir string, env map[string]string, args ...string) (int, string) {
 	t.Helper()
 	var o, e bytes.Buffer
-	code := cli.Login(context.Background(), append([]string{"--device"}, args...), cli.Env{
+	code := cli.Login(t.Context(), append([]string{"--device"}, args...), cli.Env{
 		Stdout: &o, Stderr: &e,
 		Getenv: func(k string) string {
 			if k == "XDG_CONFIG_HOME" {

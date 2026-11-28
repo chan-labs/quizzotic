@@ -19,6 +19,7 @@ func init() {
 		return ownerscope.Resource{
 			Name: name,
 			Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+				t.Helper()
 				prompt := "Lifecycle secret prompt " + domain.NewIDGenerator(domain.SystemClock{}).New().String()
 				body := openBody(prompt)
 				body["status"] = status
@@ -38,6 +39,7 @@ func init() {
 			},
 			Ops: []ownerscope.Op{{Pattern: pattern, WantOwner: want}},
 			Intact: func(t testing.TB, c *ownerscope.Client, created ownerscope.Created) {
+				t.Helper()
 				r := c.Do("GET", "/problems/"+created.Params["id"], nil)
 				var v problems.View
 				if err := json.Unmarshal(r.Body, &v); err != nil || r.Code != http.StatusOK || string(v.Status) != status {

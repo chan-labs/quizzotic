@@ -59,7 +59,7 @@ var benchNow = time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 // with a card, and returns the store and the user.
 func seedReview(tb testing.TB, n, answered int) (*Store, domain.ID) {
 	tb.Helper()
-	ctx := context.Background()
+	ctx := tb.Context()
 	s, err := Open(ctx, filepath.Join(tb.TempDir(), "bench.db"))
 	if err != nil {
 		tb.Fatal(err)
@@ -126,7 +126,7 @@ func TestLiveEpochsIsOneQuery(t *testing.T) {
 	for _, n := range []int{1, 50} {
 		s, user := seedReview(t, n, 0)
 		cs, c := counted(s)
-		got, err := cs.Problems().LiveEpochs(context.Background(), user)
+		got, err := cs.Problems().LiveEpochs(t.Context(), user)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -148,7 +148,7 @@ func TestBuildQueriesAreConstant(t *testing.T) {
 		s, user := seedReview(t, n, answered)
 		cs, c := counted(s)
 		m := store.NewMastery(store.DefaultCards(), fixedClock{benchNow})
-		if _, err := m.Builder(cs).Build(context.Background(), user, domain.Nil, benchNow); err != nil {
+		if _, err := m.Builder(cs).Build(t.Context(), user, domain.Nil, benchNow); err != nil {
 			t.Fatal(err)
 		}
 		return c.n.Load()
@@ -170,7 +170,7 @@ func (c fixedClock) Now() time.Time { return c.t }
 // cards (all due), 1000 new candidates and 100 cards answered today.
 func BenchmarkReview2000(b *testing.B) {
 	s, user := seedReview(b, 2000, 100)
-	ctx := context.Background()
+	ctx := b.Context()
 	builder := store.DefaultCards().Builder(s)
 	now := benchNow
 	b.Run("AppendDue", func(b *testing.B) {

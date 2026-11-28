@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -31,7 +30,7 @@ func todayInt(t *testing.T, body, id string) int {
 // problems and the day's budgets, and its Start review form opens a session.
 func TestRunTodayPageCountsTaggedCardsAndStartsReview(t *testing.T) {
 	e := newRunEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	web := e.itEnv.webSession(t)
 	uid, _ := e.userFor(t, "web-sub")
 	owner, err := domain.ParseID(uid)

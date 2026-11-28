@@ -27,7 +27,7 @@ type fixture struct {
 
 func newFixture(t *testing.T, opts ...problems.Option) fixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -61,14 +61,14 @@ func mcqInput(shuffle bool) problems.CreateInput {
 
 func TestCreateStoresFirstMajorVersionWithCompactPayload(t *testing.T) {
 	f := newFixture(t)
-	v, err := f.svc.Create(context.Background(), f.actor, mcqInput(false))
+	v, err := f.svc.Create(t.Context(), f.actor, mcqInput(false))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v.Status != problems.StatusDraft || v.Version != 1 || !v.CreatedAt.Equal(f.clock.Now()) {
 		t.Errorf("view = %+v", v)
 	}
-	sv, err := f.st.Problems().GetVersion(context.Background(), f.actor.UserID, v.ID, 1)
+	sv, err := f.st.Problems().GetVersion(t.Context(), f.actor.UserID, v.ID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestCreateStoresFirstMajorVersionWithCompactPayload(t *testing.T) {
 
 func TestCreateRejectsInvalidAndSystemActors(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := f.svc.Create(ctx, domain.Actor{Kind: domain.ActorSystem}, mcqInput(false)); err == nil {
 		t.Error("system actor accepted")
 	}
@@ -106,7 +106,7 @@ func TestPromptViewShufflesWithInjectedShuffle(t *testing.T) {
 		}
 	}
 	f := newFixture(t, problems.WithShuffle(reverse))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	shuffled, err := f.svc.Create(ctx, f.actor, mcqInput(true))
 	if err != nil {
@@ -129,7 +129,7 @@ func TestPromptViewShufflesWithInjectedShuffle(t *testing.T) {
 
 func TestListCursor(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	for range 3 {
 		if _, err := f.svc.Create(ctx, f.actor, mcqInput(false)); err != nil {
 			t.Fatal(err)
@@ -160,7 +160,7 @@ func (r *recordedMajor) ProblemMajorEdit(_ context.Context, e problems.MajorEdit
 func TestEditMinorKeepsCardMajorSignalsNewEpoch(t *testing.T) {
 	rec := &recordedMajor{}
 	f := newFixture(t, problems.WithMajorEditHandler(rec))
-	ctx := context.Background()
+	ctx := t.Context()
 	v, err := f.svc.Create(ctx, f.actor, mcqInput(false))
 	if err != nil {
 		t.Fatal(err)
@@ -200,7 +200,7 @@ func TestEditMinorKeepsCardMajorSignalsNewEpoch(t *testing.T) {
 
 func TestEditRejectsStaleETagAndFailingHandlerRollsBack(t *testing.T) {
 	f := newFixture(t, problems.WithMajorEditHandler(failingMajor{}))
-	ctx := context.Background()
+	ctx := t.Context()
 	v, err := f.svc.Create(ctx, f.actor, mcqInput(false))
 	if err != nil {
 		t.Fatal(err)

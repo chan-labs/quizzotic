@@ -3,7 +3,6 @@
 package platform
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 
@@ -45,7 +44,7 @@ func TestTracedExecer(t *testing.T) {
 	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { db.Close() })
 	q := NewTracedExecer(db, "sqlite")
-	ctx, root := StartSpan(context.Background(), "root")
+	ctx, root := StartSpan(t.Context(), "root")
 
 	if _, err := q.ExecContext(ctx, `CREATE TABLE t (n INTEGER)`); err != nil {
 		t.Fatal(err)

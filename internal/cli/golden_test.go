@@ -4,7 +4,6 @@ package cli_test
 
 import (
 	"bytes"
-	"context"
 	"flag"
 	"os"
 	"path/filepath"
@@ -47,7 +46,7 @@ func TestGoldenHelp(t *testing.T) {
 	}
 	help := func(args ...string) string {
 		var out, errb bytes.Buffer
-		code := cli.Run(context.Background(), args, cli.Env{
+		code := cli.Run(t.Context(), args, cli.Env{
 			Stdout: &out, Stderr: &errb, Ops: ops,
 			Getenv: func(string) string { return "" },
 		})

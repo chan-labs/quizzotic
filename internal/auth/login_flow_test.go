@@ -3,7 +3,6 @@
 package auth_test
 
 import (
-	"context"
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -172,7 +171,7 @@ type app struct {
 
 func newApp(t *testing.T, dbPath string, idp *loginIDP, clock *domain.FakeClock) *app {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, dbPath)
 	if err != nil {
 		t.Fatal(err)
@@ -187,7 +186,7 @@ func newApp(t *testing.T, dbPath string, idp *loginIDP, clock *domain.FakeClock)
 		ClientID: testClientID, ClientSecret: testClientSecret,
 		Scopes: []string{"openid", "profile", "email"}, PublicURL: "https://quizzotic.example.com/",
 	}, st, prov, ver, auth.NewService(store.AuthTx(st), clock, ids), clock, ids, nil)
-	h := auth.NewLoginHandler(svc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := auth.NewLoginHandler(svc, slog.New(slog.DiscardHandler))
 
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -364,7 +363,7 @@ func TestLoginSessionSurvivesRestartThenLogout(t *testing.T) {
 	userID, csrf, _ := strings.Cut(who, " ")
 
 	// JIT provisioning copied the claims.
-	u, err := a.st.Users().Get(context.Background(), mustID(t, userID))
+	u, err := a.st.Users().Get(t.Context(), mustID(t, userID))
 	if err != nil || u.DisplayName != "Ada Lovelace" || u.Email != "ada@example.com" {
 		t.Fatalf("user = %+v err=%v", u, err)
 	}

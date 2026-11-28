@@ -4,7 +4,6 @@ package admin
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,7 +19,7 @@ func TestExportAndImportCommands(t *testing.T) {
 	if code, _, errs := run(t, "migrate", "--storage-url", srcURL); code != 0 {
 		t.Fatalf("migrate: %s", errs)
 	}
-	st, err := driver.Open(context.Background(), srcURL)
+	st, err := driver.Open(t.Context(), srcURL)
 	if err != nil {
 		t.Fatal(err)
 	}

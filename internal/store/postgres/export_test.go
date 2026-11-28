@@ -4,7 +4,6 @@ package postgres
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -19,7 +18,7 @@ import (
 // byte-identical JSON; the same document then goes back into a fresh SQLite
 // and exports identically a third time.
 func TestExportSQLiteToPostgresAndBack(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	src, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "src.db"))
 	if err != nil {
 		t.Fatal(err)

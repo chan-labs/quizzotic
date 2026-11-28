@@ -3,7 +3,6 @@
 package cli
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,7 +36,7 @@ func TestResolveIssuerRejectsHTTPAuthorizationServer(t *testing.T) {
 	}))
 	defer srv.Close()
 	env := Env{HTTP: srv.Client(), Getenv: func(string) string { return "" }}
-	_, err := resolveIssuer(context.Background(), env, "", srv.URL)
+	_, err := resolveIssuer(t.Context(), env, "", srv.URL)
 	if err == nil || !strings.Contains(err.Error(), "https") {
 		t.Fatalf("want https error, got %v", err)
 	}
@@ -45,7 +44,7 @@ func TestResolveIssuerRejectsHTTPAuthorizationServer(t *testing.T) {
 
 func TestResolveIssuerRejectsHTTPNonLoopbackServer(t *testing.T) {
 	env := Env{HTTP: http.DefaultClient, Getenv: func(string) string { return "" }}
-	if _, err := resolveIssuer(context.Background(), env, "", "http://quiz.example.com"); err == nil {
+	if _, err := resolveIssuer(t.Context(), env, "", "http://quiz.example.com"); err == nil {
 		t.Fatal("http non-loopback server must be rejected")
 	}
 }
@@ -56,7 +55,7 @@ func TestResolveIssuerAllowsLoopback(t *testing.T) {
 	}))
 	defer srv.Close()
 	env := Env{HTTP: srv.Client(), Getenv: func(string) string { return "" }}
-	iss, err := resolveIssuer(context.Background(), env, "", srv.URL)
+	iss, err := resolveIssuer(t.Context(), env, "", srv.URL)
 	if err != nil || iss != "http://127.0.0.1:5556" {
 		t.Fatalf("got %q, %v", iss, err)
 	}
@@ -69,15 +68,15 @@ func TestDiscoverRejectsHTTPEndpoints(t *testing.T) {
 	}))
 	defer srv.Close()
 	body = `{"issuer":"ISS","token_endpoint":"http://idp.example.com/token"}`
-	if _, err := discover(context.Background(), srv.Client(), srv.URL); err == nil {
+	if _, err := discover(t.Context(), srv.Client(), srv.URL); err == nil {
 		t.Fatal("http token_endpoint on non-loopback host must be rejected")
 	}
 	body = `{"issuer":"ISS","token_endpoint":"ISS/token","device_authorization_endpoint":"http://idp.example.com/d"}`
-	if _, err := discover(context.Background(), srv.Client(), srv.URL); err == nil {
+	if _, err := discover(t.Context(), srv.Client(), srv.URL); err == nil {
 		t.Fatal("http device endpoint on non-loopback host must be rejected")
 	}
 	body = `{"issuer":"ISS","token_endpoint":"ISS/token"}`
-	if _, err := discover(context.Background(), srv.Client(), srv.URL); err != nil {
+	if _, err := discover(t.Context(), srv.Client(), srv.URL); err != nil {
 		t.Fatalf("loopback http should pass: %v", err)
 	}
 }

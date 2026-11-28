@@ -11,21 +11,39 @@ linters:
     - bodyclose
     - copyloopvar
     - errorlint
+    - exhaustive
     - gocritic
     - gosec
     - intrange
     - misspell
+    - nilnil
     - noctx
     - nolintlint
     - perfsprint
     - revive
     - rowserrcheck
+    - sloglint
     - sqlclosecheck
+    - thelper
     - unconvert
     - unparam
     - usestdlibvars
+    - usetesting
     - wastedassign
   settings:
+    exhaustive:
+      # A `default:` branch is a deliberate catch-all, not a missed case.
+      default-signifies-exhaustive: true
+      # Foreign enums with many members we never switch on exhaustively.
+      ignore-types: "^(gopkg\\.in/yaml\\.v3\\.Kind|reflect\\.Kind)$"
+    thelper:
+      # Helpers taking testing.TB name it t like every other test in the repo.
+      tb:
+        name: false
+    usetesting:
+      # Tests use t.Context() (Go 1.24) so their work is cancelled when they end.
+      context-background: true
+      context-todo: true
     gosec:
       excludes:
         # G104 (unchecked errors) duplicates errcheck, whose deliberate
@@ -99,6 +117,12 @@ linters:
       # ~125 call sites would be churn with no gain.
       - path: _test\.go
         linters: [noctx, bodyclose]
+      # The conformance suite bodies (run*/Run* taking t and a store factory)
+      # are tests, not helpers: t.Helper() there would report every failed
+      # assertion at the caller's t.Run line.
+      - path: internal/store/storetest/
+        linters: [thelper]
+        source: '^func (run|Run)\w*\(t \*testing\.T'
       # gosec in test code (and the storetest conformance suite), rule by rule:
       #  - G101/G124: fake cookies and credentials a test client sends.
       #  - G107/G710/G705/G703: fixture servers and fake IdPs echo or follow

@@ -3,7 +3,6 @@
 package sqlite
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -19,7 +18,7 @@ import (
 // live problem, returning the tag IDs.
 func seedTags(tb testing.TB, s *Store, user domain.ID, nTags int) []domain.ID {
 	tb.Helper()
-	ctx := context.Background()
+	ctx := tb.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	t0 := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	tagIDs := make([]domain.ID, nTags)
@@ -98,7 +97,7 @@ func TestTagCardsUsesTagIndex(t *testing.T) {
 		tagIDs := seedTags(t, s, user, 20)
 		check(t, s, user, tagIDs)
 		// Planner statistics must not change the choice either.
-		if err := s.Optimize(context.Background()); err != nil {
+		if err := s.Optimize(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.db.Exec(`ANALYZE`); err != nil {
@@ -114,7 +113,7 @@ func TestTagCardsUsesTagIndex(t *testing.T) {
 func BenchmarkAnswerMastery(b *testing.B) {
 	s, user := seedReview(b, 2000, 0)
 	seedTags(b, s, user, 20)
-	ctx := context.Background()
+	ctx := b.Context()
 	live, err := s.Problems().List(ctx, user, problems.ListFilter{Status: problems.StatusLive, Limit: 1})
 	if err != nil {
 		b.Fatal(err)

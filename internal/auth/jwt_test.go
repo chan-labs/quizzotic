@@ -122,7 +122,7 @@ func TestVerifyAlgorithms(t *testing.T) {
 	for alg, s := range signers {
 		t.Run(alg, func(t *testing.T) {
 			tok := s.token(t, map[string]any{"alg": alg, "kid": alg}, goodClaims())
-			c, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}, Nonce: "n-1"})
+			c, err := v.Verify(t.Context(), tok, VerifyOptions{Audiences: []string{jwtAud}, Nonce: "n-1"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -169,7 +169,7 @@ func TestVerifyClaimFailures(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := v.Verify(context.Background(), s.token(t, hdr, tc.claims), tc.opt)
+			_, err := v.Verify(t.Context(), s.token(t, hdr, tc.claims), tc.opt)
 			if tc.ok && err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -188,7 +188,7 @@ func TestVerifyRejectsAlgNone(t *testing.T) {
 		cb, _ := json.Marshal(goodClaims())
 		for _, sig := range []string{"", b64([]byte("x"))} {
 			tok := b64(hb) + "." + b64(cb) + "." + sig
-			if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
+			if _, err := v.Verify(t.Context(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
 				t.Fatalf("alg %q sig %q: err = %v", alg, sig, err)
 			}
 		}
@@ -207,7 +207,7 @@ func TestVerifyAlgPinnedToKeyType(t *testing.T) {
 		{"RS256", "RS256", "ES256"},
 	} {
 		tok := signers[tc.signer].token(t, map[string]any{"alg": tc.alg, "kid": tc.kid}, goodClaims())
-		if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
+		if _, err := v.Verify(t.Context(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
 			t.Fatalf("%+v: err = %v", tc, err)
 		}
 	}
@@ -218,7 +218,7 @@ func TestVerifyJWKAlgMustMatch(t *testing.T) {
 	keys["ES256"].Alg = "RS256" // JWKS advertises a different alg than the key type
 	v := newTestVerifier(keys)
 	tok := signers["ES256"].token(t, map[string]any{"alg": "ES256", "kid": "ES256"}, goodClaims())
-	if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
+	if _, err := v.Verify(t.Context(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -243,14 +243,14 @@ func TestVerifyBadInputs(t *testing.T) {
 		"no kid":      s.token(t, map[string]any{"alg": "RS256"}, goodClaims()),
 		"bad sig":     parts[0] + "." + parts[1] + ".AAAA",
 	} {
-		if _, err := v.Verify(context.Background(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
+		if _, err := v.Verify(t.Context(), tok, VerifyOptions{Audiences: []string{jwtAud}}); !errors.Is(err, ErrInvalidToken) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}
-	if _, err := v.Verify(context.Background(), good, VerifyOptions{Audiences: []string{}}); err == nil {
+	if _, err := v.Verify(t.Context(), good, VerifyOptions{Audiences: []string{}}); err == nil {
 		t.Error("empty audience option must be refused")
 	}
-	if _, err := v.Verify(context.Background(), good, VerifyOptions{Audiences: []string{jwtAud, ""}}); err == nil {
+	if _, err := v.Verify(t.Context(), good, VerifyOptions{Audiences: []string{jwtAud, ""}}); err == nil {
 		t.Error("an empty listed audience must be refused")
 	}
 }

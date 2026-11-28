@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -55,7 +54,7 @@ func seedProblem(t testing.TB, e *itEnv, ownerSub, prompt string) domain.ID {
 		CreatedBy: act, CreatedAt: now, UpdatedAt: now}
 	v := problems.Version{ProblemID: id, Version: 1, Type: problems.TypeOpen, Prompt: prompt,
 		Payload: json.RawMessage(`{"reference_answer":"a"}`), ChangeKind: problems.ChangeMajor, CreatedBy: act, CreatedAt: now}
-	if err := e.st.Problems().Create(context.Background(), owner, p, v); err != nil {
+	if err := e.st.Problems().Create(t.Context(), owner, p, v); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -63,6 +62,7 @@ func seedProblem(t testing.TB, e *itEnv, ownerSub, prompt string) domain.ID {
 
 func init() {
 	createTag := func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+		t.Helper()
 		slug := uniqueSlug("secret-topic")
 		r := c.Do("POST", "/tags", map[string]string{"slug": slug, "name": "Secret Topic Name"})
 		if r.Code != http.StatusCreated {
@@ -94,6 +94,7 @@ func init() {
 				}},
 		},
 		Intact: func(t testing.TB, c *ownerscope.Client, created ownerscope.Created) {
+			t.Helper()
 			r := c.Do("GET", "/tags/"+created.Params["tag"], nil)
 			var tg tagJSON
 			if err := json.Unmarshal(r.Body, &tg); err != nil || tg.Name != "Secret Topic Name" {
@@ -105,6 +106,7 @@ func init() {
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "problem tags",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			t.Helper()
 			tg := createTag(t, c)
 			slug := tg.Secrets[0]
 			pid := seedProblem(t, ownerScopeIT, "owner-a-sub", "Secret prompt text")
@@ -407,7 +409,7 @@ func TestSetProblemTagsRules(t *testing.T) {
 	// A soft-deleted problem drops out of the tag's problem list.
 	uid, _ := te.e.userFor(t, "owner-a-sub")
 	owner, _ := domain.ParseID(uid)
-	if err := te.e.st.Problems().SoftDelete(context.Background(), owner, pid, time.Now()); err != nil {
+	if err := te.e.st.Problems().SoftDelete(t.Context(), owner, pid, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	list := decode[struct {

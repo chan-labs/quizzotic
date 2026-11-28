@@ -5,7 +5,6 @@ package server_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -49,9 +48,9 @@ func TestServeStartsAndShutsDown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	done := make(chan error, 1)
 	go func() { done <- server.Run(ctx, cfg, logger, server.Options{Listener: ln}) }()
 
@@ -93,7 +92,7 @@ func TestServeStartsAndShutsDown(t *testing.T) {
 
 func TestRunRejectsIncompleteConfig(t *testing.T) {
 	cfg := config.Default() // no public_url, no issuer
-	err := server.Run(context.Background(), &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), server.Options{})
+	err := server.Run(t.Context(), &cfg, slog.New(slog.DiscardHandler), server.Options{})
 	if err == nil {
 		t.Fatal("want error")
 	}

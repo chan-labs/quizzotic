@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -53,9 +52,9 @@ func runLimitsServer(t *testing.T, readTimeout time.Duration) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	go func() {
 		done <- server.Run(ctx, cfg, logger, server.Options{Listener: ln, ReadTimeout: readTimeout})
 	}()
