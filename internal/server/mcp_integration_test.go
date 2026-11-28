@@ -22,7 +22,7 @@ func mcpSession(t *testing.T, e *probEnv, token string) *sdk.ClientSession {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	st, ct := sdk.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, st, nil)
 	if err != nil {
@@ -54,7 +54,7 @@ func resultText(t *testing.T, r *sdk.CallToolResult) string {
 func TestMCPAgainstRealServer(t *testing.T) {
 	e := newProbEnv(t)
 	cs := mcpSession(t, e, e.agent)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tools, err := cs.ListTools(ctx, nil)
 	if err != nil {

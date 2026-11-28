@@ -45,7 +45,7 @@ type rebuildFx struct {
 // newRebuildFx builds the fixture; tx wraps the tags transactor (nil: as is).
 func newRebuildFx(t *testing.T, wrap func(tags.Transactor) tags.Transactor) *rebuildFx {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "r.db"))
 	if err != nil {
 		t.Fatal(err)

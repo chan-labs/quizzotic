@@ -13,7 +13,7 @@ import (
 const postgresEnv = "QUIZZOTIC_TEST_POSTGRES_URL"
 
 func TestOpenSQLite(t *testing.T) {
-	s, err := Open(context.Background(), "sqlite://"+t.TempDir()+"/q.db")
+	s, err := Open(t.Context(), "sqlite://"+t.TempDir()+"/q.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestOpenSQLite(t *testing.T) {
 func TestOpenPostgresSchemesRouteToPostgres(t *testing.T) {
 	for _, scheme := range []string{"postgres", "postgresql"} {
 		t.Run(scheme, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			_, err := Open(ctx, scheme+"://user:hunter2@127.0.0.1:1/q?sslmode=disable&connect_timeout=1")
 			if err == nil {
@@ -61,7 +61,7 @@ func TestOpenPostgresSchemesLive(t *testing.T) {
 	}
 	for _, scheme := range []string{"postgres", "postgresql"} {
 		t.Run(scheme, func(t *testing.T) {
-			s, err := Open(context.Background(), scheme+"://"+rest)
+			s, err := Open(t.Context(), scheme+"://"+rest)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -47,7 +46,7 @@ func (e *probEnv) newTag(t *testing.T, name string) domain.ID {
 // transaction, and a weak tag then steers which new problems a session serves.
 func TestMasteryWiredIntoServer(t *testing.T) {
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	// Provision the user before touching the store.
 	e.req(t, "GET", "/me", e.human, nil, nil)
 	uid, _ := e.userFor(t, "author-sub")
@@ -141,7 +140,7 @@ func TestMasteryWiredIntoServer(t *testing.T) {
 // mastery, in the same transaction.
 func TestMasteryRefreshedOnArchive(t *testing.T) {
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	e.req(t, "GET", "/me", e.human, nil, nil)
 	uid, _ := e.userFor(t, "author-sub")
 	owner, err := domain.ParseID(uid)

@@ -58,7 +58,7 @@ func setup(t *testing.T, opts ...Option) (*Service, *memRepo, domain.ID) {
 
 func TestDefaultsMatchSpec(t *testing.T) {
 	svc, _, id := setup(t)
-	got, err := svc.Get(context.Background(), id)
+	got, err := svc.Get(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestDefaultsMatchSpec(t *testing.T) {
 
 func TestUpdateOverridesAndClears(t *testing.T) {
 	svc, _, id := setup(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	tz, roh, npd := "Europe/Paris", 5, 0
 	got, err := svc.Update(ctx, id, Overrides{Timezone: &tz, RolloverHour: &roh, NewPerDay: &npd})
 	if err != nil {
@@ -110,7 +110,7 @@ func TestUpdateValidation(t *testing.T) {
 	}
 	for name, o := range bad {
 		t.Run(name, func(t *testing.T) {
-			_, err := svc.Update(context.Background(), id, o)
+			_, err := svc.Update(t.Context(), id, o)
 			var ve *ValidationError
 			if !errors.Is(err, ErrInvalid) || !errors.As(err, &ve) || len(ve.Fields) != 1 {
 				t.Fatalf("err = %v", err)
@@ -121,7 +121,7 @@ func TestUpdateValidation(t *testing.T) {
 		})
 	}
 	ok := Overrides{DesiredRetention: f(0.97), RolloverHour: i(0), NewPerDay: i(0), NewInterval: i(1), Timezone: s("UTC")}
-	if _, err := svc.Update(context.Background(), id, ok); err != nil {
+	if _, err := svc.Update(t.Context(), id, ok); err != nil {
 		t.Fatalf("valid edges rejected: %v", err)
 	}
 }
@@ -131,7 +131,7 @@ func nan() float64 { var z float64; return z / z }
 func TestRetentionChangeTriggersRecompute(t *testing.T) {
 	rec := &recorder{}
 	svc, _, id := setup(t, WithRetentionRecomputer(rec))
-	ctx := context.Background()
+	ctx := t.Context()
 	f := func(v float64) *float64 { return &v }
 
 	if _, err := svc.Update(ctx, id, Overrides{DesiredRetention: f(0.85)}); err != nil {
@@ -166,7 +166,7 @@ func TestRetentionRecomputeFailureIsReportedAfterStore(t *testing.T) {
 	rec := &recorder{err: boom}
 	svc, repo, id := setup(t, WithRetentionRecomputer(rec))
 	r := 0.8
-	got, err := svc.Update(context.Background(), id, Overrides{DesiredRetention: &r})
+	got, err := svc.Update(t.Context(), id, Overrides{DesiredRetention: &r})
 	if !errors.Is(err, boom) {
 		t.Fatalf("err = %v", err)
 	}
@@ -178,14 +178,14 @@ func TestRetentionRecomputeFailureIsReportedAfterStore(t *testing.T) {
 func TestRetentionChangeWithoutHookIsFine(t *testing.T) {
 	svc, _, id := setup(t)
 	r := 0.8
-	if _, err := svc.Update(context.Background(), id, Overrides{DesiredRetention: &r}); err != nil {
+	if _, err := svc.Update(t.Context(), id, Overrides{DesiredRetention: &r}); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestServiceStudyDayUsesUserZoneAndRollover(t *testing.T) {
 	svc, _, id := setup(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Date(2026, 6, 10, 7, 30, 0, 0, time.UTC) // 03:30 New York
 
 	sd, err := svc.StudyDay(ctx, id, now)
@@ -205,10 +205,10 @@ func TestServiceStudyDayUsesUserZoneAndRollover(t *testing.T) {
 func TestOverridesReturnsStoredOverridesOnly(t *testing.T) {
 	svc, _, id := setup(t)
 	n := 3
-	if _, err := svc.Update(context.Background(), id, Overrides{NewPerDay: &n}); err != nil {
+	if _, err := svc.Update(t.Context(), id, Overrides{NewPerDay: &n}); err != nil {
 		t.Fatal(err)
 	}
-	o, err := svc.Overrides(context.Background(), id)
+	o, err := svc.Overrides(t.Context(), id)
 	if err != nil || o.NewPerDay == nil || *o.NewPerDay != 3 || o.Timezone != nil {
 		t.Fatalf("overrides = %+v, err %v", o, err)
 	}

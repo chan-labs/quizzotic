@@ -39,12 +39,13 @@ func (scratch) CountIdentities(ctx context.Context, s store.Store) (int, error) 
 
 func TestConformance(t *testing.T) {
 	storetest.Run(t, func(t *testing.T) (store.Store, storetest.Scratch) {
-		s, err := Open(context.Background(), filepath.Join(t.TempDir(), "c.db"))
+		t.Helper()
+		s, err := Open(t.Context(), filepath.Join(t.TempDir(), "c.db"))
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { s.Close() })
-		if _, err := s.Migrate(context.Background()); err != nil {
+		if _, err := s.Migrate(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.DB().Exec(`CREATE TABLE storetest_scratch (n INTEGER)`); err != nil {

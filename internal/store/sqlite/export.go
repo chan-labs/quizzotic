@@ -94,8 +94,9 @@ func fromScan(k export.Kind, d any) any {
 			return v.Int64 != 0
 		case export.Time:
 			return FromMillis(v.Int64)
+		default:
+			return v.Int64
 		}
-		return v.Int64
 	}
 	return nil
 }
@@ -111,8 +112,9 @@ func toArg(k export.Kind, v any) any {
 		return Millis(v.(time.Time))
 	case export.JSON:
 		return string(v.(json.RawMessage))
+	default: // stored as is
+		return v
 	}
-	return v
 }
 
 func (r exportRepo) Insert(ctx context.Context, t export.Table, rows []export.Row) error {

@@ -4,7 +4,6 @@ package attempts
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +33,7 @@ func rateEnv(t *testing.T) (*env, *moveClock) {
 
 func answer(t *testing.T, e *env, problem domain.ID, version int, response string, rating *int) Result {
 	t.Helper()
-	res, err := e.svc.Answer(context.Background(), human(e.user), AnswerInput{ProblemID: problem, ProblemVersion: version,
+	res, err := e.svc.Answer(t.Context(), human(e.user), AnswerInput{ProblemID: problem, ProblemVersion: version,
 		Response: raw(response), Rating: rating})
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +51,7 @@ func wantProblem(t *testing.T, err error, status int) {
 
 func TestRateOpenAttemptSchedulesIt(t *testing.T) {
 	e, _ := rateEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	unrated := answer(t, e, e.open, 1, `{"text":"later"}`, nil)
 	if unrated.Grade.Scheduled || len(e.cards.calls) != 0 {
 		t.Fatalf("an open attempt without a rating must stay unscheduled: %+v cards=%v", unrated.Grade, e.cards.calls)
@@ -85,7 +84,7 @@ func TestRateOpenAttemptSchedulesIt(t *testing.T) {
 
 func TestRateOnlyOnce(t *testing.T) {
 	e, _ := rateEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	unrated := answer(t, e, e.open, 1, `{"text":"x"}`, nil)
 	if _, err := e.svc.Rate(ctx, human(e.user), unrated.Attempt.ID, 3); err != nil {
 		t.Fatal(err)
@@ -108,7 +107,7 @@ func TestRateOnlyOnce(t *testing.T) {
 
 func TestRateWindow(t *testing.T) {
 	e, clock := rateEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("at the edge of the window is allowed", func(t *testing.T) {
 		a := answer(t, e, e.open, 1, `{"text":"x"}`, nil)
@@ -133,7 +132,7 @@ func TestRateWindow(t *testing.T) {
 
 func TestRateOpenStaysUnscheduledUntilRated(t *testing.T) {
 	e, clock := rateEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	a := answer(t, e, e.open, 1, `{"text":"x"}`, nil)
 	clock.t = now.Add(time.Hour)
 	if _, err := e.svc.Rate(ctx, human(e.user), a.Attempt.ID, 3); err == nil {
@@ -149,7 +148,7 @@ func TestRateOpenStaysUnscheduledUntilRated(t *testing.T) {
 
 func TestRateAutoGradedRules(t *testing.T) {
 	e, _ := rateEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	right := answer(t, e, e.mcq, 2, `{"selected":["b"]}`, nil)
 	_, err := e.svc.Rate(ctx, human(e.user), right.Attempt.ID, 1)
@@ -181,7 +180,7 @@ func TestRateAutoGradedRules(t *testing.T) {
 
 func TestRateRefusals(t *testing.T) {
 	e, _ := rateEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	a := answer(t, e, e.open, 1, `{"text":"x"}`, nil)
 
 	if _, err := e.svc.Rate(ctx, domain.Actor{Kind: domain.ActorAgent, UserID: e.user}, a.Attempt.ID, 3); err == nil {
@@ -204,7 +203,7 @@ func TestRateRefusals(t *testing.T) {
 
 func TestRateCardFailureRollsBack(t *testing.T) {
 	e, _ := rateEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	a := answer(t, e, e.open, 1, `{"text":"x"}`, nil)
 	e.cards.failed = errors.New("boom")
 	if _, err := e.svc.Rate(ctx, human(e.user), a.Attempt.ID, 3); err == nil {

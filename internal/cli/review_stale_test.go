@@ -104,7 +104,7 @@ func TestReviewGivesUpOnEndlessStale(t *testing.T) {
 
 func TestLoginHelpMentionsConfigFile(t *testing.T) {
 	var o, e bytes.Buffer
-	cli.Login(context.Background(), []string{"-h"}, cli.Env{Stdin: strings.NewReader(""), Stdout: &o, Stderr: &e,
+	cli.Login(t.Context(), []string{"-h"}, cli.Env{Stdin: strings.NewReader(""), Stdout: &o, Stderr: &e,
 		Getenv: func(string) string { return "" }})
 	help := e.String()
 	for _, want := range []string{"issuer: in config.yaml", "login_client_id: in config.yaml"} {

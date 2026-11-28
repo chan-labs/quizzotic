@@ -3,7 +3,6 @@
 package postgres
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -51,7 +50,7 @@ func TestMigrationParity(t *testing.T) {
 
 func TestMigrateIsIdempotent(t *testing.T) {
 	s := newSchemaStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	first, err := s.Migrate(ctx)
 	if err != nil || len(first) == 0 {
 		t.Fatalf("first migrate = %v, %v", first, err)
@@ -66,7 +65,7 @@ func TestMigrateIsIdempotent(t *testing.T) {
 // migration: the advisory lock serializes them.
 func TestMigrateConcurrent(t *testing.T) {
 	s := newSchemaStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	var wg sync.WaitGroup
 	errs := make([]error, 4)
 	applied := make([][]int64, 4)
@@ -93,7 +92,7 @@ func TestMigrateConcurrent(t *testing.T) {
 
 func TestProblemVersionsAreImmutable(t *testing.T) {
 	s := newSchemaStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := s.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +119,7 @@ func TestProblemVersionsAreImmutable(t *testing.T) {
 }
 
 func TestOpenErrorDoesNotLeakPassword(t *testing.T) {
-	_, err := Open(context.Background(), "postgres://u:hunter2secret@127.0.0.1:1/db?connect_timeout=1")
+	_, err := Open(t.Context(), "postgres://u:hunter2secret@127.0.0.1:1/db?connect_timeout=1")
 	if err == nil {
 		t.Fatal("expected a connection error")
 	}

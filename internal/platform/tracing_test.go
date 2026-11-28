@@ -4,7 +4,6 @@ package platform
 
 import (
 	"bytes"
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,14 +70,14 @@ func TestTracingDisabledByDefault(t *testing.T) {
 		t.Fatal("tracing enabled with no env")
 	}
 	prev := otel.GetTracerProvider()
-	shutdown, err := SetupTracing(context.Background())
+	shutdown, err := SetupTracing(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if otel.GetTracerProvider() != prev {
 		t.Fatal("SetupTracing installed a provider with no env set")
 	}
-	if err := shutdown(context.Background()); err != nil {
+	if err := shutdown(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 

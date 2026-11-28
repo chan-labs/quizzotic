@@ -79,13 +79,13 @@ func (p *Projector) Recompute(ctx context.Context, userID, problemID domain.ID, 
 	}
 	pe, err := p.sc.Problems.Epoch(ctx, userID, problemID)
 	if errors.Is(err, ErrNotFound) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // nil card: a missing problem leaves no card to return (documented above)
 	}
 	if err != nil {
 		return nil, err
 	}
 	if !pe.Live || pe.Epoch != epoch {
-		return nil, nil
+		return nil, nil //nolint:nilnil // nil card: not live or an older epoch, card left as is (documented above)
 	}
 	return p.fold(ctx, userID, problemID, epoch, retention)
 }

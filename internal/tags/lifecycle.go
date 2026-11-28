@@ -161,6 +161,8 @@ func (s *Service) GetOperation(ctx context.Context, ownerID, id domain.ID) (_ Op
 			default:
 				d.Preview = &out.effect
 			}
+		case OpRejected:
+			// A rejected operation has neither a result nor a preview.
 		}
 		return errDryRun // read-only: discard the preview run
 	})
@@ -192,6 +194,8 @@ func (s *Service) ListOperationDetails(ctx context.Context, ownerID domain.ID, s
 			if d, err = s.GetOperation(ctx, ownerID, op.ID); err != nil {
 				return nil, "", err
 			}
+		case OpRejected:
+			// A rejected operation has neither a result nor a preview.
 		}
 		out = append(out, d)
 	}

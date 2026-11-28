@@ -3,7 +3,6 @@
 package sqlite
 
 import (
-	"context"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -14,7 +13,7 @@ import (
 
 func open(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "t.db"))
+	s, err := Open(t.Context(), filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +53,7 @@ func TestPragmas(t *testing.T) {
 
 func TestWithTxCommitAndRollback(t *testing.T) {
 	s := open(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	err := s.WithTx(ctx, func(tx store.Store) error {
 		_, err := tx.(*Store).q.ExecContext(ctx, `INSERT INTO t VALUES (1)`)
 		return err
@@ -77,7 +76,7 @@ func TestWithTxCommitAndRollback(t *testing.T) {
 
 func TestWithTxRollsBackOnPanic(t *testing.T) {
 	s := open(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	func() {
 		defer func() { _ = recover() }()
 		_ = s.WithTx(ctx, func(tx store.Store) error {
@@ -98,12 +97,12 @@ func TestMillisRoundTrip(t *testing.T) {
 }
 
 func TestProblemVersionsAreImmutable(t *testing.T) {
-	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "p.db"))
+	s, err := Open(t.Context(), filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
-	if _, err := s.Migrate(context.Background()); err != nil {
+	if _, err := s.Migrate(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	db := s.DB()

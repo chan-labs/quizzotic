@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
@@ -21,7 +20,7 @@ import (
 func TestRunSweepsExpiredSessionsAndLoginStates(t *testing.T) {
 	e, _ := startRunEnvOpts(t, newFakeIDP(t), filepath.Join(t.TempDir(), "q.db"), nil, nil,
 		server.Options{SessionSweepInterval: 50 * time.Millisecond})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// A live session from a real browser login.
 	cookie := e.webLogin(t)

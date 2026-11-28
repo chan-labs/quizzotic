@@ -61,7 +61,7 @@ func ApplyFile(ctx context.Context, st store.Store, ownerID domain.ID, f *seed.F
 // skipped (err stays nil): that is not a failure.
 func Startup(ctx context.Context, st store.Store, specs []string, logf func(spec string, rep seed.Report)) (skipped error, err error) {
 	if len(specs) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // both results are errors: nothing skipped, no failure
 	}
 	files := make([]*seed.File, len(specs))
 	for i, s := range specs {
@@ -87,5 +87,5 @@ func Startup(ctx context.Context, st store.Store, specs []string, logf func(spec
 			logf(specs[i], rep)
 		}
 	}
-	return nil, nil
+	return nil, nil //nolint:nilnil // both results are errors: nothing skipped, no failure
 }

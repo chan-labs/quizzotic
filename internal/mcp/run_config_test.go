@@ -4,7 +4,6 @@ package mcp
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +18,7 @@ func TestRunMalformedCLIConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	var e bytes.Buffer
-	code := Run(context.Background(), nil, cli.Env{
+	code := Run(t.Context(), nil, cli.Env{
 		Stderr: &e,
 		Getenv: func(k string) string {
 			if k == "QUIZZOTIC_CLI_CONFIG" {

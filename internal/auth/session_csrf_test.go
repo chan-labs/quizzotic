@@ -32,7 +32,7 @@ func TestSessionAuthenticatorCSRF(t *testing.T) {
 		t.Fatal("no csrf token for the session")
 	}
 
-	h := auth.NewLoginHandler(a.svc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := auth.NewLoginHandler(a.svc, slog.New(slog.DiscardHandler))
 	authn := auth.SessionAuthenticator{Login: h}
 
 	newReq := func(method, header, field string) *http.Request {

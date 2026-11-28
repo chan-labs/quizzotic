@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -28,6 +27,7 @@ func init() {
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "metrics",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			t.Helper()
 			suffix := domain.NewIDGenerator(domain.SystemClock{}).New().String()
 			name := "metricssecret" + suffix
 			r := c.Do("POST", "/tags", map[string]string{"name": name})
@@ -148,7 +148,7 @@ type metricsFixture struct {
 func newMetricsFixture(t *testing.T) *metricsFixture {
 	t.Helper()
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	e.req(t, "GET", "/me", e.human, nil, nil) // provision the user
 	uid, _ := e.userFor(t, "author-sub")
 	owner, err := domain.ParseID(uid)
@@ -270,7 +270,7 @@ func TestMetricsTags(t *testing.T) {
 
 func TestMetricsTagHistory(t *testing.T) {
 	f := newMetricsFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	snap := store.NewMastery(store.DefaultCards(), domain.SystemClock{}).Snapshotter(f.e.st, nil)
 	if err := snap.SnapshotUser(ctx, f.owner); err != nil {
 		t.Fatal(err)
@@ -389,7 +389,7 @@ func TestMetricsScopes(t *testing.T) {
 func TestMetricsOverMCP(t *testing.T) {
 	f := newMetricsFixture(t)
 	cs := mcpSession(t, f.e, f.e.idp.access(itMetricsReader, "author-sub"))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tools, err := cs.ListTools(ctx, nil)
 	if err != nil {

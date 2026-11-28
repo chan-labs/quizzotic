@@ -4,7 +4,6 @@ package cli_test
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +39,7 @@ func fake(t *testing.T, status int, reply string) (*httptest.Server, *seen) {
 func run(t *testing.T, stdin string, token string, args ...string) (code int, out, errOut string) {
 	t.Helper()
 	var o, e bytes.Buffer
-	code = cli.Run(context.Background(), args, cli.Env{
+	code = cli.Run(t.Context(), args, cli.Env{
 		Stdin: strings.NewReader(stdin), Stdout: &o, Stderr: &e,
 		Getenv: func(k string) string {
 			if k == "QUIZZOTIC_TOKEN" {
@@ -169,7 +168,7 @@ func TestJSONDefaultAndAPIError(t *testing.T) {
 func TestServerFromEnv(t *testing.T) {
 	srv, s := fake(t, 200, `{}`)
 	var o, e bytes.Buffer
-	code := cli.Run(context.Background(), []string{"meta", "me"}, cli.Env{
+	code := cli.Run(t.Context(), []string{"meta", "me"}, cli.Env{
 		Stdout: &o, Stderr: &e,
 		Getenv: func(k string) string {
 			if k == "QUIZZOTIC_SERVER" {

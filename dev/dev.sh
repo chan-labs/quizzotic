@@ -9,8 +9,12 @@
 #                              from `mise run dev-otel` (OTLP HTTP on :4318)
 #   QUIZZOTIC_DEV_ISSUER_PORT  fake issuer port (default 8099); the database is
 #                              .dev/quizzotic-<issuer port>.db
-# Needs Docker: the issuer is navikt/mock-oauth2-server (config in
-# dev/mock-oauth2.json), issuer URL http://localhost:<port>/dev.
+#   QUIZZOTIC_DEV_ISSUER       which fake issuer: auto (default: docker when it
+#                              is installed and running, else go), docker or go
+# The issuer URL is http://localhost:<port>/dev either way. "docker" runs
+# navikt/mock-oauth2-server (config in dev/mock-oauth2.json); "go" runs the
+# stdlib-only tools/devissuer, which needs nothing but Go. Both sign in the
+# same fixed user (dev@example.com) with aud and azp set to the client ID.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -54,8 +58,29 @@ build() {
 	go build -o "$STATE/bin/quizzotic" ./cmd/quizzotic
 }
 
+ISSUER_KIND="${QUIZZOTIC_DEV_ISSUER:-auto}"
+if [ "$ISSUER_KIND" = auto ]; then
+	if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+		ISSUER_KIND=docker
+	else
+		ISSUER_KIND=go
+	fi
+fi
+case "$ISSUER_KIND" in
+docker | go) ;;
+*)
+	echo "dev: QUIZZOTIC_DEV_ISSUER must be auto, docker or go (got $ISSUER_KIND)" >&2
+	exit 2
+	;;
+esac
+
 run_issuer() {
-	command -v docker >/dev/null || { echo "dev: Docker is required for the fake issuer" >&2; exit 1; }
+	if [ "$ISSUER_KIND" = go ]; then
+		go build -o "$STATE/bin/devissuer" ./tools/devissuer
+		exec "$STATE/bin/devissuer" -listen "127.0.0.1:${ISSUER_PORT}" \
+			-issuer "http://localhost:${ISSUER_PORT}/dev"
+	fi
+	command -v docker >/dev/null || { echo "dev: Docker is required for QUIZZOTIC_DEV_ISSUER=docker" >&2; exit 1; }
 	docker rm -f "$ISSUER_CONTAINER" >/dev/null 2>&1 || true
 	exec docker run --rm --init --name "$ISSUER_CONTAINER" \
 		-p "127.0.0.1:${ISSUER_PORT}:8080" \
@@ -63,7 +88,10 @@ run_issuer() {
 		-v "$PWD/dev/mock-oauth2.json:/config/config.json:ro" \
 		"$ISSUER_IMAGE"
 }
-stop_issuer() { docker rm -f "$ISSUER_CONTAINER" >/dev/null 2>&1 || true; }
+stop_issuer() {
+	[ "$ISSUER_KIND" = docker ] || return 0
+	docker rm -f "$ISSUER_CONTAINER" >/dev/null 2>&1 || true
+}
 run_server() { exec "$STATE/bin/quizzotic" serve --config "$CONFIG"; }
 
 # The first sign-in creates the user; seed files need a user to own them, so
@@ -108,7 +136,7 @@ all)
 	echo
 	echo "dev: ready"
 	echo "  web UI:  http://localhost:${PORT}/   (sign-in is automatic: fake issuer, user dev@example.com)"
-	echo "  issuer:  http://localhost:${ISSUER_PORT}/dev/.well-known/openid-configuration"
+	echo "  issuer:  http://localhost:${ISSUER_PORT}/dev/.well-known/openid-configuration (${ISSUER_KIND})"
 	echo "  state:   ${STATE}/ (reset with: mise run dev-reset)"
 	wait "${pids[@]}"
 	;;

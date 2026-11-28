@@ -63,7 +63,7 @@ description = "Run the fake OIDC issuer and the server together, seeded (Ctrl-C 
 run = "dev/dev.sh all"
 
 [tasks.dev-issuer]
-description = "Run only the fake OIDC issuer (mock-oauth2-server in Docker)"
+description = "Run only the fake OIDC issuer (mock-oauth2-server in Docker, else tools/devissuer)"
 run = "dev/dev.sh issuer"
 
 [tasks.dev-server]

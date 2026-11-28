@@ -5,6 +5,7 @@ package grading
 import "testing"
 
 func TestNormalizeCloze(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		in    string
@@ -30,6 +31,7 @@ func TestNormalizeCloze(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := NormalizeCloze(tt.in, tt.match); got != tt.want {
 				t.Fatalf("NormalizeCloze(%q, %q) = %q, want %q", tt.in, tt.match, got, tt.want)
 			}
@@ -38,6 +40,7 @@ func TestNormalizeCloze(t *testing.T) {
 }
 
 func TestLevenshtein(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		a, b string
 		want int
@@ -55,6 +58,7 @@ func TestLevenshtein(t *testing.T) {
 }
 
 func TestGradeClozeMaxEdits(t *testing.T) {
+	t.Parallel()
 	// "planet" vs answers at distance 0, 1, 2, 3, 4.
 	answers := []struct {
 		answer string
@@ -74,6 +78,7 @@ func TestGradeClozeMaxEdits(t *testing.T) {
 }
 
 func TestGradeClozeMaxEditsClamped(t *testing.T) {
+	t.Parallel()
 	b := ClozeBlank{ID: "b", Accepted: []string{"abcdefgh"}, MaxEdits: 99}
 	if GradeCloze([]ClozeBlank{b}, map[string]string{"b": "abcdxxxx"}).Correct["b"] {
 		t.Error("distance 4 accepted with max_edits clamped to 3")
@@ -85,6 +90,7 @@ func TestGradeClozeMaxEditsClamped(t *testing.T) {
 }
 
 func TestGradeClozeNormalizationApplied(t *testing.T) {
+	t.Parallel()
 	b := ClozeBlank{ID: "b", Accepted: []string{"New  York."}}
 	if !GradeCloze([]ClozeBlank{b}, map[string]string{"b": "  new york!"}).Correct["b"] {
 		t.Error("normalized answer should match normalized accepted value")
@@ -92,6 +98,7 @@ func TestGradeClozeNormalizationApplied(t *testing.T) {
 }
 
 func TestGradeClozeCaseInsensitiveIsExactOtherwise(t *testing.T) {
+	t.Parallel()
 	b := ClozeBlank{ID: "b", Accepted: []string{"New York"}, Match: MatchCaseInsensitive}
 	g := func(ans string) bool { return GradeCloze([]ClozeBlank{b}, map[string]string{"b": ans}).Correct["b"] }
 	if !g("new york") || !g("NEW YORK") {
@@ -117,6 +124,7 @@ func TestGradeClozeCaseInsensitiveIsExactOtherwise(t *testing.T) {
 }
 
 func TestGradeClozeCaseInsensitiveMaxEdits(t *testing.T) {
+	t.Parallel()
 	b := ClozeBlank{ID: "b", Accepted: []string{"Paris"}, Match: MatchCaseInsensitive, MaxEdits: 1}
 	g := func(ans string) bool { return GradeCloze([]ClozeBlank{b}, map[string]string{"b": ans}).Correct["b"] }
 	if !g("PARIS") {
@@ -139,6 +147,7 @@ func TestGradeClozeCaseInsensitiveMaxEdits(t *testing.T) {
 }
 
 func TestGradeClozeWhitespaceOnlyAnswerNeverCorrect(t *testing.T) {
+	t.Parallel()
 	for _, m := range []string{MatchRelaxed, MatchCaseInsensitive} {
 		b := ClozeBlank{ID: "b", Accepted: []string{"a"}, Match: m, MaxEdits: 3}
 		for _, ans := range []string{"", " ", " \t\n"} {
@@ -150,6 +159,7 @@ func TestGradeClozeWhitespaceOnlyAnswerNeverCorrect(t *testing.T) {
 }
 
 func TestGradeClozeUnicode(t *testing.T) {
+	t.Parallel()
 	b := ClozeBlank{ID: "b", Accepted: []string{"Café"}, MaxEdits: 1}
 	g := func(ans string) bool { return GradeCloze([]ClozeBlank{b}, map[string]string{"b": ans}).Correct["b"] }
 	if !g("CAFÉ") {
@@ -165,6 +175,7 @@ func TestGradeClozeUnicode(t *testing.T) {
 }
 
 func TestGradeClozeAnyAccepted(t *testing.T) {
+	t.Parallel()
 	b := ClozeBlank{ID: "b", Accepted: []string{"color", "colour"}}
 	for _, ans := range []string{"color", "Colour."} {
 		if !GradeCloze([]ClozeBlank{b}, map[string]string{"b": ans}).Correct["b"] {
@@ -174,6 +185,7 @@ func TestGradeClozeAnyAccepted(t *testing.T) {
 }
 
 func TestGradeClozeScore(t *testing.T) {
+	t.Parallel()
 	blanks := []ClozeBlank{
 		{ID: "a", Accepted: []string{"x"}},
 		{ID: "b", Accepted: []string{"y"}},
@@ -192,6 +204,7 @@ func TestGradeClozeScore(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			res := GradeCloze(blanks, tt.answers)
 			if res.Score != tt.want {
 				t.Errorf("score = %v, want %v", res.Score, tt.want)
@@ -207,6 +220,7 @@ func TestGradeClozeScore(t *testing.T) {
 }
 
 func TestGradeClozeEmptyAnswerNeverMatches(t *testing.T) {
+	t.Parallel()
 	b := ClozeBlank{ID: "b", Accepted: []string{"a"}, MaxEdits: 3}
 	if GradeCloze([]ClozeBlank{b}, map[string]string{"b": " . "}).Correct["b"] {
 		t.Error("blank answer must not match via edit distance")

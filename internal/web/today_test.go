@@ -3,7 +3,6 @@
 package web_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -37,7 +36,7 @@ type todayEnv struct {
 
 func newTodayEnv(t *testing.T) todayEnv {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +80,7 @@ func newTodayEnv(t *testing.T) todayEnv {
 
 func (e todayEnv) liveProblem(t *testing.T, prompt string) problems.View {
 	t.Helper()
-	v, err := e.problems.Create(context.Background(), domain.Actor{Kind: domain.ActorHuman, UserID: e.owner, ClientID: "c"}, problems.CreateInput{
+	v, err := e.problems.Create(t.Context(), domain.Actor{Kind: domain.ActorHuman, UserID: e.owner, ClientID: "c"}, problems.CreateInput{
 		Type: problems.TypeOpen, Prompt: prompt, Payload: []byte(`{"reference_answer":"x"}`), Status: problems.StatusLive})
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +90,7 @@ func (e todayEnv) liveProblem(t *testing.T, prompt string) problems.View {
 
 func (e todayEnv) answer(t *testing.T, v problems.View, rating int) {
 	t.Helper()
-	_, err := e.answers.Answer(context.Background(), domain.Actor{Kind: domain.ActorHuman, UserID: e.owner, ClientID: "c"},
+	_, err := e.answers.Answer(t.Context(), domain.Actor{Kind: domain.ActorHuman, UserID: e.owner, ClientID: "c"},
 		attempts.AnswerInput{ProblemID: v.ID, ProblemVersion: v.Version, Response: json.RawMessage(`{"text":"x"}`), Rating: &rating})
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +102,7 @@ func (e todayEnv) dueFromEndpoint(t *testing.T) int {
 	t.Helper()
 	n, cursor := 0, ""
 	for {
-		res, err := e.cards.List(context.Background(), e.owner, review.CardQuery{
+		res, err := e.cards.List(t.Context(), e.owner, review.CardQuery{
 			DueBefore: e.clock.Now().Format(time.RFC3339), Cursor: cursor, Limit: 2})
 		if err != nil {
 			t.Fatal(err)
@@ -205,7 +204,7 @@ func TestStartReviewCreatesSessionAndRedirects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.sessions.Get(context.Background(), e.owner, id)
+	s, err := e.sessions.Get(t.Context(), e.owner, id)
 	if err != nil {
 		t.Fatalf("session %s not created: %v", id, err)
 	}
