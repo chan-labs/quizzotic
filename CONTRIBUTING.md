@@ -29,6 +29,17 @@ mise run ci           # everything CI runs: lint, test, test-postgres, build-all
 mise run test ::: lint  # several tasks in one go
 ```
 
+## Merging and the merge queue
+
+CI also runs on `merge_group` events, so every required check runs on the merge queue's
+`gh-readonly-queue/main/...` refs as well as on the PR. Once the maintainer turns on the
+merge queue for `main` (a branch-protection setting), queue a green, reviewed PR with
+`gh pr merge <N> --squash --auto` (or **Merge when ready** in the UI) instead of merging
+`main` into it by hand: the queue tests it against the latest `main` plus anything ahead of
+it, and merges only if that passes. Until the queue is on, the same command enables plain
+auto-merge, and a branch that falls behind still needs `main` merged into it (no rebase or
+force-push). Never use `--admin`.
+
 ## Run it locally
 
 ```sh
