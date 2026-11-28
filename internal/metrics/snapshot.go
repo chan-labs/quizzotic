@@ -119,7 +119,19 @@ func (s *Snapshotter) RunOnce(ctx context.Context) error {
 			errs = append(errs, err)
 		}
 	}
+	if o, ok := s.tx.(Optimizer); ok {
+		if err := o.Optimize(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	return errors.Join(errs...)
+}
+
+// Optimizer is implemented by a SnapshotTransactor whose database benefits
+// from refreshing planner statistics (SQLite's PRAGMA optimize). RunOnce
+// calls it after each pass.
+type Optimizer interface {
+	Optimize(ctx context.Context) error
 }
 
 // SnapshotUser ensures the user has a snapshot of each active tag for the study
