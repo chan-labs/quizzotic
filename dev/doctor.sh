@@ -37,7 +37,7 @@ else
 	required_missing=1
 fi
 if command -v govulncheck >/dev/null 2>&1; then
-	ok govulncheck "$(version govulncheck -version | sed -n 's/^Scanner: //p')"
+	ok govulncheck "$(govulncheck -version 2>/dev/null | sed -n 's/^Scanner: //p')"
 else
 	missing govulncheck "mise install; 'mise run vulncheck' can't run (CI still runs it)"
 fi
