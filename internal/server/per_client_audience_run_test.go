@@ -3,18 +3,14 @@
 package server_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
-	"net"
 	"net/http"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/chan-labs/quizzotic/internal/config"
-	"github.com/chan-labs/quizzotic/internal/server"
+	"github.com/chan-labs/quizzotic/internal/testsupport/serverrun"
 )
 
 // Through server.Run, the path `quizzotic serve` takes: an issuer that lists
@@ -40,37 +36,8 @@ func TestRunPerClientAudiences(t *testing.T) {
 			{ID: headless, Kind: "agent", ActsFor: "owner-sub", AllowedScopes: []string{"metrics:read"}},
 		},
 	}}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan error, 1)
-	go func() {
-		done <- server.Run(ctx, &cfg, slog.New(slog.DiscardHandler), server.Options{Listener: ln})
-	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case err := <-done:
-			t.Logf("server stopped: %v", err)
-		case <-time.After(10 * time.Second):
-			t.Error("server did not shut down")
-		}
-	})
-	base := "http://" + ln.Addr().String()
-	ready := false
-	for i := 0; i < 100 && !ready; i++ {
-		if resp, err := http.Get(base + "/healthz"); err == nil {
-			resp.Body.Close()
-			ready = true
-		} else {
-			time.Sleep(20 * time.Millisecond)
-		}
-	}
-	if !ready {
-		t.Fatal("server did not start")
-	}
+	srv := serverrun.Start(t, &cfg)
+	base := srv.URL
 
 	me := func(tok string) (int, string, string) {
 		req, _ := http.NewRequest(http.MethodGet, base+"/api/v1/me", nil)

@@ -62,6 +62,7 @@ func loadVectors(t *testing.T) vectorFile {
 }
 
 func TestVectorsSchemaAndCoverage(t *testing.T) {
+	t.Parallel()
 	f := loadVectors(t)
 
 	if f.Algorithm != "FSRS-6" || f.Generator.Library != "py-fsrs" || f.Generator.Version == "" {

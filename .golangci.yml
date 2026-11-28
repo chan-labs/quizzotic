@@ -19,12 +19,14 @@ linters:
     - nilnil
     - noctx
     - nolintlint
+    - paralleltest
     - perfsprint
     - revive
     - rowserrcheck
     - sloglint
     - sqlclosecheck
     - thelper
+    - tparallel
     - unconvert
     - unparam
     - usestdlibvars
@@ -117,6 +119,10 @@ linters:
       # ~125 call sites would be churn with no gain.
       - path: _test\.go
         linters: [noctx, bodyclose]
+      # t.Parallel() is required only in the pure leaf packages, which share
+      # no state; elsewhere tests share fixtures, ports and process state.
+      - path-except: internal/(fsrs|grading|domain|config|openapi)/
+        linters: [paralleltest, tparallel]
       # The conformance suite bodies (run*/Run* taking t and a store factory)
       # are tests, not helpers: t.Helper() there would report every failed
       # assertion at the caller's t.Run line.

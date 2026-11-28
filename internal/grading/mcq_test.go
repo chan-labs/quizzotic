@@ -8,6 +8,7 @@ import (
 )
 
 func TestGradeMCQ(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		correct  []string
@@ -38,6 +39,7 @@ func TestGradeMCQ(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := GradeMCQ(tt.correct, tt.selected, tt.multiple)
 			if math.Abs(got.Score-tt.score) > 1e-9 || got.Correct != tt.ok {
 				t.Fatalf("GradeMCQ(%v, %v, %v) = %+v, want score %v correct %v",
