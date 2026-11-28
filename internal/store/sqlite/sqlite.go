@@ -75,7 +75,20 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
 	}
+	// Gather query-planner statistics for tables that lack them, cheaply
+	// (SQLite's recommended open-time call); Optimize refreshes them later.
+	if _, err := db.ExecContext(ctx, `PRAGMA optimize=0x10002`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("optimize sqlite %s: %w", path, err)
+	}
 	return &Store{db: db, q: platform.NewTracedExecer(db, "sqlite")}, nil
+}
+
+// Optimize runs PRAGMA optimize so the query planner's statistics follow the
+// data. The mastery snapshotter calls it after each pass.
+func (s *Store) Optimize(ctx context.Context) error {
+	_, err := s.q.ExecContext(ctx, `PRAGMA optimize`)
+	return err
 }
 
 // DB exposes the pool for tests and the migration runner.
