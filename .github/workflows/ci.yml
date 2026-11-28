@@ -22,12 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           cache: true
-          install_args: go golangci-lint
-      - uses: actions/cache@v4
+          install_args: go golangci-lint actionlint
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cache/go-build
@@ -45,8 +47,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           cache: true
           install_args: node
@@ -58,12 +62,14 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           cache: true
           install_args: go
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cache/go-build
@@ -74,7 +80,7 @@ jobs:
             go-test-
       # internal/web runs static/review.js under Node; without it that test
       # would skip, so CI installs Node and requires it.
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
       - name: go test
@@ -104,12 +110,14 @@ jobs:
       QUIZZOTIC_TEST_POSTGRES_URL: postgres://quizzotic:quizzotic@localhost:5432/quizzotic?sslmode=disable
       QUIZZOTIC_REQUIRE_POSTGRES: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           cache: true
           install_args: go
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cache/go-build
@@ -136,12 +144,14 @@ jobs:
           - name: windows
             goos: windows
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           cache: true
           install_args: go
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cache/go-build
@@ -162,9 +172,11 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       # Prebuilt goreleaser from mise.toml: no Go toolchain or module downloads.
-      - uses: jdx/mise-action@v5.2.5
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           cache: true
           install_args: goreleaser
@@ -175,12 +187,14 @@ jobs:
     name: vulncheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5.2.5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           cache: true
           install_args: go go:golang.org/x/vuln/cmd/govulncheck
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cache/go-build
