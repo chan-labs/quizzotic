@@ -18,7 +18,7 @@ Thanks for helping. Please read the [Code of Conduct](CODE_OF_CONDUCT.md). The d
 mise install          # once: Go, Node and golangci-lint at the pinned versions
 mise run build        # build the quizzotic binary
 mise run test         # go test -race ./...
-mise run lint         # golangci-lint + format check + Redocly lint of api/openapi.yaml
+mise run lint         # golangci-lint + format check + actionlint + Redocly lint of api/openapi.yaml
 mise run fmt          # gofmt + goimports, in place
 mise run golden       # regenerate CLI help and MCP tool-list goldens
 mise run test-postgres  # Postgres store suite in a throwaway postgres:17 container (needs docker)
@@ -34,18 +34,24 @@ mise run test ::: lint  # several tasks in one go
 mise run dev          # fake OIDC issuer + server + seed data; Ctrl-C stops both
 ```
 
-Prerequisite: Docker. Then open <http://localhost:8089/>. The fake issuer is
-[navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server)
-(image pinned in `dev/dev.sh`, config in `dev/mock-oauth2.json`, issuer URL
-`http://localhost:8099/dev`). It signs in a fixed test user (`dev@example.com`)
-with no password, so the browser lands straight on the Today page. The database is `.dev/quizzotic-<issuer port>.db`
+Then open <http://localhost:8089/>. The fake issuer (issuer URL
+`http://localhost:8099/dev`) is
+[navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server) in
+Docker when Docker is installed and running (image pinned in `dev/dev.sh`,
+config in `dev/mock-oauth2.json`), and otherwise `tools/devissuer`, a
+stdlib-only Go stand-in that needs nothing but the pinned Go. Force one with
+`QUIZZOTIC_DEV_ISSUER=docker` or `QUIZZOTIC_DEV_ISSUER=go`. Both sign in a fixed
+test user (`dev@example.com`) with no password, set `aud` and `azp` to the
+requesting client's ID, and accept any client secret, so the browser lands
+straight on the Today page and the CLI (code or device flow) and agent
+(client credentials) logins work too. The database is `.dev/quizzotic-<issuer port>.db`
 (gitignored; one per issuer port, so changing the port starts a fresh, seeded one), seeded with the starter pack plus `dev/seed.yaml`. Ports come
 from `QUIZZOTIC_DEV_PORT` (8089) and `QUIZZOTIC_DEV_ISSUER_PORT` (8099).
 `mise run dev-issuer` and `mise run dev-server` run the halves separately, and
 `mise run dev-reset` deletes the database. `.claude/launch.json` lets an agent
 start the stack with `preview_start`. The issuer and the `dev-secret` client
 secret are fake and for local development only; nothing here is shipped in the
-`quizzotic` binary.
+`quizzotic` binary (`tools/devissuer` is a separate dev-only command).
 
 ## Local tracing
 
