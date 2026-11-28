@@ -19,7 +19,7 @@ mise install          # once: Go, Node and golangci-lint at the pinned versions
 mise run doctor       # check this machine: tools, gh auth/scopes, docker, git identity/signing, push access
 mise run build        # build the quizzotic binary
 mise run test         # go test -race ./...
-mise run lint         # golangci-lint + format check + Redocly lint of api/openapi.yaml
+mise run lint         # golangci-lint + format check + actionlint + Redocly lint of api/openapi.yaml
 mise run fmt          # gofmt + goimports, in place
 mise run golden       # regenerate CLI help and MCP tool-list goldens
 mise run test-postgres  # Postgres store suite in a throwaway postgres:17 container (needs docker)
