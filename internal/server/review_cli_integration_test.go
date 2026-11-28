@@ -23,15 +23,21 @@ import (
 // what is shown) and its stdin (each Read answers the prompt shown last,
 // like a person who knows the starter pack).
 type reviewPlayer struct {
-	t       *testing.T
-	pack    *seed.File
-	mu      sync.Mutex
-	out     bytes.Buffer
-	reads   int
-	mcqs    int
-	clozes  int
-	ratings int
-	quitAt  int // 0: never; else answer :quit at this read
+	t      *testing.T
+	pack   *seed.File
+	mu     sync.Mutex
+	out    bytes.Buffer
+	reads  int
+	mcqs   int
+	clozes int
+	// One counter per rating prompt kind. A shared counter made the ratings
+	// sent depend on the order of auto-graded and self-graded problems, which
+	// the session's new-card sample (seeded by its random ID) decides, so about
+	// 1 run in 200 never sent a 2 or a 4.
+	autoRatings int // "Rate 2 Hard ..." after a correct auto-graded answer
+	opens       int // open (self-graded) problems answered
+	selfRatings int // "Rate 1 Again ..." after a self-graded answer
+	quitAt      int // 0: never; else answer :quit at this read
 }
 
 func (p *reviewPlayer) Write(b []byte) (int, error) {
@@ -115,13 +121,17 @@ func (p *reviewPlayer) Read(buf []byte) (int, error) {
 			}
 		}
 	case strings.HasPrefix(prompt, "Your answer"):
+		p.opens++
 		reply = "my best recollection"
 	case strings.HasPrefix(prompt, "Rate 2 Hard"):
-		p.ratings++
-		reply = []string{"2", "3", "4", ""}[p.ratings%4] // "" keeps Good
+		// The first three send Hard, Good and Easy. Every 20-problem sample
+		// of the pack has at least 8 correct auto-graded answers, so the
+		// test always sees ratings 2, 3 and 4.
+		reply = []string{"2", "3", "4", ""}[p.autoRatings%4] // "" keeps Good
+		p.autoRatings++
 	case strings.HasPrefix(prompt, "Rate 1 Again"):
-		p.ratings++
-		reply = strconv.Itoa(p.ratings%4 + 1)
+		reply = strconv.Itoa(p.selfRatings%4 + 1)
+		p.selfRatings++
 	default:
 		p.t.Fatalf("unexpected prompt %q", prompt)
 	}
@@ -212,10 +222,16 @@ func TestReviewCommandCompletesStarterPackSession(t *testing.T) {
 		!strings.Contains(out, fmt.Sprintf("Answered: %d", live)) {
 		t.Errorf("summary missing or wrong (want %d answered):\n%s", live, out)
 	}
-	for _, want := range []string{"Correct.", "Incorrect.", "Reference:", "Explanation:", "Next review:", "Ratings: Again"} {
+	for _, want := range []string{"Correct.", "Incorrect.", "Explanation:", "Next review:", "Ratings: Again"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q", want)
 		}
+	}
+	// Each open problem shows its reference answer. Count rather than require
+	// one: the session samples 20 of the pack's 40 new problems at random,
+	// and about 2 samples in 10,000 contain no open problem.
+	if got := strings.Count(out, "\nReference: "); got != player.opens {
+		t.Errorf("%d reference answers shown for %d open problems", got, player.opens)
 	}
 	if strings.Contains(out, "**") || strings.Contains(out, "```") {
 		t.Errorf("Markdown leaked into the output")
