@@ -31,7 +31,7 @@ type mergeEnv struct {
 
 func newMergeEnv(t *testing.T) *mergeEnv {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	db, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "m.db"))
 	if err != nil {
 		t.Fatal(err)

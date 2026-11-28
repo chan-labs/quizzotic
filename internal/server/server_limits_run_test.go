@@ -4,11 +4,8 @@ package server_test
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +17,7 @@ import (
 
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/server"
+	"github.com/chan-labs/quizzotic/internal/testsupport/serverrun"
 )
 
 // runLimitsServer starts server.Run from the example config with a short read
@@ -49,33 +47,8 @@ func runLimitsServer(t *testing.T, readTimeout time.Duration) string {
 	t.Cleanup(idp.Close)
 	cfg.Auth.Issuers[0].Issuer = idp.URL
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	go func() {
-		done <- server.Run(ctx, cfg, logger, server.Options{Listener: ln, ReadTimeout: readTimeout})
-	}()
-	t.Cleanup(func() {
-		cancel()
-		if err := <-done; err != nil {
-			t.Errorf("Run: %v", err)
-		}
-	})
-	addr := ln.Addr().String()
-	for range 100 {
-		resp, err := http.Get("http://" + addr + "/healthz")
-		if err == nil {
-			resp.Body.Close()
-			return addr
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatal("server did not start")
-	return ""
+	srv := serverrun.StartWith(t, cfg, server.Options{ReadTimeout: readTimeout})
+	return strings.TrimPrefix(srv.URL, "http://")
 }
 
 func TestServerRejectsOversizedHeaders(t *testing.T) {

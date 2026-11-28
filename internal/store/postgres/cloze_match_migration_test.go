@@ -3,7 +3,6 @@
 package postgres
 
 import (
-	"context"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -20,7 +19,7 @@ const clozeMatchVersion = 20261102150000
 // kept and the immutability trigger is enabled again afterwards.
 func TestClozeMatchMigrationRewritesLegacyPayloads(t *testing.T) {
 	s := newSchemaStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	db := s.DB()
 
 	all, err := migrate.Load(migrations.FS, "postgres")

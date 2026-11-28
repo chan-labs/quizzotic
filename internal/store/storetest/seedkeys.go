@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 )
 
 func runSeedKeys(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	t.Run("round trip, upsert, and scoping", func(t *testing.T) {
@@ -76,7 +75,7 @@ func runSeedKeys(t *testing.T, newStore NewStore) {
 }
 
 func runSoleUser(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	s, _ := newStore(t)
 

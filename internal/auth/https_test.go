@@ -3,7 +3,6 @@
 package auth_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +28,7 @@ func TestDiscoveryRequiresHTTPSEndpoints(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(doc)
 			}))
 			defer srv.Close()
-			if _, err := auth.NewProvider(srv.URL).Discovery(context.Background()); err == nil {
+			if _, err := auth.NewProvider(srv.URL).Discovery(t.Context()); err == nil {
 				t.Fatalf("http %s on a non-loopback host must be rejected", bad)
 			}
 		})
@@ -38,7 +37,7 @@ func TestDiscoveryRequiresHTTPSEndpoints(t *testing.T) {
 
 func TestDiscoveryAllowsLoopbackHTTP(t *testing.T) {
 	f := newFakeIDP(t, rsaJWK(t, "a"))
-	if _, err := auth.NewProvider(f.srv.URL).Discovery(context.Background()); err != nil {
+	if _, err := auth.NewProvider(f.srv.URL).Discovery(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }

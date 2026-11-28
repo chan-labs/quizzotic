@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,7 +24,7 @@ import (
 // it passes trivially). Each round starts all goroutines behind one barrier.
 // See docs/adr/0007-owner-tag-lock.md.
 func runTagRaces(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	const rounds = 60
 

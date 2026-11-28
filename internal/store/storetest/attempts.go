@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -20,7 +19,7 @@ import (
 )
 
 func runAttempts(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	setup := func(t *testing.T) (store.Store, auth.User, auth.User) {

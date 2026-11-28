@@ -45,6 +45,7 @@ type Web struct {
 	sets     SettingsService
 	metrics  MetricsReader
 	tagops   TagOpsService
+	static   staticHandler
 }
 
 type navItem struct{ Href, Label string }
@@ -71,7 +72,15 @@ func New(cfg Config) (*Web, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &Web{cfg: cfg, tmpl: map[string]*template.Template{}}
+	sub, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		return nil, err
+	}
+	static, err := newStaticHandler(sub)
+	if err != nil {
+		return nil, err
+	}
+	w := &Web{cfg: cfg, tmpl: map[string]*template.Template{}, static: static}
 	for _, name := range []string{"shell", "drafts", "today", "review", "settings"} {
 		t, err := layout.Clone()
 		if err != nil {
@@ -108,11 +117,7 @@ func RedirectToLogin(w http.ResponseWriter, r *http.Request) {
 // Register mounts the website on mux: static assets (public) and pages
 // (behind the Gate).
 func (w *Web) Register(mux *http.ServeMux) {
-	sub, err := fs.Sub(staticFS, "static")
-	if err != nil {
-		panic("web: embedded static: " + err.Error())
-	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(sub)))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", w.static))
 	mux.Handle("GET /{$}", w.gate(http.HandlerFunc(w.today)))
 	w.registerProblems(mux)
 	w.registerDrafts(mux)

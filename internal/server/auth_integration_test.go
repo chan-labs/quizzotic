@@ -4,7 +4,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -150,7 +149,7 @@ func (e *itEnv) metricsText(t *testing.T) string {
 // with test-only scoped operations registered beside the spec's.
 func newITEnv(t *testing.T) *itEnv {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	idp := newFakeIDP(t)
 
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
@@ -288,11 +287,11 @@ func (r reply) wantChallenge(t *testing.T) {
 // userFor returns the provisioned user ID for sub, or "" when none exists.
 func (e *itEnv) userFor(t testing.TB, sub string) (string, auth.User) {
 	t.Helper()
-	id, err := e.st.Identities().GetByIssuerSubject(context.Background(), e.idp.srv.URL, sub)
+	id, err := e.st.Identities().GetByIssuerSubject(t.Context(), e.idp.srv.URL, sub)
 	if err != nil {
 		return "", auth.User{}
 	}
-	u, err := e.st.Users().Get(context.Background(), id.UserID)
+	u, err := e.st.Users().Get(t.Context(), id.UserID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +509,7 @@ func TestWebCookieSession(t *testing.T) {
 
 	// Cookie-authenticated writes need the session's CSRF token.
 	sum := sha256.Sum256([]byte(cookie))
-	ws, err := e.st.WebSessions().GetByTokenHash(context.Background(), hex.EncodeToString(sum[:]))
+	ws, err := e.st.WebSessions().GetByTokenHash(t.Context(), hex.EncodeToString(sum[:]))
 	if err != nil {
 		t.Fatal(err)
 	}

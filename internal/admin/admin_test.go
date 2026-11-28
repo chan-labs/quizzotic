@@ -4,7 +4,6 @@ package admin
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"path/filepath"
 	"strings"
@@ -16,7 +15,7 @@ import (
 func run(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	var out, errb bytes.Buffer
-	code := Run(context.Background(), args, &out, &errb)
+	code := Run(t.Context(), args, &out, &errb)
 	return code, out.String(), errb.String()
 }
 

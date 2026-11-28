@@ -33,7 +33,7 @@ type probEnv struct {
 
 func newProbEnv(t *testing.T) *probEnv {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +253,7 @@ func TestEditEachTypeKeepsOrChangesCardEpoch(t *testing.T) {
 			if v.Version != 2 || !strings.Contains(v.Prompt+string(v.Payload), tc.want) {
 				t.Fatalf("after edit %+v payload %s", v, v.Payload)
 			}
-			vs, err := e.svc.Versions(context.Background(), e.owner, id)
+			vs, err := e.svc.Versions(t.Context(), e.owner, id)
 			if err != nil || len(vs) != 2 || string(vs[1].ChangeKind) != tc.kind {
 				t.Fatalf("versions %+v err %v, want second change_kind %s", vs, err, tc.kind)
 			}
@@ -343,7 +343,7 @@ func TestPagesRequireSession(t *testing.T) {
 
 func TestTagPickerAndListFilters(t *testing.T) {
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := e.tags.Create(ctx, e.owner, tags.CreateInput{Name: "Geography"}); err != nil {
 		t.Fatal(err)
 	}

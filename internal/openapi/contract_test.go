@@ -111,6 +111,7 @@ func diff(t *testing.T, what string, have, want []string) {
 }
 
 func TestRoutesMatchSpec(t *testing.T) {
+	t.Parallel()
 	apiOps, rootOps := specOps(t)
 	routes := appRouter().Patterns()
 
@@ -123,6 +124,7 @@ func TestRoutesMatchSpec(t *testing.T) {
 }
 
 func TestServesSpec(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	appRouter().Mount(mux)
 	rec := httptest.NewRecorder()
@@ -139,6 +141,7 @@ func TestServesSpec(t *testing.T) {
 }
 
 func TestRootRoutesServed(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	platform.NewHealth(nil).Register(mux)
 	platform.NewMetrics().Register(mux)

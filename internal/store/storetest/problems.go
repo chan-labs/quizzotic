@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -18,7 +17,7 @@ import (
 )
 
 func runProblems(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	// setup returns a store with two users.
@@ -276,6 +275,7 @@ func runProblems(t *testing.T, newStore NewStore) {
 		p1 := mkWith(a, problems.TypeMCQ, "Capital of Japan? 100% sure", domain.ActorHuman)
 		p2 := mkWith(a, problems.TypeCloze, "The {{w}} of japan_city", domain.ActorAgent)
 		p3 := mkWith(a, problems.TypeOpen, `Back\slash`, domain.ActorAgent)
+		p4 := mkWith(a, problems.TypeOpen, "École ÄRGER Σοφία", domain.ActorHuman)
 		mkWith(b, problems.TypeMCQ, "Capital of Japan? (other owner)", domain.ActorAgent)
 
 		// A later version changes the current type and prompt; filters follow it.
@@ -290,7 +290,7 @@ func runProblems(t *testing.T, newStore NewStore) {
 			f    problems.ListFilter
 			want []problems.Problem
 		}{
-			{"type follows current version", problems.ListFilter{Type: problems.TypeOpen}, []problems.Problem{p1, p3}},
+			{"type follows current version", problems.ListFilter{Type: problems.TypeOpen}, []problems.Problem{p1, p3, p4}},
 			{"type mcq: old version no longer matches", problems.ListFilter{Type: problems.TypeMCQ}, nil},
 			{"creator kind", problems.ListFilter{CreatedByKind: domain.ActorAgent}, []problems.Problem{p2, p3}},
 			{"query is case-insensitive", problems.ListFilter{Query: "JAPAN"}, []problems.Problem{p2}},
@@ -299,8 +299,13 @@ func runProblems(t *testing.T, newStore NewStore) {
 			{"query underscore is literal", problems.ListFilter{Query: "japan_c"}, []problems.Problem{p2}},
 			{"query underscore does not match any char", problems.ListFilter{Query: "japan-c"}, nil},
 			{"query backslash is literal", problems.ListFilter{Query: `k\s`}, []problems.Problem{p3}},
+			// Case folding is Unicode, not ASCII only, in both directions.
+			{"query folds non-ASCII lower to upper", problems.ListFilter{Query: "école"}, []problems.Problem{p4}},
+			{"query folds non-ASCII upper to lower", problems.ListFilter{Query: "ÉCOLE"}, []problems.Problem{p4}},
+			{"query folds umlaut", problems.ListFilter{Query: "ärger"}, []problems.Problem{p4}},
+			{"query folds Greek", problems.ListFilter{Query: "ΣΟΦΊΑ"}, []problems.Problem{p4}},
 			{"filters combine", problems.ListFilter{Type: problems.TypeOpen, CreatedByKind: domain.ActorAgent}, []problems.Problem{p3}},
-			{"filters page", problems.ListFilter{Type: problems.TypeOpen, After: p1.ID}, []problems.Problem{p3}},
+			{"filters page", problems.ListFilter{Type: problems.TypeOpen, After: p1.ID}, []problems.Problem{p3, p4}},
 		}
 		for _, c := range cases {
 			cur, err := s.Problems().ListCurrent(ctx, a.ID, c.f)

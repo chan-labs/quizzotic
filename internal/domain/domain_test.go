@@ -9,6 +9,7 @@ import (
 )
 
 func TestIDsSortByTime(t *testing.T) {
+	t.Parallel()
 	clock := NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	gen := NewIDGenerator(clock)
 	var ids []string
@@ -22,6 +23,7 @@ func TestIDsSortByTime(t *testing.T) {
 }
 
 func TestIDsMonotonicWithinMillisecondAndBackwardsClock(t *testing.T) {
+	t.Parallel()
 	clock := NewFakeClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	gen := NewIDGenerator(clock)
 	prev := gen.New().String()
@@ -38,6 +40,7 @@ func TestIDsMonotonicWithinMillisecondAndBackwardsClock(t *testing.T) {
 }
 
 func TestIDFormat(t *testing.T) {
+	t.Parallel()
 	at := time.Date(2026, 5, 6, 7, 8, 9, 123_000_000, time.UTC)
 	id := NewIDGenerator(NewFakeClock(at)).New()
 	s := id.String()
@@ -62,6 +65,7 @@ func TestIDFormat(t *testing.T) {
 }
 
 func TestFakeClock(t *testing.T) {
+	t.Parallel()
 	start := time.Date(2026, 1, 1, 12, 0, 0, 0, time.FixedZone("x", 3600))
 	c := NewFakeClock(start)
 	if c.Now().Location() != time.UTC || !c.Now().Equal(start) {
@@ -78,6 +82,7 @@ func TestFakeClock(t *testing.T) {
 }
 
 func TestActorValidate(t *testing.T) {
+	t.Parallel()
 	uid := NewIDGenerator(SystemClock{}).New()
 	ok := []Actor{
 		{Kind: ActorHuman, UserID: uid, ClientID: "web"},
@@ -98,6 +103,7 @@ func TestActorValidate(t *testing.T) {
 }
 
 func TestBuildPacksTimestampAndSequence(t *testing.T) {
+	t.Parallel()
 	id := build(0x0123456789ab, 0xfcde) // seq bits above 12 must be dropped
 	want := []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0x7c, 0xde}
 	for i, b := range want {

@@ -4,7 +4,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -61,7 +60,7 @@ func assertClientServerLink(t *testing.T, exp *tracetest.InMemoryExporter, urlPa
 func TestCLICallLinksToServerSpan(t *testing.T) {
 	e, exp := clientTraceEnv(t)
 	var out, errOut bytes.Buffer
-	code := cli.Run(context.Background(), []string{"problems", "list", "--server", e.srv.URL}, cli.Env{
+	code := cli.Run(t.Context(), []string{"problems", "list", "--server", e.srv.URL}, cli.Env{
 		Stdout: &out, Stderr: &errOut,
 		Getenv: func(k string) string {
 			if k == "QUIZZOTIC_TOKEN" {
@@ -79,7 +78,7 @@ func TestCLICallLinksToServerSpan(t *testing.T) {
 func TestMCPCallLinksToServerSpan(t *testing.T) {
 	e, exp := clientTraceEnv(t)
 	cs := mcpSession(t, e, e.agent)
-	res, err := cs.CallTool(context.Background(), &sdk.CallToolParams{Name: "problems_list", Arguments: map[string]any{}})
+	res, err := cs.CallTool(t.Context(), &sdk.CallToolParams{Name: "problems_list", Arguments: map[string]any{}})
 	if err != nil || res.IsError {
 		t.Fatalf("call: %v %+v", err, res)
 	}

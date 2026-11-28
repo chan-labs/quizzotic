@@ -3,20 +3,14 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
-	"io"
-	"log/slog"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/domain"
@@ -25,6 +19,7 @@ import (
 	"github.com/chan-labs/quizzotic/internal/seedrun"
 	"github.com/chan-labs/quizzotic/internal/server"
 	"github.com/chan-labs/quizzotic/internal/store/sqlite"
+	"github.com/chan-labs/quizzotic/internal/testsupport/serverrun"
 )
 
 // newRunEnv starts the real server (server.Run on a listener, with a real
@@ -56,8 +51,6 @@ func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 // is always the test's own.
 func startRunEnvOpts(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, tweak func(*config.Config), opts server.Options) (*probEnv, func()) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-
 	cfg := config.Default()
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
 	cfg.Storage.URL = "sqlite://" + dbPath
@@ -76,42 +69,9 @@ func startRunEnvOpts(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 		tweak(&cfg)
 	}
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() {
-		done <- server.Run(ctx, &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), func() server.Options { opts.Listener = ln; return opts }())
-	}()
-	var once sync.Once
-	stop := func() {
-		once.Do(func() {
-			cancel()
-			select {
-			case err := <-done:
-				if err != nil {
-					t.Errorf("Run returned %v", err)
-				}
-			case <-time.After(10 * time.Second):
-				t.Error("server did not shut down")
-			}
-		})
-	}
-	t.Cleanup(stop)
-	base := "http://" + ln.Addr().String()
-	for i := 0; ; i++ {
-		resp, err := http.Get(base + "/healthz")
-		if err == nil {
-			resp.Body.Close()
-			break
-		}
-		if i > 200 {
-			t.Fatalf("server did not start: %v", err)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	st, err := sqlite.Open(ctx, dbPath)
+	srv := serverrun.StartWith(t, &cfg, opts)
+	base := srv.URL
+	st, err := sqlite.Open(t.Context(), dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,13 +81,13 @@ func startRunEnvOpts(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 		itEnv: &itEnv{idp: idp, srv: &httptest.Server{URL: base}, st: st},
 		human: idp.access("quizzotic-cli", "author-sub", with("name", "Author"), with("email", "author@example.com")),
 		agent: idp.access("quizzotic-agent", "author-sub"),
-	}, stop
+	}, srv.Stop
 }
 
 // total returns the tag's cards_total from the mastery row the server keeps.
 func (e *probEnv) total(t *testing.T, owner, tag domain.ID) int {
 	t.Helper()
-	m, err := e.st.Mastery().Get(context.Background(), owner, tag)
+	m, err := e.st.Mastery().Get(t.Context(), owner, tag)
 	if err != nil {
 		t.Fatalf("no mastery row for tag %s: %v", tag, err)
 	}
@@ -204,7 +164,7 @@ func TestMasteryCurrentAfterEachEvent(t *testing.T) {
 // tagged problem is counted at once, in the database the running server uses.
 func TestSeedRefreshesMastery(t *testing.T) {
 	e := newRunEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	owner := e.owner(t)
 	f, err := seed.Parse(strings.NewReader(httpSeedPack))
 	if err != nil {
@@ -250,7 +210,7 @@ func lifecycle(t *testing.T, status, change, prompt string) *seed.File {
 // seed transaction only has the card-only major-edit hook.
 func TestSeedPublishAndMajorEditRefreshMastery(t *testing.T) {
 	e := newRunEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	owner := e.owner(t)
 	apply := func(f *seed.File) {
 		t.Helper()
@@ -301,7 +261,7 @@ func TestStartupSeedRefreshesMastery(t *testing.T) {
 	}
 	e, _ := startRunEnv(t, idp, dbPath, []string{specPath})
 	owner := e.owner(t)
-	tag, err := e.st.Tags().GetBySlug(context.Background(), owner, "basics")
+	tag, err := e.st.Tags().GetBySlug(t.Context(), owner, "basics")
 	if err != nil {
 		t.Fatalf("start-up seed did not create its tag: %v", err)
 	}

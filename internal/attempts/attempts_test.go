@@ -161,7 +161,7 @@ func ptr[T any](v T) *T { return &v }
 
 func TestAnswerEveryType(t *testing.T) {
 	e := newEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("mcq right defaults to Good", func(t *testing.T) {
 		res, err := e.svc.Answer(ctx, human(e.user), AnswerInput{ProblemID: e.mcq, ProblemVersion: 2,
@@ -255,7 +255,7 @@ func TestAnswerEveryType(t *testing.T) {
 
 func TestAnswerCardHook(t *testing.T) {
 	e := newEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	due := now.Add(24 * time.Hour)
 	e.cards.next = &due
 	in := AnswerInput{ProblemID: e.mcq, ProblemVersion: 2, Response: raw(`{"selected":["b"]}`)}
@@ -278,7 +278,7 @@ func TestAnswerCardHook(t *testing.T) {
 
 func TestAnswerRefusals(t *testing.T) {
 	e := newEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	ok := raw(`{"selected":["b"]}`)
 
 	problemOf := func(t *testing.T, err error) *platform.Problem {
@@ -552,7 +552,7 @@ func TestAnswerValidatesSession(t *testing.T) {
 	in := func(sid string) AnswerInput {
 		return AnswerInput{ProblemID: e.mcq, ProblemVersion: 2, Response: raw(`{"selected":["b"]}`), LatencyMS: 1, SessionID: sid}
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for name, sid := range map[string]domain.ID{"unknown": unknown, "foreign": foreign} {
 		_, err := e.svc.Answer(ctx, human(e.user), in(sid.String()))

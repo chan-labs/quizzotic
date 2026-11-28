@@ -81,14 +81,14 @@ func TestSettingsPageRendersFormWithCSRF(t *testing.T) {
 func TestSavingNewPerDayChangesEffectiveSetting(t *testing.T) {
 	mux, svc, _ := settingsMux(t)
 	var id domain.ID
-	before, _ := svc.Get(context.Background(), id)
+	before, _ := svc.Get(t.Context(), id)
 	f := validForm()
 	f.Set("new_per_day", "7")
 	rec := post(mux, f)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
 	}
-	after, _ := svc.Get(context.Background(), id)
+	after, _ := svc.Get(t.Context(), id)
 	if before.NewPerDay == 7 || after.NewPerDay != 7 {
 		t.Fatalf("new_per_day before=%d after=%d", before.NewPerDay, after.NewPerDay)
 	}

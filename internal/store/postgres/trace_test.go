@@ -3,7 +3,6 @@
 package postgres
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -26,7 +25,7 @@ func TestWithTxTracesStatements(t *testing.T) {
 	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp)))
 	t.Cleanup(func() { otel.SetTracerProvider(prev) })
 
-	ctx, root := platform.StartSpan(context.Background(), "root")
+	ctx, root := platform.StartSpan(t.Context(), "root")
 	err := s.WithTx(ctx, func(tx store.Store) error {
 		_, err := tx.(*Store).q.ExecContext(ctx, `INSERT INTO t (n) VALUES (?)`, 1)
 		return err

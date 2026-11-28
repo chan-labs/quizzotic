@@ -3,7 +3,6 @@
 package tags_test
 
 import (
-	"context"
 	"errors"
 	"path/filepath"
 	"reflect"
@@ -21,7 +20,7 @@ func ptr(s string) *string { return &s }
 
 func renameSetup(t *testing.T) (*tags.Service, domain.ID, domain.ID) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "r.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -44,7 +43,7 @@ func renameSetup(t *testing.T) (*tags.Service, domain.ID, domain.ID) {
 }
 
 func TestRenameOldSlugResolvesToRenamedTag(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	svc, owner, other := renameSetup(t)
 	orig, err := svc.Create(ctx, owner, tags.CreateInput{Name: "Go Basics", Slug: "go-basics"})
 	if err != nil {
@@ -77,7 +76,7 @@ func TestRenameOldSlugResolvesToRenamedTag(t *testing.T) {
 }
 
 func TestRenameNameOnlyAddsNoAlias(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	svc, owner, _ := renameSetup(t)
 	if _, err := svc.Create(ctx, owner, tags.CreateInput{Name: "Old", Slug: "old"}); err != nil {
 		t.Fatal(err)
@@ -89,7 +88,7 @@ func TestRenameNameOnlyAddsNoAlias(t *testing.T) {
 }
 
 func TestRenameChainKeepsEveryOldSlug(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	svc, owner, _ := renameSetup(t)
 	orig, _ := svc.Create(ctx, owner, tags.CreateInput{Name: "A", Slug: "a"})
 	if _, err := svc.Rename(ctx, owner, tags.RenameInput{Tag: "a", Slug: ptr("b")}); err != nil {
@@ -106,7 +105,7 @@ func TestRenameChainKeepsEveryOldSlug(t *testing.T) {
 }
 
 func TestRenameRejections(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	svc, owner, _ := renameSetup(t)
 	for _, in := range []tags.CreateInput{{Name: "A", Slug: "a"}, {Name: "B", Slug: "b"}} {
 		if _, err := svc.Create(ctx, owner, in); err != nil {

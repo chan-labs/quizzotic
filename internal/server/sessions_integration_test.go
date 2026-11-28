@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,6 +20,7 @@ import (
 
 func init() {
 	liveProblem := func(t testing.TB, c *ownerscope.Client, prompt string) string {
+		t.Helper()
 		body := openBody(prompt)
 		body["status"] = "live"
 		r := c.Do("POST", "/problems", body)
@@ -39,6 +39,7 @@ func init() {
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "sessions",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			t.Helper()
 			prompt := "Session owner-scope prompt " + domain.NewIDGenerator(domain.SystemClock{}).New().String()
 			pid := liveProblem(t, c, prompt)
 			r := c.Do("POST", "/sessions", map[string]any{"kind": "review"})
@@ -82,6 +83,7 @@ func init() {
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "cards",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			t.Helper()
 			prompt := "Card owner-scope prompt " + domain.NewIDGenerator(domain.SystemClock{}).New().String()
 			pid := liveProblem(t, c, prompt)
 			a := c.Do("POST", "/attempts", map[string]any{"problem_id": pid, "problem_version": 1,
@@ -160,7 +162,7 @@ func (e *itEnv) counter(t *testing.T, name string) int {
 
 func TestSessionsEndToEnd(t *testing.T) {
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	attemptsBefore := e.counter(t, "quizzotic_attempts_recorded_total")
 	sessionsBefore := e.counter(t, "quizzotic_sessions_served_total")
 

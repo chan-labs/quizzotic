@@ -3,20 +3,17 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/server"
+	"github.com/chan-labs/quizzotic/internal/testsupport/serverrun"
 )
 
 func TestServeStartsAndShutsDown(t *testing.T) {
@@ -45,31 +42,15 @@ func TestServeStartsAndShutsDown(t *testing.T) {
 	defer idp.Close()
 	cfg.Auth.Issuers[0].Issuer = idp.URL
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	done := make(chan error, 1)
-	go func() { done <- server.Run(ctx, cfg, logger, server.Options{Listener: ln}) }()
-
-	base := "http://" + ln.Addr().String()
+	srv := serverrun.Start(t, cfg)
 	get := func(path string) int {
 		t.Helper()
-		var lastErr error
-		for range 100 {
-			resp, err := http.Get(base + path)
-			if err == nil {
-				resp.Body.Close()
-				return resp.StatusCode
-			}
-			lastErr = err
-			time.Sleep(20 * time.Millisecond)
+		resp, err := srv.Client.Get(srv.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
 		}
-		t.Fatalf("GET %s: %v", path, lastErr)
-		return 0
+		resp.Body.Close()
+		return resp.StatusCode
 	}
 	for _, p := range []string{"/healthz", "/readyz", "/api/v1/openapi.yaml"} {
 		if got := get(p); got != http.StatusOK {
@@ -80,20 +61,14 @@ func TestServeStartsAndShutsDown(t *testing.T) {
 		t.Errorf("unknown API path = %d, want 404", got)
 	}
 
-	cancel() // stands in for SIGTERM, which cancels the same context
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("Run returned %v after shutdown", err)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("server did not shut down")
-	}
+	// Cancelling Run's context stands in for SIGTERM; Stop fails the test
+	// unless Run then returns nil promptly.
+	srv.Stop()
 }
 
 func TestRunRejectsIncompleteConfig(t *testing.T) {
 	cfg := config.Default() // no public_url, no issuer
-	err := server.Run(context.Background(), &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), server.Options{})
+	err := server.Run(t.Context(), &cfg, slog.New(slog.DiscardHandler), server.Options{})
 	if err == nil {
 		t.Fatal("want error")
 	}

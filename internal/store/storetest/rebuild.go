@@ -4,7 +4,6 @@ package storetest
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -34,7 +33,7 @@ func runRebuild(t *testing.T, newStore NewStore) {
 }
 
 func runListUserIDs(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 	s, _ := newStore(t)
 
@@ -140,7 +139,9 @@ const attempts10k = 10_000
 // RunRebuild10k is the M4.8 Done-when at its full size: on a database holding
 // 10,000 attempts, rebuilding finishes and gives exactly the state the
 // incremental updates maintained.
-func RunRebuild10k(t *testing.T, newStore NewStore) { runRebuildLargeLog(t, newStore, attempts10k) }
+func RunRebuild10k(t *testing.T, newStore NewStore) {
+	runRebuildLargeLog(t, newStore, attempts10k)
+}
 
 func runRebuildLargeLog(t *testing.T, newStore NewStore, attempts int) {
 	if testing.Short() {

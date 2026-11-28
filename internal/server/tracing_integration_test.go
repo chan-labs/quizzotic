@@ -83,7 +83,8 @@ func (rt requestTrace) chain(t *testing.T, s tracetest.SpanStub) []string {
 	}
 }
 
-func isDB(s tracetest.SpanStub, t *testing.T) bool {
+func isDB(t *testing.T, s tracetest.SpanStub) bool {
+	t.Helper()
 	db := false
 	for _, a := range s.Attributes {
 		if a.Key == "db.system" && a.Value.AsString() == "sqlite" {
@@ -108,7 +109,7 @@ func (rt requestTrace) requireChain(t *testing.T, service string) {
 			s := s
 			svc = &s
 		}
-		if !isDB(s, t) {
+		if !isDB(t, s) {
 			continue
 		}
 		dbSpans++

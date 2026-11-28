@@ -3,7 +3,6 @@
 package sqlite
 
 import (
-	"context"
 	"encoding/json"
 	"path/filepath"
 	"reflect"
@@ -20,7 +19,7 @@ const clozeMatchVersion = 20261102150000
 // "relaxed" (both old values), other payloads are left alone, blank order is
 // kept and the immutability triggers are back afterwards.
 func TestClozeMatchMigrationRewritesLegacyPayloads(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := Open(ctx, filepath.Join(t.TempDir(), "m.db"))
 	if err != nil {
 		t.Fatal(err)

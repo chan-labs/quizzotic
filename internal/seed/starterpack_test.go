@@ -3,7 +3,6 @@
 package seed_test
 
 import (
-	"context"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -92,7 +91,7 @@ func TestStarterPackShape(t *testing.T) {
 // cards and the daily new-card limit.
 func TestStarterPackSession(t *testing.T) {
 	e := newEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	f := loadStarter(t)
 	if _, err := seedrun.ApplyFile(ctx, e.st, e.owner, f); err != nil {
 		t.Fatal(err)
@@ -282,7 +281,7 @@ func TestStarterPackStored(t *testing.T) {
 	e := newEnv(t)
 	f := loadStarter(t)
 	apply := func() seed.Report {
-		rep, err := seedrun.ApplyFile(context.Background(), e.st, e.owner, f)
+		rep, err := seedrun.ApplyFile(t.Context(), e.st, e.owner, f)
 		if err != nil {
 			t.Fatal(err)
 		}

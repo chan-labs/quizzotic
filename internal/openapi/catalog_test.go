@@ -10,6 +10,7 @@ import (
 )
 
 func TestScopeCatalogMatchesSpecScopes(t *testing.T) {
+	t.Parallel()
 	got, err := openapi.SpecScopes()
 	if err != nil {
 		t.Fatal(err)
@@ -25,6 +26,7 @@ func TestScopeCatalogMatchesSpecScopes(t *testing.T) {
 }
 
 func TestScopeCatalogRejectsUndeclaredScope(t *testing.T) {
+	t.Parallel()
 	spec := `
 x-quizzotic-scope-catalog:
   a:read: x
@@ -40,6 +42,7 @@ paths:
 }
 
 func TestOperationAuthenticatedFollowsSecurity(t *testing.T) {
+	t.Parallel()
 	spec := `
 paths:
   /pub:

@@ -73,6 +73,7 @@ func fakeAPI(m mode) http.Handler {
 }
 
 func run(t *testing.T, m mode) []string {
+	t.Helper()
 	srv := httptest.NewServer(fakeAPI(m))
 	t.Cleanup(srv.Close)
 	tokens := map[ownerscope.User]string{ownerscope.UserA: "A", ownerscope.UserB: "B"}

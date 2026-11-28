@@ -4,7 +4,6 @@ package cli_test
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 func runReview(t *testing.T, dir string) (int, string) {
 	t.Helper()
 	var o, e bytes.Buffer
-	code := cli.Review(context.Background(), nil, cli.Env{
+	code := cli.Review(t.Context(), nil, cli.Env{
 		Stdin: strings.NewReader(""), Stdout: &o, Stderr: &e,
 		Getenv: func(k string) string {
 			switch k {
