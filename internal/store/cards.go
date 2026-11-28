@@ -93,7 +93,7 @@ type reviewTx struct {
 }
 
 func (a reviewTx) InTx(ctx context.Context, fn func(review.Scope) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error { return fn(a.c.Scope(tx)) })
+	return run(ctx, a.s, func(tx Store) error { return fn(a.c.Scope(tx)) })
 }
 
 // problemEpochs answers review.ProblemSource from a problems repo.
@@ -201,7 +201,7 @@ type sessionTx struct {
 }
 
 func (a sessionTx) InTx(ctx context.Context, fn func(review.SessionScope) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error {
+	return run(ctx, a.s, func(tx Store) error {
 		return fn(review.SessionScope{
 			Sessions: tx.Sessions(),
 			Attempts: tx.Attempts(),

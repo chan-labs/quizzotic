@@ -19,7 +19,7 @@ func ExportTx(s Store) export.Transactor { return exportTx{s} }
 type exportTx struct{ s Store }
 
 func (a exportTx) InTx(ctx context.Context, fn func(export.Repo) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Export()) })
+	return run(ctx, a.s, func(tx Store) error { return fn(tx.Export()) })
 }
 
 // ExportService is the export service over s. After an import commits it

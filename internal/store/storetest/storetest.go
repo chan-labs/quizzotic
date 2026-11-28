@@ -91,6 +91,47 @@ func runTx(t *testing.T, newStore NewStore) {
 		}
 	})
 
+	t.Run("read tx reads committed rows", func(t *testing.T) {
+		s, sc := newStore(t)
+		if err := s.WithTx(ctx, func(tx store.Store) error { return sc.Insert(ctx, tx, 1) }); err != nil {
+			t.Fatal(err)
+		}
+		err := s.WithReadTx(ctx, func(tx store.Store) error {
+			if n := count(t, tx, sc); n != 1 {
+				t.Errorf("count inside read tx = %d, want 1", n)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("read tx rejects writes", func(t *testing.T) {
+		s, sc := newStore(t)
+		err := s.WithReadTx(ctx, func(tx store.Store) error { return sc.Insert(ctx, tx, 1) })
+		if err == nil {
+			t.Fatal("a write inside WithReadTx succeeded")
+		}
+		if n := count(t, s, sc); n != 0 {
+			t.Fatalf("count after rejected write = %d, want 0", n)
+		}
+		// The store still writes normally afterwards.
+		if err := s.WithTx(ctx, func(tx store.Store) error { return sc.Insert(ctx, tx, 1) }); err != nil {
+			t.Fatalf("write after a read tx: %v", err)
+		}
+	})
+
+	t.Run("write inside a joined read tx is rejected", func(t *testing.T) {
+		s, sc := newStore(t)
+		err := s.WithReadTx(ctx, func(rtx store.Store) error {
+			return rtx.WithTx(ctx, func(tx store.Store) error { return sc.Insert(ctx, tx, 1) })
+		})
+		if err == nil {
+			t.Fatal("a write through a joined WithTx inside WithReadTx succeeded")
+		}
+	})
+
 	t.Run("rollback", func(t *testing.T) {
 		s, sc := newStore(t)
 		err := s.WithTx(ctx, func(tx store.Store) error {

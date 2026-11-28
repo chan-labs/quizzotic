@@ -33,6 +33,13 @@ type Store interface {
 	// WithTx on the Store passed to fn joins the same transaction.
 	WithTx(ctx context.Context, fn func(tx Store) error) error
 
+	// WithReadTx is WithTx for a unit of work that only reads: the
+	// transaction is read-only, so on SQLite it takes no write lock (reads
+	// do not queue behind writers) and on Postgres it is BEGIN READ ONLY. A
+	// write inside fails on both backends. Calling it inside an open
+	// transaction joins that transaction.
+	WithReadTx(ctx context.Context, fn func(tx Store) error) error
+
 	// Users and Identities are bound to this Store's transaction, if any.
 	Users() auth.UserRepo
 	Identities() auth.IdentityRepo
@@ -91,6 +98,16 @@ type Store interface {
 	Close() error
 }
 
+// run is WithReadTx when ctx was marked with platform.ReadOnlyTx, else WithTx.
+// The InTx adapters below go through it, so a read-only service picks the
+// read-only transaction by marking its context.
+func run(ctx context.Context, s Store, fn func(tx Store) error) error {
+	if platform.IsReadOnlyTx(ctx) {
+		return s.WithReadTx(ctx, fn)
+	}
+	return s.WithTx(ctx, fn)
+}
+
 // AuthTx adapts a Store to auth.Transactor: each InTx call is one store
 // transaction with transaction-bound repositories.
 func AuthTx(s Store) auth.Transactor { return authTx{s} }
@@ -98,7 +115,7 @@ func AuthTx(s Store) auth.Transactor { return authTx{s} }
 type authTx struct{ s Store }
 
 func (a authTx) InTx(ctx context.Context, fn func(auth.Repos) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error {
+	return run(ctx, a.s, func(tx Store) error {
 		return fn(auth.Repos{Users: tx.Users(), Identities: tx.Identities()})
 	})
 }
@@ -109,7 +126,7 @@ func ProblemsTx(s Store) problems.Transactor { return problemsTx{s} }
 type problemsTx struct{ s Store }
 
 func (a problemsTx) InTx(ctx context.Context, fn func(problems.Repo) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Problems()) })
+	return run(ctx, a.s, func(tx Store) error { return fn(tx.Problems()) })
 }
 
 // ProblemsEditTx is ProblemsTx whose edits also supply the major-edit handler
@@ -126,7 +143,7 @@ type problemsEditTx struct {
 }
 
 func (a problemsEditTx) InEditTx(ctx context.Context, fn func(problems.Repo, problems.MajorEditHandler) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Problems(), a.majorEdit(tx)) })
+	return run(ctx, a.s, func(tx Store) error { return fn(tx.Problems(), a.majorEdit(tx)) })
 }
 
 // AttemptsTx adapts a Store to attempts.Transactor.
@@ -135,7 +152,7 @@ func AttemptsTx(s Store) attempts.Transactor { return attemptsTx{s} }
 type attemptsTx struct{ s Store }
 
 func (a attemptsTx) InTx(ctx context.Context, fn func(attempts.Repo) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Attempts()) })
+	return run(ctx, a.s, func(tx Store) error { return fn(tx.Attempts()) })
 }
 
 // AttemptsCardTx is AttemptsTx whose transactions also supply the card updater
@@ -152,7 +169,7 @@ type attemptsCardTx struct {
 }
 
 func (a attemptsCardTx) InCardTx(ctx context.Context, fn func(attempts.Repo, attempts.CardUpdater) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Attempts(), a.cards(tx)) })
+	return run(ctx, a.s, func(tx Store) error { return fn(tx.Attempts(), a.cards(tx)) })
 }
 
 // ProblemsBatchTx adapts a Store to problems.BatchTransactor: problems and
@@ -165,7 +182,7 @@ type problemsBatchTx struct {
 }
 
 func (a problemsBatchTx) InBatchTx(ctx context.Context, fn func(problems.BatchScope) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error {
+	return run(ctx, a.s, func(tx Store) error {
 		sc := problems.BatchScope{Problems: tx.Problems(), Tags: tags.NewBinder(tx.Tags())}
 		if a.m != nil {
 			sc.Created = a.m.Projector(tx).UpdateProblem
@@ -180,7 +197,7 @@ func SettingsTx(s Store) settings.Transactor { return settingsTx{s} }
 type settingsTx struct{ s Store }
 
 func (a settingsTx) InTx(ctx context.Context, fn func(settings.Repos) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error {
+	return run(ctx, a.s, func(tx Store) error {
 		return fn(settings.Repos{Settings: tx.Settings()})
 	})
 }
@@ -196,7 +213,7 @@ type tagsTx struct {
 }
 
 func (a tagsTx) InTx(ctx context.Context, fn func(tags.Repos) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error {
+	return run(ctx, a.s, func(tx Store) error {
 		r := tags.Repos{Tags: tx.Tags(), Ops: tx.TagOperations(), Problems: problems.NewReader(tx.Problems())}
 		if a.m != nil {
 			r.Mastery = tagMastery{tx: tx, m: *a.m}
@@ -213,7 +230,7 @@ func QuizzesTx(s Store) quizzes.Transactor { return quizzesTx{s} }
 type quizzesTx struct{ s Store }
 
 func (a quizzesTx) InTx(ctx context.Context, fn func(quizzes.Repo) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error { return fn(tx.Quizzes()) })
+	return run(ctx, a.s, func(tx Store) error { return fn(tx.Quizzes()) })
 }
 
 // SeedTx adapts a Store to seed.Transactor. Each InTx call builds fresh
@@ -234,7 +251,7 @@ type seedTx struct {
 }
 
 func (a seedTx) InTx(ctx context.Context, fn func(seed.Services) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error {
+	return run(ctx, a.s, func(tx Store) error {
 		ps := problems.NewService(tx.Problems(), ProblemsTx(tx), a.clock, a.ids,
 			problems.WithMajorEditHandler(a.m.MajorEdit(tx)))
 		return fn(seed.Services{

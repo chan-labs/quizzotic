@@ -96,11 +96,46 @@ func (s *Store) DB() *sql.DB { return s.db }
 
 // WithTx implements store.Store.
 func (s *Store) WithTx(ctx context.Context, fn func(tx store.Store) error) error {
+	return s.runTx(ctx, false, fn)
+}
+
+// WithReadTx implements store.Store. The transaction begins deferred (no
+// RESERVED lock) on a connection with query_only set, so a write inside fails
+// instead of upgrading the lock.
+func (s *Store) WithReadTx(ctx context.Context, fn func(tx store.Store) error) error {
+	return s.runTx(ctx, true, fn)
+}
+
+func (s *Store) runTx(ctx context.Context, readOnly bool, fn func(tx store.Store) error) (err error) {
 	if s.q.InTx() {
 		return fn(s)
 	}
 	txCtx, span := s.q.TraceTx(ctx)
-	tx, err := s.db.BeginTx(txCtx, nil)
+	var begin func() (*sql.Tx, error)
+	if readOnly {
+		conn, cerr := s.db.Conn(txCtx)
+		if cerr != nil {
+			platform.EndSpan(span, cerr)
+			return cerr
+		}
+		if _, cerr := conn.ExecContext(txCtx, `PRAGMA query_only=1`); cerr != nil {
+			_ = conn.Close()
+			platform.EndSpan(span, cerr)
+			return cerr
+		}
+		defer func() {
+			// Leave the pooled connection writable for the next user, or
+			// drop it if that cannot be done.
+			if _, rerr := conn.ExecContext(context.Background(), `PRAGMA query_only=0`); rerr != nil {
+				_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+			}
+			_ = conn.Close()
+		}()
+		begin = func() (*sql.Tx, error) { return conn.BeginTx(txCtx, &sql.TxOptions{ReadOnly: true}) }
+	} else {
+		begin = func() (*sql.Tx, error) { return s.db.BeginTx(txCtx, nil) }
+	}
+	tx, err := begin()
 	if err != nil {
 		platform.EndSpan(span, err)
 		return err

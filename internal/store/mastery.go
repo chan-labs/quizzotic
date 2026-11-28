@@ -122,7 +122,7 @@ func (a snapshotTx) Optimize(ctx context.Context) error {
 }
 
 func (a snapshotTx) InTx(ctx context.Context, fn func(metrics.SnapshotScope) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error {
+	return run(ctx, a.s, func(tx Store) error {
 		return fn(metrics.SnapshotScope{
 			Scope:     a.m.Scope(tx),
 			Snapshots: tx.MasterySnapshots(),
@@ -151,7 +151,7 @@ type masteryTx struct {
 }
 
 func (a masteryTx) InTx(ctx context.Context, fn func(metrics.Scope) error) error {
-	return a.s.WithTx(ctx, func(tx Store) error { return fn(a.m.Scope(tx)) })
+	return run(ctx, a.s, func(tx Store) error { return fn(a.m.Scope(tx)) })
 }
 
 type cardAndMastery struct {
