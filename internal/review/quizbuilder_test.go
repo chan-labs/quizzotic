@@ -25,7 +25,7 @@ func (q quizList) QuizProblems(_ context.Context, _, quiz domain.ID) (review.Qui
 func quizBuild(t *testing.T, w *world, q quizList, session, quiz domain.ID, shuffle bool) []review.Item {
 	t.Helper()
 	b := review.NewQuizBuilder(q, problemList{w})
-	p, err := b.Build(context.Background(), w.user, session, quiz, shuffle)
+	p, err := b.Build(t.Context(), w.user, session, quiz, shuffle)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestQuizBuildShuffleIsReproduciblePerSession(t *testing.T) {
 func TestQuizBuildMissingQuizAndEmpty(t *testing.T) {
 	w := newWorld()
 	b := review.NewQuizBuilder(quizList{}, problemList{w})
-	if _, err := b.Build(context.Background(), w.user, w.ids.New(), w.ids.New(), false); !errors.Is(err, review.ErrNotFound) {
+	if _, err := b.Build(t.Context(), w.user, w.ids.New(), w.ids.New(), false); !errors.Is(err, review.ErrNotFound) {
 		t.Errorf("missing quiz = %v, want ErrNotFound", err)
 	}
 	quiz := w.ids.New()

@@ -3,7 +3,6 @@
 package problems_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -21,7 +20,7 @@ func openIn(prompt, ref string) problems.CreateInput {
 
 func (f fixture) mustCreate(t *testing.T, in problems.CreateInput) problems.View {
 	t.Helper()
-	v, err := f.svc.Create(context.Background(), f.actor, in)
+	v, err := f.svc.Create(t.Context(), f.actor, in)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +39,7 @@ func similarIDs(r problems.SimilarResult) []domain.ID {
 // must rank first, closest first.
 func TestSimilarRanksNearDuplicatesFirst(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	unrelated1 := f.mustCreate(t, openIn("Explain how the mitochondria produce ATP", "Oxidative phosphorylation"))
 	exact := f.mustCreate(t, openIn("What is the capital of France?", "Paris"))
 	unrelated2 := f.mustCreate(t, mcqInput(false))
@@ -71,7 +70,7 @@ func TestSimilarRanksNearDuplicatesFirst(t *testing.T) {
 
 func TestSimilarLimitMinScoreAndDefaults(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, p := range []string{"alpha beta gamma", "alpha beta delta", "alpha epsilon zeta", "alpha eta theta iota"} {
 		f.mustCreate(t, openIn(p, "x"))
 	}
@@ -99,7 +98,7 @@ func TestSimilarLimitMinScoreAndDefaults(t *testing.T) {
 
 func TestSimilarSkipsDeletedAndUsesCurrentVersion(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	gone := f.mustCreate(t, openIn("quantum entanglement basics", "spooky"))
 	edited := f.mustCreate(t, openIn("quantum entanglement basics", "spooky"))
 	if err := f.st.Problems().SoftDelete(ctx, f.actor.UserID, gone.ID, f.clock.Now()); err != nil {
@@ -131,7 +130,7 @@ func TestSimilarValidation(t *testing.T) {
 		"big score":    {Prompt: "x", MinScore: 1.5},
 		"neg score":    {Prompt: "x", MinScore: -0.1},
 	} {
-		_, err := f.svc.Similar(context.Background(), f.actor.UserID, in)
+		_, err := f.svc.Similar(t.Context(), f.actor.UserID, in)
 		var pb *platform.Problem
 		if !errors.As(err, &pb) || pb.Status != 422 || len(pb.Errors) == 0 {
 			t.Errorf("%s: err = %v", name, err)

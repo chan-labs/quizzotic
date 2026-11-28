@@ -2,11 +2,13 @@
 # CI uses the same file (jdx/mise-action), so local and CI results match.
 
 [tools]
-go = "1.26.3"
+go = "1.26.11"
 uv = "0.9"  # Python scripts (tools/fsrs-vectors)
 node = "22" # Redocly (openapi-lint)
 golangci-lint = "2.15.0" # lint + format (replaces go vet, staticcheck and gofmt)
 gh = "2.104.0" # GitHub CLI for agents: `mise exec -- gh` works in every checkout and worktree
+goreleaser = "2.12.0" # prebuilt binary; keep in step with goreleaser-action `version:` in release.yml
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0" # known-vulnerability check (not in go.mod)
 
 [tasks.doctor]
 description = "Check this machine (tools, gh auth, docker, git identity/signing, push access); changes nothing"
@@ -40,6 +42,11 @@ run = "golangci-lint fmt --diff ./..."
 description = "Redocly lint of api/openapi.yaml"
 run = "npx --yes @redocly/cli@1.34.5 lint api/openapi.yaml"
 
+# Symbol-level (default) mode: fails only on vulnerabilities reachable from our code.
+[tasks.vulncheck]
+description = "govulncheck ./... (known vulnerabilities in reachable code, modules and stdlib)"
+run = "govulncheck ./..."
+
 [tasks.lint-go]
 description = "golangci-lint + format check (the CI lint job)"
 depends = ["golangci-lint", "fmt-check"]
@@ -61,7 +68,7 @@ description = "Run the fake OIDC issuer and the server together, seeded (Ctrl-C 
 run = "dev/dev.sh all"
 
 [tasks.dev-issuer]
-description = "Run only the fake OIDC issuer (mock-oauth2-server in Docker)"
+description = "Run only the fake OIDC issuer (mock-oauth2-server in Docker, else tools/devissuer)"
 run = "dev/dev.sh issuer"
 
 [tasks.dev-server]
@@ -84,11 +91,11 @@ run = "docker compose -f dev/docker-compose.otel.yaml down"
 
 [tasks.release-check]
 description = "Validate the GoReleaser config (publishes nothing)"
-run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 check"
+run = "goreleaser check"
 
 [tasks.snapshot]
 description = "Local build of archives, checksums and images (publishes nothing)"
-run = "go run github.com/goreleaser/goreleaser/v2@v2.12.0 release --snapshot --clean --skip=publish"
+run = "goreleaser release --snapshot --clean --skip=publish"
 
 # Same command CI runs against its postgres:17 service container. Starts a
 # throwaway container unless QUIZZOTIC_TEST_POSTGRES_URL is already set.
@@ -137,7 +144,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=386 go vet ./internal/store/...
 
 [tasks.ci]
 description = "Full local equivalent of CI (needs docker for test-postgres)"
-depends = ["lint", "test", "test-postgres", "build-all", "release-check"]
+depends = ["lint", "test", "test-postgres", "build-all", "release-check", "vulncheck"]
 
 # Dev-only: regenerate internal/fsrs/testdata/vectors.json from py-fsrs (not run in CI).
 [tasks.fsrs-vectors]

@@ -202,6 +202,38 @@ func (r problemRepo) ListVersions(ctx context.Context, ownerID, id domain.ID) ([
 	return out, nil
 }
 
+// liveEpochsQuery counts each live problem's major versions up to its current
+// one; LiveEpochs applies CardEpoch's floor of 1.
+const liveEpochsQuery = `SELECT p.id, COUNT(v.version)
+		FROM problems p LEFT JOIN problem_versions v ON v.problem_id = p.id
+			AND v.change_kind = ? AND v.version <= p.current_version
+		WHERE p.owner_id = ? AND p.deleted_at IS NULL AND p.status = ?
+		GROUP BY p.id
+		ORDER BY p.id`
+
+func (r problemRepo) LiveEpochs(ctx context.Context, ownerID domain.ID) ([]problems.LiveEpoch, error) {
+	rows, err := r.q.QueryContext(ctx, liveEpochsQuery,
+		string(problems.ChangeMajor), ownerID.String(), string(problems.StatusLive))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []problems.LiveEpoch
+	for rows.Next() {
+		var id string
+		var majors int
+		if err := rows.Scan(&id, &majors); err != nil {
+			return nil, err
+		}
+		pid, err := domain.ParseID(id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, problems.LiveEpoch{ID: pid, Epoch: max(majors, 1)})
+	}
+	return out, rows.Err()
+}
+
 func (r problemRepo) List(ctx context.Context, ownerID domain.ID, f problems.ListFilter) ([]problems.Problem, error) {
 	cur, err := r.ListCurrent(ctx, ownerID, f)
 	if err != nil {
@@ -218,7 +250,8 @@ func (r problemRepo) List(ctx context.Context, ownerID domain.ID, f problems.Lis
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 func (r problemRepo) ListCurrent(ctx context.Context, ownerID domain.ID, f problems.ListFilter) ([]problems.Current, error) {
-	// ILIKE: SQLite's LIKE is case-insensitive, which is the contract.
+	// Query matches case-insensitively with Unicode folding: lower() on the
+	// prompt and strings.ToLower on the needle, the same rule as SQLite.
 	q := `SELECT ` + prefixed("p.", problemCols) + `, ` + prefixed("v.", versionCols) + `
 		FROM problems p JOIN problem_versions v ON v.problem_id = p.id AND v.version = p.current_version
 		WHERE p.owner_id = ?`
@@ -243,8 +276,8 @@ func (r problemRepo) ListCurrent(ctx context.Context, ownerID domain.ID, f probl
 		args = append(args, f.TagID.String())
 	}
 	if f.Query != "" {
-		q += ` AND v.prompt ILIKE ? ESCAPE '\'`
-		args = append(args, "%"+likeEscaper.Replace(f.Query)+"%")
+		q += ` AND lower(v.prompt) LIKE ? ESCAPE '\'`
+		args = append(args, "%"+likeEscaper.Replace(strings.ToLower(f.Query))+"%")
 	}
 	if !f.After.IsNil() {
 		q += ` AND p.id > ?`

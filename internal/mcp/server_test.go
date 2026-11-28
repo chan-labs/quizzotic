@@ -3,7 +3,6 @@
 package mcp
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -31,7 +30,7 @@ func listTools(t *testing.T) []*sdk.Tool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	st, ct := sdk.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, st, nil)
 	if err != nil {
@@ -278,7 +277,7 @@ func TestIfMatchSentAndETagReturned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	st, ct := sdk.NewInMemoryTransports()
 	if _, err := srv.Connect(ctx, st, nil); err != nil {
 		t.Fatal(err)

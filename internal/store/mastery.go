@@ -112,6 +112,15 @@ type snapshotTx struct {
 	m Mastery
 }
 
+// Optimize refreshes the store's planner statistics when the backend has
+// them to refresh (SQLite); otherwise it does nothing.
+func (a snapshotTx) Optimize(ctx context.Context) error {
+	if o, ok := a.s.(interface{ Optimize(context.Context) error }); ok {
+		return o.Optimize(ctx)
+	}
+	return nil
+}
+
 func (a snapshotTx) InTx(ctx context.Context, fn func(metrics.SnapshotScope) error) error {
 	return a.s.WithTx(ctx, func(tx Store) error {
 		return fn(metrics.SnapshotScope{

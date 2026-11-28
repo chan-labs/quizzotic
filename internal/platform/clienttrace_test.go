@@ -3,7 +3,6 @@
 package platform
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,7 +28,7 @@ func TestTraceTransportInjectsTraceparent(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL+"/x?token=secret", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/x?token=secret", nil)
 	resp, err := (&http.Client{Transport: TraceTransport(nil)}).Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +44,7 @@ func TestTraceTransportInjectsTraceparent(t *testing.T) {
 	}
 	s := spans[0]
 	rsc := trace.SpanContextFromContext(propagation.TraceContext{}.Extract(
-		context.Background(), propagation.MapCarrier{"traceparent": got}))
+		t.Context(), propagation.MapCarrier{"traceparent": got}))
 	if !rsc.IsValid() || rsc.TraceID() != s.SpanContext.TraceID() || rsc.SpanID() != s.SpanContext.SpanID() {
 		t.Errorf("traceparent %q does not match client span %v", got, s.SpanContext)
 	}
@@ -78,7 +77,7 @@ func TestTraceTransportPropagatesWithoutProvider(t *testing.T) {
 		got = r.Header.Get("traceparent")
 	}))
 	defer srv.Close()
-	ctx := trace.ContextWithSpanContext(context.Background(), parent)
+	ctx := trace.ContextWithSpanContext(t.Context(), parent)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
 	resp, err := (&http.Client{Transport: TraceTransport(nil)}).Do(req)
 	if err != nil {
@@ -86,7 +85,7 @@ func TestTraceTransportPropagatesWithoutProvider(t *testing.T) {
 	}
 	resp.Body.Close()
 	sc := trace.SpanContextFromContext(propagation.TraceContext{}.Extract(
-		context.Background(), propagation.MapCarrier{"traceparent": got}))
+		t.Context(), propagation.MapCarrier{"traceparent": got}))
 	if !sc.IsValid() || sc.TraceID() != parent.TraceID() {
 		t.Errorf("traceparent = %q", got)
 	}

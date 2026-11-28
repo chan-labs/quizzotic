@@ -8,6 +8,7 @@ import (
 )
 
 func TestAgentClientForbiddenScopes(t *testing.T) {
+	t.Parallel()
 	for _, sc := range []string{"attempts:write", "sessions:write", "admin"} {
 		y := strings.Replace(validYAML, `allowed_scopes: ["problems:read"]`, `allowed_scopes: ["problems:read", "`+sc+`"]`, 1)
 		_, err := Parse([]byte(y), []string{})
@@ -18,6 +19,7 @@ func TestAgentClientForbiddenScopes(t *testing.T) {
 }
 
 func TestHumanClientMayHoldAnyScope(t *testing.T) {
+	t.Parallel()
 	y := strings.Replace(validYAML, `kind: "human"
           secret: ""`, `kind: "human"
           allowed_scopes: ["admin"]`, 1)

@@ -24,6 +24,7 @@ func init() {
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "attempts",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			t.Helper()
 			prompt := "Attempt owner-scope prompt " + domain.NewIDGenerator(domain.SystemClock{}).New().String()
 			body := openBody(prompt)
 			body["status"] = "live"
@@ -332,6 +333,7 @@ func init() {
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "attempt rating",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			t.Helper()
 			prompt := "Rating owner-scope prompt " + domain.NewIDGenerator(domain.SystemClock{}).New().String()
 			body := openBody(prompt)
 			body["status"] = "live"

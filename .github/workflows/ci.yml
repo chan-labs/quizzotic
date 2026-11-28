@@ -4,18 +4,23 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, so new advisories against an unchanged main are caught.
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
 
+# Keyed on the event too, so the weekly run and a push to main don't cancel each other.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   lint:
     name: lint
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v5.2.5
@@ -38,6 +43,7 @@ jobs:
   openapi:
     name: openapi
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v5.2.5
@@ -50,6 +56,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v5.2.5
@@ -67,7 +74,7 @@ jobs:
             go-test-
       # internal/web runs static/review.js under Node; without it that test
       # would skip, so CI installs Node and requires it.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: go test
@@ -78,6 +85,7 @@ jobs:
   test-postgres:
     name: test (postgres)
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     services:
       postgres:
         image: postgres:17
@@ -116,6 +124,7 @@ jobs:
   build:
     name: build (${{ matrix.name }})
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' # the weekly run is only for vulncheck
     strategy:
       fail-fast: false
       matrix:
@@ -151,20 +160,34 @@ jobs:
   release-config:
     name: release config
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' # the weekly run is only for vulncheck
+    steps:
+      - uses: actions/checkout@v4
+      # Prebuilt goreleaser from mise.toml: no Go toolchain or module downloads.
+      - uses: jdx/mise-action@v5.2.5
+        with:
+          cache: true
+          install_args: goreleaser
+      - name: goreleaser check
+        run: mise run release-check
+
+  vulncheck:
+    name: vulncheck
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v5.2.5
         with:
           cache: true
-          install_args: go
+          install_args: go go:golang.org/x/vuln/cmd/govulncheck
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: go-release-config-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          key: go-vulncheck-${{ hashFiles('go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-release-config-${{ hashFiles('go.sum') }}-
-            go-release-config-
-      - name: goreleaser check
-        run: mise run release-check
+            go-vulncheck-${{ hashFiles('go.sum') }}-
+            go-vulncheck-
+      - name: govulncheck
+        run: mise run vulncheck

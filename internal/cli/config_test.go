@@ -4,7 +4,6 @@ package cli_test
 
 import (
 	"bytes"
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,7 +18,7 @@ import (
 func runCfg(t *testing.T, dir string, env map[string]string, args ...string) (int, string) {
 	t.Helper()
 	var o, e bytes.Buffer
-	code := cli.Run(context.Background(), append([]string{"meta", "me"}, args...), cli.Env{
+	code := cli.Run(t.Context(), append([]string{"meta", "me"}, args...), cli.Env{
 		Stdout: &o, Stderr: &e,
 		Getenv: func(k string) string {
 			switch k {

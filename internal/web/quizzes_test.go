@@ -35,7 +35,7 @@ type quizEnv struct {
 
 func newQuizEnv(t *testing.T) *quizEnv {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +192,7 @@ func TestQuizCreateOrderAndStartEndToEnd(t *testing.T) {
 	// Start ordered: the session is frozen with the quiz's items in order.
 	rec := e.do("POST", "/quizzes/"+id.String()+"/start", url.Values{"order": {"ordered"}}, true)
 	sid := e.sessionFrom(rec)
-	sv, err := e.sessions.Get(context.Background(), e.owner, sid)
+	sv, err := e.sessions.Get(t.Context(), e.owner, sid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestQuizCreateOrderAndStartEndToEnd(t *testing.T) {
 	body = e.do("GET", "/quizzes/"+id.String(), nil, false).Body.String()
 	e.do("POST", "/quizzes/"+id.String(), url.Values{"etag": {etagOf(t, body)}, "title": {"Geo"}, "status": {"live"},
 		"item": {b.String(), c.String()}, "remove_" + b.String(): {"1"}}, true)
-	if sv2, _ := e.sessions.Get(context.Background(), e.owner, sid); len(sv2.Items) != 2 {
+	if sv2, _ := e.sessions.Get(t.Context(), e.owner, sid); len(sv2.Items) != 2 {
 		t.Fatalf("session not frozen: %+v", sv2)
 	}
 
@@ -235,12 +235,12 @@ func TestQuizShuffledStartMatchesBuilderShuffle(t *testing.T) {
 	}
 	id := e.createQuiz(url.Values{"title": {"Eight"}, "status": {"live"}, "add": adds})
 	sid := e.sessionFrom(e.do("POST", "/quizzes/"+id.String()+"/start", url.Values{"order": {"shuffled"}}, true))
-	sv, err := e.sessions.Get(context.Background(), e.owner, sid)
+	sv, err := e.sessions.Get(t.Context(), e.owner, sid)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The expected plan comes from the same builder, seeded by the session ID.
-	want, err := review.NewQuizBuilder(fakeQuizSource{authored}, fakeProblems{authored}).Build(context.Background(), e.owner, sid, id, true)
+	want, err := review.NewQuizBuilder(fakeQuizSource{authored}, fakeProblems{authored}).Build(t.Context(), e.owner, sid, id, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func (f fakeProblems) LiveEpochs(context.Context, domain.ID) ([]review.ProblemEp
 
 func TestQuizCrossOwner(t *testing.T) {
 	e := newQuizEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	mine := e.problem("Mine")
 	qid := e.createQuiz(url.Values{"title": {"Mine"}, "status": {"live"}, "add": {mine.String()}})
 	// A second owner with a quiz and a problem of their own.
@@ -377,10 +377,10 @@ func TestQuizStartThroughReviewToCompletion(t *testing.T) {
 	if !strings.Contains(done, "Quiz complete") || !strings.Contains(done, "2 answered") {
 		t.Fatalf("not complete:\n%s", done)
 	}
-	if sv, err := e.sessions.Get(context.Background(), e.owner, sid); err != nil || sv.CompletedAt == nil || sv.Answered != 2 {
+	if sv, err := e.sessions.Get(t.Context(), e.owner, sid); err != nil || sv.CompletedAt == nil || sv.Answered != 2 {
 		t.Errorf("session = %+v, err %v", sv, err)
 	}
-	res, _ := e.answers.List(context.Background(), e.owner, attempts.ListQuery{Limit: 10})
+	res, _ := e.answers.List(t.Context(), e.owner, attempts.ListQuery{Limit: 10})
 	if len(res.Items) != 2 || res.Items[0].LatencyMS != 900 {
 		t.Errorf("attempts = %+v", res.Items)
 	}

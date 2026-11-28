@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"slices"
@@ -44,7 +43,7 @@ quizzes:
 // loaded from YAML behaves like content created over HTTP.
 func TestSeededContentIsManageableThroughTheAPI(t *testing.T) {
 	e := newProbEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// The user exists once they have called the API.
 	e.req(t, "GET", "/problems", e.human, nil, nil)

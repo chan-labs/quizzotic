@@ -5,7 +5,6 @@ package server
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -37,7 +36,7 @@ func TestMeteredStoreCountsOnlyStoreErrors(t *testing.T) {
 	m := platform.NewMetrics()
 	rule := errors.New("business rule")
 	run := func(s store.Store, fnErr error) {
-		_ = instrumentStore(s, m).WithTx(context.Background(), func(store.Store) error { return fnErr })
+		_ = instrumentStore(s, m).WithTx(t.Context(), func(store.Store) error { return fnErr })
 	}
 	run(fakeStore{}, nil)  // ok
 	run(fakeStore{}, rule) // business error: not counted
@@ -53,12 +52,12 @@ func TestMeteredStoreCountsOnlyStoreErrors(t *testing.T) {
 
 func testHandler(t *testing.T, opts ...HandlerOption) http.Handler {
 	t.Helper()
-	st, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "q.db"))
+	st, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	return Handler(logger, st, auth.NewProvider("http://127.0.0.1:1"), opts...)
 }
 

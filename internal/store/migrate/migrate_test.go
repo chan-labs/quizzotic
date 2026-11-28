@@ -3,7 +3,6 @@
 package migrate
 
 import (
-	"context"
 	"database/sql"
 	"path/filepath"
 	"reflect"
@@ -31,7 +30,7 @@ func TestUpAppliesOnceInOrder(t *testing.T) {
 		"d/0003_c.sql": {Data: []byte(`INSERT INTO a VALUES (3);`)},
 	}
 	db := openDB(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	got, err := Up(ctx, db, fsys, "d")
 	if err != nil || !reflect.DeepEqual(got, []int64{1, 2, 3}) {
 		t.Fatalf("first: %v %v", got, err)
@@ -55,7 +54,7 @@ func TestUpFailedMigrationRollsBackAndIsNotRecorded(t *testing.T) {
 		"d/0002_bad.sql": {Data: []byte(`CREATE TABLE b (n INTEGER); INSERT INTO nope VALUES (1);`)},
 	}
 	db := openDB(t)
-	got, err := Up(context.Background(), db, fsys, "d")
+	got, err := Up(t.Context(), db, fsys, "d")
 	if err == nil || !reflect.DeepEqual(got, []int64{1}) {
 		t.Fatalf("got %v err %v", got, err)
 	}
@@ -85,7 +84,7 @@ func TestLoadRejectsBadNamesAndDuplicates(t *testing.T) {
 
 func TestUpDetectsRenamedMigration(t *testing.T) {
 	db := openDB(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := Up(ctx, db, fstest.MapFS{"d/0001_a.sql": {Data: []byte(`SELECT 1;`)}}, "d"); err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +126,7 @@ func TestLoadRejectsAmbiguousVersionWidths(t *testing.T) {
 // timestamped migration added later applies after them, once.
 func TestUpAppliesTimestampedAfterLegacy(t *testing.T) {
 	db := openDB(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	legacy := fstest.MapFS{"d/0001_a.sql": {Data: []byte(`CREATE TABLE a (n INTEGER);`)}}
 	if _, err := Up(ctx, db, legacy, "d"); err != nil {
 		t.Fatal(err)

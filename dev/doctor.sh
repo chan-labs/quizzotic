@@ -42,6 +42,12 @@ else
 	missing govulncheck "mise install; 'mise run vulncheck' can't run (CI still runs it)"
 fi
 
+if command -v goreleaser >/dev/null 2>&1; then
+	ok goreleaser "$(goreleaser --version 2>/dev/null | sed -n 's/^GitVersion: *//p')"
+else
+	missing goreleaser "mise install; 'mise run release-check' can't run (CI still runs it)"
+fi
+
 echo
 echo "GitHub CLI:"
 if command -v gh >/dev/null 2>&1; then
@@ -63,9 +69,9 @@ fi
 echo
 echo "Docker:"
 if ! command -v docker >/dev/null 2>&1; then
-	missing docker "test-postgres, dev, dev-issuer and dev-otel can't run; rely on CI's 'test (postgres)' job"
+	missing docker "test-postgres, snapshot and dev-otel can't run; rely on CI's 'test (postgres)' job (dev falls back to tools/devissuer)"
 elif ! docker info >/dev/null 2>&1; then
-	missing "docker daemon" "docker is installed but not running; test-postgres, dev and dev-otel can't run"
+	missing "docker daemon" "docker is installed but not running; test-postgres, snapshot and dev-otel can't run"
 else
 	ok docker "$(version docker --version)"
 fi

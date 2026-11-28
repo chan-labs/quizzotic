@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -18,7 +17,7 @@ import (
 )
 
 func runProblems(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	// setup returns a store with two users.
@@ -276,6 +275,7 @@ func runProblems(t *testing.T, newStore NewStore) {
 		p1 := mkWith(a, problems.TypeMCQ, "Capital of Japan? 100% sure", domain.ActorHuman)
 		p2 := mkWith(a, problems.TypeCloze, "The {{w}} of japan_city", domain.ActorAgent)
 		p3 := mkWith(a, problems.TypeOpen, `Back\slash`, domain.ActorAgent)
+		p4 := mkWith(a, problems.TypeOpen, "École ÄRGER Σοφία", domain.ActorHuman)
 		mkWith(b, problems.TypeMCQ, "Capital of Japan? (other owner)", domain.ActorAgent)
 
 		// A later version changes the current type and prompt; filters follow it.
@@ -290,7 +290,7 @@ func runProblems(t *testing.T, newStore NewStore) {
 			f    problems.ListFilter
 			want []problems.Problem
 		}{
-			{"type follows current version", problems.ListFilter{Type: problems.TypeOpen}, []problems.Problem{p1, p3}},
+			{"type follows current version", problems.ListFilter{Type: problems.TypeOpen}, []problems.Problem{p1, p3, p4}},
 			{"type mcq: old version no longer matches", problems.ListFilter{Type: problems.TypeMCQ}, nil},
 			{"creator kind", problems.ListFilter{CreatedByKind: domain.ActorAgent}, []problems.Problem{p2, p3}},
 			{"query is case-insensitive", problems.ListFilter{Query: "JAPAN"}, []problems.Problem{p2}},
@@ -299,8 +299,13 @@ func runProblems(t *testing.T, newStore NewStore) {
 			{"query underscore is literal", problems.ListFilter{Query: "japan_c"}, []problems.Problem{p2}},
 			{"query underscore does not match any char", problems.ListFilter{Query: "japan-c"}, nil},
 			{"query backslash is literal", problems.ListFilter{Query: `k\s`}, []problems.Problem{p3}},
+			// Case folding is Unicode, not ASCII only, in both directions.
+			{"query folds non-ASCII lower to upper", problems.ListFilter{Query: "école"}, []problems.Problem{p4}},
+			{"query folds non-ASCII upper to lower", problems.ListFilter{Query: "ÉCOLE"}, []problems.Problem{p4}},
+			{"query folds umlaut", problems.ListFilter{Query: "ärger"}, []problems.Problem{p4}},
+			{"query folds Greek", problems.ListFilter{Query: "ΣΟΦΊΑ"}, []problems.Problem{p4}},
 			{"filters combine", problems.ListFilter{Type: problems.TypeOpen, CreatedByKind: domain.ActorAgent}, []problems.Problem{p3}},
-			{"filters page", problems.ListFilter{Type: problems.TypeOpen, After: p1.ID}, []problems.Problem{p3}},
+			{"filters page", problems.ListFilter{Type: problems.TypeOpen, After: p1.ID}, []problems.Problem{p3, p4}},
 		}
 		for _, c := range cases {
 			cur, err := s.Problems().ListCurrent(ctx, a.ID, c.f)
@@ -421,6 +426,81 @@ func runProblems(t *testing.T, newStore NewStore) {
 			if err != nil || len(l) != 1 || l[0].ID != c.want {
 				t.Fatalf("list for %s = %+v err %v", c.u.DisplayName, l, err)
 			}
+		}
+	})
+
+	t.Run("live epochs match CardEpoch in one call", func(t *testing.T) {
+		s, a, b := setup(t)
+		t1 := t0.Add(time.Hour)
+		appendV := func(t *testing.T, u auth.User, p problems.Problem, kind problems.ChangeKind) {
+			t.Helper()
+			if _, err := s.Problems().AppendVersion(ctx, u.ID, p.ID, extra(u, "edit", kind, t1)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		plain := create(t, s, a, problems.StatusLive)
+		minor := create(t, s, a, problems.StatusLive) // minor edits keep the epoch
+		appendV(t, a, minor, problems.ChangeMinor)
+		appendV(t, a, minor, problems.ChangeMinor)
+		major := create(t, s, a, problems.StatusLive) // each major edit starts an epoch
+		appendV(t, a, major, problems.ChangeMajor)
+		appendV(t, a, major, problems.ChangeMinor)
+		appendV(t, a, major, problems.ChangeMajor)
+		// A first version recorded as minor still has epoch 1.
+		pm, vm := mk(a, problems.StatusLive)
+		vm.ChangeKind = problems.ChangeMinor
+		if err := s.Problems().Create(ctx, a.ID, pm, vm); err != nil {
+			t.Fatal(err)
+		}
+		archived := create(t, s, a, problems.StatusLive)
+		appendV(t, a, archived, problems.ChangeMajor)
+		if err := s.Problems().SetStatus(ctx, a.ID, archived.ID, problems.StatusArchived, t1); err != nil {
+			t.Fatal(err)
+		}
+		create(t, s, a, problems.StatusDraft)
+		deleted := create(t, s, a, problems.StatusLive)
+		if err := s.Problems().SoftDelete(ctx, a.ID, deleted.ID, t1); err != nil {
+			t.Fatal(err)
+		}
+		other := create(t, s, b, problems.StatusLive) // another owner's problem
+		appendV(t, b, other, problems.ChangeMajor)
+
+		got, err := s.Problems().LiveEpochs(ctx, a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		live, err := s.Problems().List(ctx, a.ID, problems.ListFilter{Status: problems.StatusLive})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want []problems.LiveEpoch
+		for _, p := range live {
+			vs, err := s.Problems().ListVersions(ctx, a.ID, p.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want = append(want, problems.LiveEpoch{ID: p.ID, Epoch: problems.CardEpoch(vs, p.CurrentVersion)})
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("LiveEpochs = %+v, want %+v (from CardEpoch)", got, want)
+		}
+		epochs := map[domain.ID]int{}
+		for _, le := range got {
+			epochs[le.ID] = le.Epoch
+		}
+		wantEpochs := map[domain.ID]int{plain.ID: 1, minor.ID: 1, major.ID: 3, pm.ID: 1}
+		if len(epochs) != len(wantEpochs) {
+			t.Fatalf("LiveEpochs = %+v, want exactly %v", got, wantEpochs)
+		}
+		for id, e := range wantEpochs {
+			if epochs[id] != e {
+				t.Errorf("epoch of %s = %d, want %d", id, epochs[id], e)
+			}
+		}
+
+		if got, err := s.Problems().LiveEpochs(ctx, b.ID); err != nil || len(got) != 1 ||
+			got[0] != (problems.LiveEpoch{ID: other.ID, Epoch: 2}) {
+			t.Fatalf("b's LiveEpochs = %+v err %v", got, err)
 		}
 	})
 }

@@ -4,21 +4,17 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
-	"net"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/chan-labs/quizzotic/internal/config"
 	"github.com/chan-labs/quizzotic/internal/export"
-	"github.com/chan-labs/quizzotic/internal/server"
 	"github.com/chan-labs/quizzotic/internal/testsupport/ownerscope"
+	"github.com/chan-labs/quizzotic/internal/testsupport/serverrun"
 )
 
 func init() {
@@ -54,25 +50,8 @@ func TestExportThroughTheRealServer(t *testing.T) {
 			{ID: "quizzotic-agent", Kind: "agent", AllowedScopes: []string{"problems:read", "problems:write"}},
 		},
 	}}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		done <- server.Run(ctx, &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), server.Options{Listener: ln})
-	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case err := <-done:
-			t.Logf("server stopped: %v", err)
-		case <-time.After(10 * time.Second):
-			t.Error("server did not shut down")
-		}
-	})
-	base := "http://" + ln.Addr().String() + "/api/v1"
+	srv := serverrun.Start(t, &cfg)
+	base := srv.URL + "/api/v1"
 
 	do := func(method, path, tok string, body any) (int, http.Header, []byte) {
 		t.Helper()
@@ -81,20 +60,14 @@ func TestExportThroughTheRealServer(t *testing.T) {
 			raw, _ := json.Marshal(body)
 			rd = bytes.NewReader(raw)
 		}
-		var resp *http.Response
-		for range 100 { // the server is starting
-			req, _ := http.NewRequest(method, base+path, rd)
-			if body != nil {
-				req.Header.Set("Content-Type", "application/json")
-			}
-			if tok != "" {
-				req.Header.Set("Authorization", "Bearer "+tok)
-			}
-			if resp, err = http.DefaultClient.Do(req); err == nil {
-				break
-			}
-			time.Sleep(20 * time.Millisecond)
+		req, _ := http.NewRequest(method, base+path, rd)
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
 		}
+		if tok != "" {
+			req.Header.Set("Authorization", "Bearer "+tok)
+		}
+		resp, err := srv.Client.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -4,7 +4,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"regexp"
@@ -146,7 +145,7 @@ func runReview(t *testing.T, e *probEnv, token string, in io.Reader, out io.Writ
 	t.Helper()
 	var errOut bytes.Buffer
 	clk := &ticker{now: time.Now()}
-	code := cli.Review(context.Background(), append([]string{"--server", e.srv.URL}, args...), cli.Env{
+	code := cli.Review(t.Context(), append([]string{"--server", e.srv.URL}, args...), cli.Env{
 		Stdin: in, Stdout: out, Stderr: &errOut, Now: clk.Now,
 		Getenv: func(k string) string {
 			if k == "QUIZZOTIC_TOKEN" {
@@ -170,7 +169,7 @@ func seedStarterPack(t *testing.T, e *probEnv) *seed.File {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := seedrun.ApplyFile(context.Background(), e.st, owner, pack); err != nil {
+	if _, err := seedrun.ApplyFile(t.Context(), e.st, owner, pack); err != nil {
 		t.Fatal(err)
 	}
 	return pack

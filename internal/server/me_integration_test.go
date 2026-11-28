@@ -3,9 +3,7 @@
 package server_test
 
 import (
-	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -182,12 +180,12 @@ func (stubAuth) Authenticate(_ http.ResponseWriter, r *http.Request) (auth.Princ
 // Without WithIdentity the identity endpoints are not served: the public
 // metadata is 404, and /me is still guarded (401) before it answers 404.
 func TestIdentityEndpointsDisabledWithoutWithIdentity(t *testing.T) {
-	st, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "q.db"))
+	st, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	h := server.Handler(slog.New(slog.NewTextHandler(io.Discard, nil)), st,
+	h := server.Handler(slog.New(slog.DiscardHandler), st,
 		auth.NewProvider("https://idp.example.com"), server.WithAPIAuth(stubAuth{}))
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)

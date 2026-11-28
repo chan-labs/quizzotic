@@ -5,17 +5,38 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
-	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
+	"modernc.org/sqlite" // registers the "sqlite" database/sql driver
 
 	"github.com/chan-labs/quizzotic/internal/platform"
 	"github.com/chan-labs/quizzotic/internal/store"
 	"github.com/chan-labs/quizzotic/internal/store/migrate"
 	"github.com/chan-labs/quizzotic/migrations"
 )
+
+func init() {
+	// unicode_lower(text) is strings.ToLower: SQLite's built-in lower() folds
+	// ASCII only. Problem search compares through it on both sides.
+	if err := sqlite.RegisterDeterministicScalarFunction("unicode_lower", 1, unicodeLower); err != nil {
+		panic(err)
+	}
+}
+
+func unicodeLower(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+	switch v := args[0].(type) {
+	case string:
+		return strings.ToLower(v), nil
+	case []byte:
+		return strings.ToLower(string(v)), nil
+	default:
+		return v, nil // NULL and non-text values pass through
+	}
+}
 
 // execer is the part of *sql.DB and *sql.Tx that repositories use.
 type execer interface {
@@ -54,7 +75,20 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
 	}
+	// Gather query-planner statistics for tables that lack them, cheaply
+	// (SQLite's recommended open-time call); Optimize refreshes them later.
+	if _, err := db.ExecContext(ctx, `PRAGMA optimize=0x10002`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("optimize sqlite %s: %w", path, err)
+	}
 	return &Store{db: db, q: platform.NewTracedExecer(db, "sqlite")}, nil
+}
+
+// Optimize runs PRAGMA optimize so the query planner's statistics follow the
+// data. The mastery snapshotter calls it after each pass.
+func (s *Store) Optimize(ctx context.Context) error {
+	_, err := s.q.ExecContext(ctx, `PRAGMA optimize`)
+	return err
 }
 
 // DB exposes the pool for tests and the migration runner.

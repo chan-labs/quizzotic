@@ -3,7 +3,6 @@
 package web_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -29,7 +28,7 @@ type draftsEnv struct {
 
 func newDraftsEnv(t *testing.T) draftsEnv {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +71,7 @@ func newDraftsEnv(t *testing.T) draftsEnv {
 
 func (e draftsEnv) create(t *testing.T, owner domain.ID, kind domain.ActorKind, prompt string) problems.View {
 	t.Helper()
-	v, err := e.svc.Create(context.Background(), domain.Actor{Kind: kind, UserID: owner, ClientID: "c"}, problems.CreateInput{
+	v, err := e.svc.Create(t.Context(), domain.Actor{Kind: kind, UserID: owner, ClientID: "c"}, problems.CreateInput{
 		Type: problems.TypeOpen, Prompt: prompt, Payload: []byte(`{"reference_answer":"x"}`)})
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +93,7 @@ func (e draftsEnv) post(path string, form url.Values, token string) *httptest.Re
 
 func (e draftsEnv) count(t *testing.T, st problems.Status) int {
 	t.Helper()
-	res, err := e.svc.List(context.Background(), e.owner, problems.ListQuery{Status: string(st)})
+	res, err := e.svc.List(t.Context(), e.owner, problems.ListQuery{Status: string(st)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +146,7 @@ func TestBulkPublishMakesTenAgentDraftsEligible(t *testing.T) {
 	if got := e.count(t, problems.StatusLive); got != 10 {
 		t.Fatalf("live after publish = %d, want 10", got)
 	}
-	v, err := e.svc.Get(context.Background(), e.owner, untouched.ID)
+	v, err := e.svc.Get(t.Context(), e.owner, untouched.ID)
 	if err != nil || v.Status != problems.StatusDraft {
 		t.Fatalf("unselected draft = %v, %v", v.Status, err)
 	}
@@ -157,7 +156,7 @@ func TestBulkDiscardDeletesDraftsOnly(t *testing.T) {
 	e := newDraftsEnv(t)
 	d := e.create(t, e.owner, domain.ActorAgent, "discard me")
 	live := e.create(t, e.owner, domain.ActorAgent, "already live")
-	if _, err := e.svc.Publish(context.Background(), e.owner, live.ID, "*"); err != nil {
+	if _, err := e.svc.Publish(t.Context(), e.owner, live.ID, "*"); err != nil {
 		t.Fatal(err)
 	}
 	theirs := e.create(t, e.other, domain.ActorAgent, "not mine")
@@ -166,13 +165,13 @@ func TestBulkDiscardDeletesDraftsOnly(t *testing.T) {
 	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "done=1") || !strings.Contains(loc, "failed=2") {
 		t.Fatalf("Location = %q", loc)
 	}
-	if _, err := e.svc.Get(context.Background(), e.owner, d.ID); err == nil {
+	if _, err := e.svc.Get(t.Context(), e.owner, d.ID); err == nil {
 		t.Error("draft not discarded")
 	}
-	if v, err := e.svc.Get(context.Background(), e.owner, live.ID); err != nil || v.Status != problems.StatusLive {
+	if v, err := e.svc.Get(t.Context(), e.owner, live.ID); err != nil || v.Status != problems.StatusLive {
 		t.Errorf("live problem was touched: %v %v", v.Status, err)
 	}
-	if _, err := e.svc.Get(context.Background(), e.other, theirs.ID); err != nil {
+	if _, err := e.svc.Get(t.Context(), e.other, theirs.ID); err != nil {
 		t.Errorf("other owner's draft was touched: %v", err)
 	}
 }
@@ -200,7 +199,7 @@ func TestInlineEditSavesNewVersion(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
 	}
-	got, _ := e.svc.Get(context.Background(), e.owner, v.ID)
+	got, _ := e.svc.Get(t.Context(), e.owner, v.ID)
 	if got.Prompt != "new prompt" || got.Explanation != "why" || got.Version != 2 || got.CreatedBy.Kind != domain.ActorAgent {
 		t.Fatalf("after edit: %+v", got)
 	}

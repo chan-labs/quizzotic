@@ -40,7 +40,7 @@ func nullMillis(t time.Time) any {
 
 func encodeResult(e *tags.Effect) (any, error) {
 	if e == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // a nil effect or snapshot is stored as SQL NULL and read back as nil
 	}
 	c := *e
 	if c.AffectedProblems == nil {
@@ -55,7 +55,7 @@ func encodeResult(e *tags.Effect) (any, error) {
 
 func decodeResult(raw []byte) (*tags.Effect, error) {
 	if raw == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // a nil effect or snapshot is stored as SQL NULL and read back as nil
 	}
 	var e tags.Effect
 	if err := json.Unmarshal(raw, &e); err != nil {
@@ -66,7 +66,7 @@ func decodeResult(raw []byte) (*tags.Effect, error) {
 
 func encodeSnapshot(s *tags.Snapshot) (any, error) {
 	if s == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // a nil effect or snapshot is stored as SQL NULL and read back as nil
 	}
 	c := *s
 	if c.Tags == nil {

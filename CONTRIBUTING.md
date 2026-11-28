@@ -24,7 +24,8 @@ mise run fmt          # gofmt + goimports, in place
 mise run golden       # regenerate CLI help and MCP tool-list goldens
 mise run test-postgres  # Postgres store suite in a throwaway postgres:17 container (needs docker)
 mise run build-all    # cross-compile for linux, darwin, windows (CGO_ENABLED=0)
-mise run ci           # everything CI runs: lint, test, test-postgres, build-all, release-check
+mise run vulncheck    # govulncheck ./... (reachable known vulnerabilities; CI also runs it weekly)
+mise run ci           # everything CI runs: lint, test, test-postgres, build-all, release-check, vulncheck
 mise run test ::: lint  # several tasks in one go
 ```
 
@@ -34,18 +35,24 @@ mise run test ::: lint  # several tasks in one go
 mise run dev          # fake OIDC issuer + server + seed data; Ctrl-C stops both
 ```
 
-Prerequisite: Docker. Then open <http://localhost:8089/>. The fake issuer is
-[navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server)
-(image pinned in `dev/dev.sh`, config in `dev/mock-oauth2.json`, issuer URL
-`http://localhost:8099/dev`). It signs in a fixed test user (`dev@example.com`)
-with no password, so the browser lands straight on the Today page. The database is `.dev/quizzotic-<issuer port>.db`
+Then open <http://localhost:8089/>. The fake issuer (issuer URL
+`http://localhost:8099/dev`) is
+[navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server) in
+Docker when Docker is installed and running (image pinned in `dev/dev.sh`,
+config in `dev/mock-oauth2.json`), and otherwise `tools/devissuer`, a
+stdlib-only Go stand-in that needs nothing but the pinned Go. Force one with
+`QUIZZOTIC_DEV_ISSUER=docker` or `QUIZZOTIC_DEV_ISSUER=go`. Both sign in a fixed
+test user (`dev@example.com`) with no password, set `aud` and `azp` to the
+requesting client's ID, and accept any client secret, so the browser lands
+straight on the Today page and the CLI (code or device flow) and agent
+(client credentials) logins work too. The database is `.dev/quizzotic-<issuer port>.db`
 (gitignored; one per issuer port, so changing the port starts a fresh, seeded one), seeded with the starter pack plus `dev/seed.yaml`. Ports come
 from `QUIZZOTIC_DEV_PORT` (8089) and `QUIZZOTIC_DEV_ISSUER_PORT` (8099).
 `mise run dev-issuer` and `mise run dev-server` run the halves separately, and
 `mise run dev-reset` deletes the database. `.claude/launch.json` lets an agent
 start the stack with `preview_start`. The issuer and the `dev-secret` client
 secret are fake and for local development only; nothing here is shipped in the
-`quizzotic` binary.
+`quizzotic` binary (`tools/devissuer` is a separate dev-only command).
 
 ## Local tracing
 
@@ -94,6 +101,7 @@ Parallel features should touch only their own files.
 - **API spec.** `api/openapi.yaml` stays one file (Redocly lint, the contract test and the CLI/MCP generators read it whole). Add new paths and schemas in a block next to the feature's neighbours rather than appending at the end of the file, so two features do not both extend the same last lines.
 
 ## Tracing service methods
+
 Every exported method that takes a `context.Context` on a feature's service types (`Service`, and any other type named `*Service` such as `QueryService` or `SessionService`, in any file of the package) opens with a span, so each request's trace shows HTTP, then service, then repo:
 
 ```go
@@ -124,6 +132,16 @@ Quizzotic works with any standards-compliant OIDC issuer; nothing is IdP-specifi
 2. Verify discovery (`/.well-known/openid-configuration`), JWKS signing algorithms (RS256, ES256 or EdDSA), and that access tokens are JWTs carrying the claims Quizzotic checks (`iss`, `aud`, `exp`, `nbf`, client ID, `scope`).
 3. If the IdP needs quirks handled (for example a non-standard claim for the client ID), add a narrowly scoped, tested option to `internal/auth` driven by config. Do not hard-code provider names.
 4. Add a deployment example under `deploy/` and a short note in the docs.
+
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens weekly PRs for Go modules (minor and patch grouped, OpenTelemetry grouped), GitHub Actions (grouped) and the Dockerfile base image, at most 5 open per ecosystem. Review a bump PR like any other:
+
+- It may only bump versions of modules already in `go.mod`. A bump that adds a new direct dependency is not allowed without the maintainer's approval and a [`docs/dependencies.md`](docs/dependencies.md) entry (ground rule 3).
+- Read the release notes for anything that changes behavior, and check that CI is green, including `test (postgres)`.
+- Major-version bumps get their own PR and a look at the upgrade guide; don't merge them as part of a group.
+
+Dependabot can't update the tools pinned in `mise.toml` (Go, golangci-lint, Node, ...). Bump those by hand in a normal PR. (Renovate can update `mise.toml` if that's ever wanted.)
 
 ## Reporting security issues
 

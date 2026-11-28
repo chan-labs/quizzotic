@@ -176,7 +176,7 @@ func TestIdempotencySweep(t *testing.T) {
 	f.clock.Advance(IdempotencyTTL + time.Minute)
 	f.do(u, "POST", "/things", "k2", `{}`)
 
-	n, err := f.repo.PurgeExpired(context.Background(), f.clock.Now())
+	n, err := f.repo.PurgeExpired(t.Context(), f.clock.Now())
 	if err != nil || n != 1 || len(f.repo.m) != 1 {
 		t.Fatalf("purged %d (%v), %d left", n, err, len(f.repo.m))
 	}

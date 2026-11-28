@@ -4,19 +4,15 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
-	"net"
 	"net/http"
 	"path/filepath"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/chan-labs/quizzotic/internal/config"
-	"github.com/chan-labs/quizzotic/internal/server"
+	"github.com/chan-labs/quizzotic/internal/testsupport/serverrun"
 )
 
 // Through server.Run, the path `quizzotic serve` takes: simultaneous identical
@@ -31,26 +27,8 @@ func TestRunConcurrentDuplicateAttemptsRecordOne(t *testing.T) {
 		Scopes:  []string{"openid", "profile", "email"},
 		Clients: []config.Client{{ID: "quizzotic-cli", Kind: "human"}},
 	}}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		done <- server.Run(ctx, &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), server.Options{Listener: ln})
-	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case err := <-done:
-			t.Logf("server stopped: %v", err)
-		case <-time.After(10 * time.Second):
-			t.Error("server did not shut down")
-		}
-	})
-
-	base := "http://" + ln.Addr().String() + "/api/v1"
+	srv := serverrun.Start(t, &cfg)
+	base := srv.URL + "/api/v1"
 	tok := idp.access("quizzotic-cli", "racer-sub", with("name", "Racer"), with("email", "racer@example.com"))
 	call := func(method, path string, body any) (int, []byte) {
 		var rd io.Reader
@@ -73,18 +51,6 @@ func TestRunConcurrentDuplicateAttemptsRecordOne(t *testing.T) {
 		defer resp.Body.Close()
 		b, _ := io.ReadAll(resp.Body)
 		return resp.StatusCode, b
-	}
-	ready := false
-	for i := 0; i < 100 && !ready; i++ {
-		if resp, err := http.Get("http://" + ln.Addr().String() + "/healthz"); err == nil {
-			resp.Body.Close()
-			ready = true
-		} else {
-			time.Sleep(20 * time.Millisecond)
-		}
-	}
-	if !ready {
-		t.Fatal("server did not start")
 	}
 
 	b := mcqBody("Race through Run", false)
