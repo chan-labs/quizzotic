@@ -54,10 +54,10 @@ func devStack(t *testing.T) (base string, iss *Issuer) {
 		t.Fatal(err)
 	}
 	cfg.Storage.Seed = nil // seeds need a user; dev.sh applies them after sign-in
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
-		done <- server.Run(ctx, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), server.Options{Listener: ln})
+		done <- server.Run(ctx, cfg, slog.New(slog.DiscardHandler), server.Options{Listener: ln})
 	}()
 	t.Cleanup(func() {
 		cancel()
