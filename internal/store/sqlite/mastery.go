@@ -157,17 +157,31 @@ func inClause(col string, ids []domain.ID) (string, []any) {
 	return " AND " + col + " IN (?" + strings.Repeat(", ?", len(ids)-1) + ")", args
 }
 
-func (r masteryRepo) TagCards(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) ([]metrics.TagCard, error) {
+// tagCardsQuery is TagCards' statement. CROSS JOIN fixes SQLite's join order
+// (tags, then problem_tags through problem_tags_tag, then each problem by
+// its key) so the plan never scans every owner problem per tag, with or
+// without ANALYZE statistics. Ordering by pt.problem_id (equal to p.id) lets
+// the index supply the order.
+func tagCardsQuery(ownerID domain.ID, tagIDs []domain.ID) (string, []any) {
 	in, inArgs := inClause("t.id", tagIDs)
-	args := append([]any{ownerID.String(), ownerID.String(), ownerID.String()}, inArgs...)
-	rows, err := r.q.QueryContext(ctx, `SELECT t.id, p.id, c.card_epoch, c.state, c.step, c.stability, c.difficulty,
+	// Placeholders in order: cards user, tags owner, the IN list, problems owner.
+	args := append([]any{ownerID.String(), ownerID.String()}, inArgs...)
+	args = append(args, ownerID.String())
+	return `SELECT t.id, p.id, c.card_epoch, c.state, c.step, c.stability, c.difficulty,
 			c.due, c.last_review, c.reps, c.lapses
 		FROM tags t
-		JOIN problem_tags pt ON pt.tag_id = t.id
-		JOIN problems p ON p.id = pt.problem_id AND p.owner_id = ? AND p.status = 'live' AND p.deleted_at IS NULL
+		CROSS JOIN problem_tags pt
+		CROSS JOIN problems p
 		LEFT JOIN cards c ON c.problem_id = p.id AND c.user_id = ?
-		WHERE t.owner_id = ? AND t.status = 'active'`+in+`
-		ORDER BY t.id, p.id`, args...)
+		WHERE t.owner_id = ? AND t.status = 'active'` + in + `
+			AND pt.tag_id = t.id
+			AND p.id = pt.problem_id AND p.owner_id = ? AND p.status = 'live' AND p.deleted_at IS NULL
+		ORDER BY t.id, pt.problem_id`, args
+}
+
+func (r masteryRepo) TagCards(ctx context.Context, ownerID domain.ID, tagIDs []domain.ID) ([]metrics.TagCard, error) {
+	q, args := tagCardsQuery(ownerID, tagIDs)
+	rows, err := r.q.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
