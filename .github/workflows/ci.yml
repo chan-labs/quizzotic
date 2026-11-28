@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Merge queue: every required check also runs on the queue's merge-group ref
+  # (gh-readonly-queue/main/...), so a queued PR is tested against the latest main.
+  merge_group:
   # Weekly, so new advisories against an unchanged main are caught.
   schedule:
     - cron: "17 6 * * 1"
