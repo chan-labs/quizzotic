@@ -57,7 +57,7 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "s.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func newEnv(t *testing.T) *env {
 func e2user(t *testing.T, st store.Store, name string) domain.ID {
 	t.Helper()
 	id := domain.NewIDGenerator(domain.SystemClock{}).New()
-	err := st.Users().Create(context.Background(), auth.User{ID: id, DisplayName: name, Email: name + "@example.com", CreatedAt: time.Now()})
+	err := st.Users().Create(t.Context(), auth.User{ID: id, DisplayName: name, Email: name + "@example.com", CreatedAt: time.Now()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestChangedItemUpdatesInPlace(t *testing.T) {
 func TestUnchangedFileLeavesApiEditsAlone(t *testing.T) {
 	e := newEnv(t)
 	e.apply(pack)
-	ctx := context.Background()
+	ctx := t.Context()
 	p := e.problemByPrompt("What is one?")
 	svc := problems.NewService(e.st.Problems(), store.ProblemsTx(e.st), domain.SystemClock{}, domain.NewIDGenerator(domain.SystemClock{}))
 	if _, err := svc.Archive(ctx, e.owner, p.ID, p.ETag()); err != nil {
@@ -215,7 +215,7 @@ func TestUnchangedFileLeavesApiEditsAlone(t *testing.T) {
 func TestDeletedItemStaysDeleted(t *testing.T) {
 	e := newEnv(t)
 	e.apply(pack)
-	ctx := context.Background()
+	ctx := t.Context()
 	p := e.problemByPrompt("Pick a")
 	svc := problems.NewService(e.st.Problems(), store.ProblemsTx(e.st), domain.SystemClock{}, domain.NewIDGenerator(domain.SystemClock{}))
 	if err := svc.Delete(ctx, e.owner, p.ID, p.ETag()); err != nil {
@@ -249,7 +249,7 @@ func TestOwnersAreIndependent(t *testing.T) {
 	e := newEnv(t)
 	e.apply(pack)
 	other := e2user(t, e.st, "other")
-	rep, err := seedrun.ApplyFile(context.Background(), e.st, other, parse(t, pack))
+	rep, err := seedrun.ApplyFile(t.Context(), e.st, other, parse(t, pack))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestInvalidContentIsRejectedAtomically(t *testing.T) {
     prompt: no choices
     payload: {}
 quizzes:`, 1)
-	_, err := seedrun.ApplyFile(context.Background(), e.st, e.owner, parse(t, bad))
+	_, err := seedrun.ApplyFile(t.Context(), e.st, e.owner, parse(t, bad))
 	if err == nil || !strings.Contains(err.Error(), "p.bad") || !strings.Contains(err.Error(), "payload") {
 		t.Fatalf("err = %v", err)
 	}
@@ -301,7 +301,7 @@ func TestParseErrors(t *testing.T) {
 
 func TestUnknownQuizProblemKey(t *testing.T) {
 	e := newEnv(t)
-	_, err := seedrun.ApplyFile(context.Background(), e.st, e.owner,
+	_, err := seedrun.ApplyFile(t.Context(), e.st, e.owner,
 		parse(t, "version: 1\nquizzes:\n  - {key: q, title: T, problems: [nope]}\n"))
 	if err == nil || !strings.Contains(err.Error(), `"nope"`) {
 		t.Fatalf("err = %v", err)
@@ -319,14 +319,14 @@ func TestBuiltinPacks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", n, err)
 		}
-		if _, err := seedrun.ApplyFile(context.Background(), e.st, e.owner, f); err != nil {
+		if _, err := seedrun.ApplyFile(t.Context(), e.st, e.owner, f); err != nil {
 			t.Fatalf("%s: %v", n, err)
 		}
 	}
 	before := e.rows()
 	for _, n := range names {
 		f, _ := seed.Load(seed.BuiltinPrefix + n)
-		if _, err := seedrun.ApplyFile(context.Background(), e.st, e.owner, f); err != nil {
+		if _, err := seedrun.ApplyFile(t.Context(), e.st, e.owner, f); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -344,7 +344,7 @@ func TestBuiltinPacks(t *testing.T) {
 }
 
 func TestStartup(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	t.Run("no user yet is skipped, not a failure", func(t *testing.T) {
 		st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "s.db"))
 		if err != nil {
@@ -401,7 +401,7 @@ func TestStartup(t *testing.T) {
 
 func TestResolveOwner(t *testing.T) {
 	e := newEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if id, err := seedrun.ResolveOwner(ctx, e.st, ""); err != nil || id != e.owner {
 		t.Errorf("sole = %v, %v", id, err)
 	}

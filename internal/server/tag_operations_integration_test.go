@@ -63,6 +63,7 @@ func init() {
 	// Every call creates its own tag and a proposal to rename it, so each op
 	// runs against a fresh proposed operation owned by user A.
 	proposeRename := func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+		t.Helper()
 		slug, next := uniqueSlug("secret-op-tag"), uniqueSlug("secret-op-new")
 		if r := c.Do("POST", "/tags", map[string]string{"slug": slug, "name": "Secret Op Tag"}); r.Code != http.StatusCreated {
 			t.Fatalf("create tag = %d (%s)", r.Code, r.Body)
@@ -98,6 +99,7 @@ func init() {
 				}},
 		},
 		Intact: func(t testing.TB, c *ownerscope.Client, created ownerscope.Created) {
+			t.Helper()
 			r := c.Do("GET", "/tag-operations/"+created.Params["id"], nil)
 			var op opJSON
 			if err := json.Unmarshal(r.Body, &op); err != nil || op.Status != "proposed" {

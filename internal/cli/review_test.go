@@ -3,7 +3,6 @@
 package cli
 
 import (
-	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -101,12 +100,12 @@ func TestClozeDisplay(t *testing.T) {
 
 func TestReviewRefusesAgent(t *testing.T) {
 	var out, errOut strings.Builder
-	code := Review(context.Background(), []string{"--agent"}, Env{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &errOut})
+	code := Review(t.Context(), []string{"--agent"}, Env{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &errOut})
 	if code != 2 || !strings.Contains(errOut.String(), "human login only") {
 		t.Errorf("code %d, stderr %q", code, errOut.String())
 	}
 	errOut.Reset()
-	code = Review(context.Background(), nil, Env{
+	code = Review(t.Context(), nil, Env{
 		Stdin: strings.NewReader(""), Stdout: &out, Stderr: &errOut,
 		Getenv: func(k string) string {
 			if k == "QUIZZOTIC_AGENT" {

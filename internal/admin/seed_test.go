@@ -3,7 +3,6 @@
 package admin
 
 import (
-	"context"
 	"database/sql"
 	"path/filepath"
 	"strings"
@@ -30,7 +29,7 @@ func seededDB(t *testing.T, users int) (url, file string, ids []domain.ID) {
 	if code, _, errs := run(t, "migrate", "--storage-url", url); code != 0 {
 		t.Fatalf("migrate: %s", errs)
 	}
-	st, err := driver.Open(context.Background(), url)
+	st, err := driver.Open(t.Context(), url)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +38,7 @@ func seededDB(t *testing.T, users int) (url, file string, ids []domain.ID) {
 	for range users {
 		id := g.New()
 		u := auth.User{ID: id, DisplayName: "u", Email: "u@example.com", CreatedAt: time.Now()}
-		if err := st.Users().Create(context.Background(), u); err != nil {
+		if err := st.Users().Create(t.Context(), u); err != nil {
 			t.Fatal(err)
 		}
 		ids = append(ids, id)

@@ -58,10 +58,10 @@ func TestExportThroughTheRealServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
-		done <- server.Run(ctx, &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), server.Options{Listener: ln})
+		done <- server.Run(ctx, &cfg, slog.New(slog.DiscardHandler), server.Options{Listener: ln})
 	}()
 	t.Cleanup(func() {
 		cancel()

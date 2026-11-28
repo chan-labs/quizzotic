@@ -4,7 +4,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,6 +26,7 @@ func init() {
 	ownerScope.Resource(ownerscope.Resource{
 		Name: "problems",
 		Create: func(t testing.TB, c *ownerscope.Client) ownerscope.Created {
+			t.Helper()
 			prompt := "Owner-scope secret prompt " + domain.NewIDGenerator(domain.SystemClock{}).New().String()
 			r := c.Do("POST", "/problems", openBody(prompt))
 			if r.Code != http.StatusCreated {
@@ -57,6 +57,7 @@ func init() {
 			}},
 		},
 		Intact: func(t testing.TB, c *ownerscope.Client, created ownerscope.Created) {
+			t.Helper()
 			r := c.Do("GET", "/problems/"+created.Params["id"]+"/versions", nil)
 			var page struct {
 				Items []struct {
@@ -409,7 +410,7 @@ func TestListProblems(t *testing.T) {
 	// Someone else's problem must never show up.
 	e.create(t, e.other, openBody("Other users Tokyo problem"))
 
-	ctx := context.Background()
+	ctx := t.Context()
 	uid, _ := e.userFor(t, "author-sub")
 	owner, _ := domain.ParseID(uid)
 	if err := e.st.Problems().SetStatus(ctx, owner, archived.ID, problems.StatusArchived, archived.UpdatedAt.Add(1)); err != nil {
@@ -683,7 +684,7 @@ func TestCreateProblemIdempotencyReplay(t *testing.T) {
 	// Exactly one row exists.
 	uid, _ := e.userFor(t, "author-sub")
 	owner, _ := domain.ParseID(uid)
-	rows, err := e.st.Problems().List(context.Background(), owner, problems.ListFilter{})
+	rows, err := e.st.Problems().List(t.Context(), owner, problems.ListFilter{})
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("rows = %d, err %v; want exactly 1", len(rows), err)
 	}

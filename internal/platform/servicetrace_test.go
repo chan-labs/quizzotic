@@ -41,7 +41,7 @@ func traced(ctx context.Context, name string, result error) (err error) {
 
 func TestTraceMethodSpan(t *testing.T) {
 	exp := installExporter(t)
-	ctx, parent := otel.Tracer("test").Start(context.Background(), "parent")
+	ctx, parent := otel.Tracer("test").Start(t.Context(), "parent")
 	cctx, end := platform.TraceMethod(ctx, "things.Do")
 	if trace.SpanFromContext(cctx).SpanContext().SpanID() == parent.SpanContext().SpanID() {
 		t.Error("returned context still carries the parent span")
@@ -82,7 +82,7 @@ func TestTraceMethodErrors(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			exp := installExporter(t)
-			if err := traced(context.Background(), "x.Y", c.err); !errors.Is(err, c.err) {
+			if err := traced(t.Context(), "x.Y", c.err); !errors.Is(err, c.err) {
 				t.Fatalf("returned %v, want %v", err, c.err)
 			}
 			spans := exp.GetSpans()
@@ -97,7 +97,7 @@ func TestTraceMethodErrors(t *testing.T) {
 }
 
 func TestTraceMethodNoopWithoutProvider(t *testing.T) {
-	ctx, end := platform.TraceMethod(context.Background(), "x.Y")
+	ctx, end := platform.TraceMethod(t.Context(), "x.Y")
 	var err error
 	end(&err)
 	end(nil) // tolerated

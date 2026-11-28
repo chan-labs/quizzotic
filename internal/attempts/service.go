@@ -63,7 +63,7 @@ type CardUpdater interface {
 type NoopCardUpdater struct{}
 
 // Apply implements CardUpdater.
-func (NoopCardUpdater) Apply(context.Context, Attempt, int) (*time.Time, error) { return nil, nil }
+func (NoopCardUpdater) Apply(context.Context, Attempt, int) (*time.Time, error) { return nil, nil } //nolint:nilnil // a nil due time means no card was updated (CardUpdater contract)
 
 // AnswerInput is a request to record an attempt.
 type AnswerInput struct {

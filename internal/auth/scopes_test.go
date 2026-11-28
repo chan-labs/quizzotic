@@ -57,7 +57,7 @@ func claimsFor(client, sub string, extra map[string]any) *Claims {
 func TestResolveUnknownClientRejected(t *testing.T) {
 	r := NewResolver(testClients(t), &fakeUsers{})
 	for _, c := range []*Claims{claimsFor("stranger", "u1", nil), {Issuer: jwtIss, Subject: "u1", Raw: map[string]any{}}} {
-		if _, err := r.Resolve(context.Background(), c); !errors.Is(err, ErrUnknownClient) {
+		if _, err := r.Resolve(t.Context(), c); !errors.Is(err, ErrUnknownClient) {
 			t.Errorf("err = %v, want ErrUnknownClient", err)
 		}
 	}
@@ -65,7 +65,7 @@ func TestResolveUnknownClientRejected(t *testing.T) {
 
 func TestResolveHumanHasAllScopes(t *testing.T) {
 	r := NewResolver(testClients(t), &fakeUsers{})
-	p, err := r.Resolve(context.Background(), claimsFor("web", "u1", map[string]any{"scope": "openid"}))
+	p, err := r.Resolve(t.Context(), claimsFor("web", "u1", map[string]any{"scope": "openid"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestResolveAgentScopeNarrowing(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p, err := r.Resolve(context.Background(), claimsFor("agent-local", "u1", tc.extra))
+			p, err := r.Resolve(t.Context(), claimsFor("agent-local", "u1", tc.extra))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -120,11 +120,11 @@ func TestResolveActsFor(t *testing.T) {
 	users := &fakeUsers{}
 	r := NewResolver(testClients(t), users)
 	// Client-credentials: sub is the client itself; the user comes from acts_for.
-	bot, err := r.Resolve(context.Background(), claimsFor("agent-bot", "agent-bot", nil))
+	bot, err := r.Resolve(t.Context(), claimsFor("agent-bot", "agent-bot", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	human, err := r.Resolve(context.Background(), claimsFor("web", "human-sub", nil))
+	human, err := r.Resolve(t.Context(), claimsFor("web", "human-sub", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestResolveActsFor(t *testing.T) {
 		t.Errorf("provisioned subject %q, want acts_for", users.seen[0])
 	}
 	// A delegated agent without acts_for resolves to the sub in its token.
-	del, err := r.Resolve(context.Background(), claimsFor("agent-local", "human-sub", nil))
+	del, err := r.Resolve(t.Context(), claimsFor("agent-local", "human-sub", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,14 +233,14 @@ func TestEmbeddedSpecOperationsParse(t *testing.T) {
 func TestResolveClassifiesByAudienceWithoutClientClaim(t *testing.T) {
 	r := NewResolver(testClients(t), &fakeUsers{})
 	c := &Claims{Issuer: jwtIss, Subject: "u1", Audience: []string{"agent-local"}, Raw: map[string]any{}}
-	p, err := r.Resolve(context.Background(), c)
+	p, err := r.Resolve(t.Context(), c)
 	if err != nil || p.Kind != KindAgent || p.ClientID != "agent-local" {
 		t.Fatalf("p = %+v, err = %v", p, err)
 	}
 	// Two declared clients in aud is ambiguous; an undeclared aud is unknown.
 	for _, aud := range [][]string{{"web", "agent-local"}, {"stranger"}} {
 		c := &Claims{Issuer: jwtIss, Subject: "u1", Audience: aud, Raw: map[string]any{}}
-		if _, err := r.Resolve(context.Background(), c); !errors.Is(err, ErrUnknownClient) {
+		if _, err := r.Resolve(t.Context(), c); !errors.Is(err, ErrUnknownClient) {
 			t.Errorf("aud %v: err = %v, want ErrUnknownClient", aud, err)
 		}
 	}

@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -25,7 +24,7 @@ import (
 // timing.
 func holdOwnerLock(t *testing.T, s store.Store, owner domain.ID, during func()) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	err := store.TagsTx(s).InTx(ctx, func(r tags.Repos) error {
 		if err := r.Tags.LockOwner(ctx, owner); err != nil {
 			return err

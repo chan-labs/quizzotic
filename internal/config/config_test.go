@@ -152,46 +152,55 @@ func TestParse_EnvOverrides(t *testing.T) {
 		check func(t *testing.T, c *Config)
 	}{
 		{"string", []string{"QUIZZOTIC_SERVER_LISTEN=:1234"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if c.Server.Listen != ":1234" {
 				t.Errorf("listen = %q", c.Server.Listen)
 			}
 		}},
 		{"duration", []string{"QUIZZOTIC_SERVER_SESSION_TTL=1h"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if c.Server.SessionTTL.Std() != time.Hour {
 				t.Errorf("ttl = %v", c.Server.SessionTTL)
 			}
 		}},
 		{"bool", []string{"QUIZZOTIC_STORAGE_AUTO_MIGRATE=false"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if c.Storage.AutoMigrate {
 				t.Error("auto_migrate should be false")
 			}
 		}},
 		{"int", []string{"QUIZZOTIC_SCHEDULING_NEW_PER_DAY=5"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if c.Scheduling.NewPerDay != 5 {
 				t.Errorf("new_per_day = %d", c.Scheduling.NewPerDay)
 			}
 		}},
 		{"float", []string{"QUIZZOTIC_SCHEDULING_DESIRED_RETENTION=0.8"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if c.Scheduling.DesiredRetention != 0.8 {
 				t.Errorf("retention = %v", c.Scheduling.DesiredRetention)
 			}
 		}},
 		{"string list", []string{"QUIZZOTIC_STORAGE_SEED=builtin:a, builtin:b"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if got := c.Storage.Seed; len(got) != 2 || got[0] != "builtin:a" || got[1] != "builtin:b" {
 				t.Errorf("seed = %v", got)
 			}
 		}},
 		{"duration list", []string{"QUIZZOTIC_SCHEDULING_LEARNING_STEPS=30s,5m,1h"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if got := c.Scheduling.LearningSteps; len(got) != 3 || got[0].Std() != 30*time.Second {
 				t.Errorf("steps = %v", got)
 			}
 		}},
 		{"empty list", []string{"QUIZZOTIC_STORAGE_SEED="}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if len(c.Storage.Seed) != 0 {
 				t.Errorf("seed = %v", c.Storage.Seed)
 			}
 		}},
 		{"indexed struct field", []string{"QUIZZOTIC_AUTH_ISSUERS_0_AUDIENCE=other"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if got := c.Auth.Issuers[0].Audiences; len(got) != 1 || got[0] != "other" {
 				t.Errorf("audience = %q", got)
 			}
@@ -201,17 +210,21 @@ func TestParse_EnvOverrides(t *testing.T) {
 			"QUIZZOTIC_AUTH_ISSUERS_0_CLIENTS_0_KIND=human",
 			"QUIZZOTIC_AUTH_ISSUERS_0_CLIENTS_0_SECRET=s3cret",
 		}, func(t *testing.T, c *Config) {
+			t.Helper()
 			cl := c.Auth.Issuers[0].Clients
 			if len(cl) != 1 || cl[0].Secret != "s3cret" {
 				t.Errorf("clients = %+v", cl)
 			}
 		}},
 		{"env overrides file value", []string{"QUIZZOTIC_SERVER_PUBLIC_URL=https://other.example.com"}, func(t *testing.T, c *Config) {
+			t.Helper()
 			if c.Server.PublicURL != "https://other.example.com" {
 				t.Errorf("public_url = %q", c.Server.PublicURL)
 			}
 		}},
-		{"non-prefixed and QUIZZOTIC_CONFIG ignored", []string{"HOME=/x", "QUIZZOTIC_CONFIG=/etc/q.yaml"}, func(t *testing.T, c *Config) {}},
+		{"non-prefixed and QUIZZOTIC_CONFIG ignored", []string{"HOME=/x", "QUIZZOTIC_CONFIG=/etc/q.yaml"}, func(t *testing.T, c *Config) {
+			t.Helper()
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -480,14 +493,7 @@ func TestLoad_DefaultPath(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "quizzotic.yaml"), []byte(minimalYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	old, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(old) })
+	t.Chdir(dir)
 	if _, err := Load("", []string{}); err != nil {
 		t.Fatal(err)
 	}

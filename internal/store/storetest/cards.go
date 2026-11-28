@@ -39,7 +39,7 @@ func runCards(t *testing.T, newStore NewStore) {
 }
 
 func runCardRepo(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	setup := func(t *testing.T) (store.Store, auth.User, auth.User) {
@@ -242,12 +242,12 @@ func newCardFixture(t *testing.T, newStore NewStore) *cardFixture {
 	clock := &stepClock{t: t0}
 	ids := domain.NewIDGenerator(clock)
 	u := newUser(ids, "ada")
-	if err := s.Users().Create(context.Background(), u); err != nil {
+	if err := s.Users().Create(t.Context(), u); err != nil {
 		t.Fatal(err)
 	}
 	cards := store.DefaultCards()
 	probs := problems.NewService(s.Problems(), store.ProblemsEditTx(s, cards.MajorEdit), clock, ids)
-	return &cardFixture{t: t, ctx: context.Background(), s: s, clock: clock, cards: cards, probs: probs,
+	return &cardFixture{t: t, ctx: t.Context(), s: s, clock: clock, cards: cards, probs: probs,
 		atts: attempts.NewService(store.AttemptsCardTx(s, cards.CardUpdater), probs, clock, ids),
 		svc:  cards.Service(s), user: u.ID, actor: domain.Actor{Kind: domain.ActorHuman, UserID: u.ID}, ids: ids}
 }

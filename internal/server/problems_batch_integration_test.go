@@ -3,7 +3,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -52,7 +51,7 @@ func TestBatchCreateProblems(t *testing.T) {
 	count := func() int {
 		uid, _ := e.userFor(t, "author-sub")
 		owner, _ := domain.ParseID(uid)
-		rows, err := e.st.Problems().List(context.Background(), owner, problems.ListFilter{})
+		rows, err := e.st.Problems().List(t.Context(), owner, problems.ListFilter{})
 		if err != nil {
 			t.Fatal(err)
 		}

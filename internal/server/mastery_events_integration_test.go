@@ -5,7 +5,6 @@ package server_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -56,7 +55,7 @@ func startRunEnvWith(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 // is always the test's own.
 func startRunEnvOpts(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, tweak func(*config.Config), opts server.Options) (*probEnv, func()) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	cfg := config.Default()
 	cfg.Server.PublicURL = "https://quizzotic.example.com"
@@ -82,7 +81,7 @@ func startRunEnvOpts(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 	}
 	done := make(chan error, 1)
 	go func() {
-		done <- server.Run(ctx, &cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), func() server.Options { opts.Listener = ln; return opts }())
+		done <- server.Run(ctx, &cfg, slog.New(slog.DiscardHandler), func() server.Options { opts.Listener = ln; return opts }())
 	}()
 	var once sync.Once
 	stop := func() {
@@ -127,7 +126,7 @@ func startRunEnvOpts(t *testing.T, idp *fakeIDP, dbPath string, seeds []string, 
 // total returns the tag's cards_total from the mastery row the server keeps.
 func (e *probEnv) total(t *testing.T, owner, tag domain.ID) int {
 	t.Helper()
-	m, err := e.st.Mastery().Get(context.Background(), owner, tag)
+	m, err := e.st.Mastery().Get(t.Context(), owner, tag)
 	if err != nil {
 		t.Fatalf("no mastery row for tag %s: %v", tag, err)
 	}
@@ -204,7 +203,7 @@ func TestMasteryCurrentAfterEachEvent(t *testing.T) {
 // tagged problem is counted at once, in the database the running server uses.
 func TestSeedRefreshesMastery(t *testing.T) {
 	e := newRunEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	owner := e.owner(t)
 	f, err := seed.Parse(strings.NewReader(httpSeedPack))
 	if err != nil {
@@ -250,7 +249,7 @@ func lifecycle(t *testing.T, status, change, prompt string) *seed.File {
 // seed transaction only has the card-only major-edit hook.
 func TestSeedPublishAndMajorEditRefreshMastery(t *testing.T) {
 	e := newRunEnv(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	owner := e.owner(t)
 	apply := func(f *seed.File) {
 		t.Helper()
@@ -301,7 +300,7 @@ func TestStartupSeedRefreshesMastery(t *testing.T) {
 	}
 	e, _ := startRunEnv(t, idp, dbPath, []string{specPath})
 	owner := e.owner(t)
-	tag, err := e.st.Tags().GetBySlug(context.Background(), owner, "basics")
+	tag, err := e.st.Tags().GetBySlug(t.Context(), owner, "basics")
 	if err != nil {
 		t.Fatalf("start-up seed did not create its tag: %v", err)
 	}

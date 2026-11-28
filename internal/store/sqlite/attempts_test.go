@@ -3,18 +3,17 @@
 package sqlite
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 )
 
 func TestAttemptsAreAppendOnly(t *testing.T) {
-	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "a.db"))
+	s, err := Open(t.Context(), filepath.Join(t.TempDir(), "a.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
-	if _, err := s.Migrate(context.Background()); err != nil {
+	if _, err := s.Migrate(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	db := s.DB()

@@ -246,7 +246,7 @@ type loginEnv struct {
 
 func newLoginEnv(t *testing.T) *loginEnv {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	idp := newLoginIDP(t)
 	st, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
@@ -268,7 +268,7 @@ func newLoginEnv(t *testing.T) *loginEnv {
 			{ID: "quizzotic-headless", Kind: "agent", ActsFor: loginHumanSub, AllowedScopes: []string{"problems:read"}},
 		},
 	}}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	hopts, err := server.AuthOptions(&cfg, logger, st, auth.NewProvider(idp.srv.URL), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -321,11 +321,11 @@ func (e *loginEnv) run(t *testing.T, r *cliRun, args ...string) (int, string, st
 	var code int
 	switch args[0] {
 	case "login":
-		code = cli.Login(context.Background(), args[1:], env)
+		code = cli.Login(t.Context(), args[1:], env)
 	case "logout":
-		code = cli.Logout(context.Background(), args[1:], env)
+		code = cli.Logout(t.Context(), args[1:], env)
 	default:
-		code = cli.Run(context.Background(), args, env)
+		code = cli.Run(t.Context(), args, env)
 	}
 	return code, o.String(), er.String()
 }
@@ -563,7 +563,7 @@ func TestCLISilentRefresh(t *testing.T) {
 		stale := readCreds(t, e.creds)["human"].AccessToken
 		// The stored token really is expired for the API...
 		var o, er bytes.Buffer
-		code := cli.Run(context.Background(), []string{"me", "--server", e.api.URL}, cli.Env{
+		code := cli.Run(t.Context(), []string{"me", "--server", e.api.URL}, cli.Env{
 			Stdout: &o, Stderr: &er,
 			Getenv: func(k string) string {
 				if k == "QUIZZOTIC_TOKEN" {

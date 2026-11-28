@@ -37,7 +37,7 @@ var schemaSeq atomic.Int64
 func newSchemaStore(t *testing.T) *Store {
 	t.Helper()
 	url := testURL(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	admin, err := Open(ctx, url)
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +52,8 @@ func newSchemaStore(t *testing.T) *Store {
 	}
 	t.Cleanup(func() {
 		s.Close()
-		_, _ = admin.DB().ExecContext(context.Background(), `DROP SCHEMA `+name+` CASCADE`)
+		// t.Context is already cancelled when cleanups run.
+		_, _ = admin.DB().ExecContext(context.WithoutCancel(t.Context()), `DROP SCHEMA `+name+` CASCADE`)
 		admin.Close()
 	})
 	return s
@@ -86,8 +87,9 @@ func (scratch) CountIdentities(ctx context.Context, s store.Store) (int, error) 
 
 // newConformanceStore is a fresh, migrated store in its own schema.
 func newConformanceStore(t *testing.T) (store.Store, storetest.Scratch) {
+	t.Helper()
 	s := newSchemaStore(t)
-	if _, err := s.Migrate(context.Background()); err != nil {
+	if _, err := s.Migrate(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.DB().Exec(`CREATE TABLE storetest_scratch (n INTEGER)`); err != nil {

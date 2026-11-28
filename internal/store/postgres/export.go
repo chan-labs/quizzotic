@@ -40,8 +40,9 @@ func pgType(k export.Kind) string {
 		return "timestamptz"
 	case export.JSON:
 		return "jsonb"
+	default: // export.Text
+		return "text"
 	}
-	return "text"
 }
 
 func (r exportRepo) Read(ctx context.Context, owner domain.ID, t export.Table, after export.Row, limit int) ([]export.Row, error) {
@@ -146,8 +147,9 @@ func toArg(k export.Kind, v any) any {
 		return ts(v.(time.Time))
 	case export.JSON:
 		return string(v.(json.RawMessage))
+	default: // stored as is
+		return v
 	}
-	return v
 }
 
 func (r exportRepo) Insert(ctx context.Context, t export.Table, rows []export.Row) error {

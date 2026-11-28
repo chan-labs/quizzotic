@@ -3,7 +3,6 @@
 package storetest
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -13,7 +12,7 @@ import (
 )
 
 func runWebSessions(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ids := domain.NewIDGenerator(domain.SystemClock{})
 
 	sess := func(uid domain.ID, hash string) auth.WebSession {
@@ -136,7 +135,7 @@ func runWebSessions(t *testing.T, newStore NewStore) {
 }
 
 func runLoginStates(t *testing.T, newStore NewStore) {
-	ctx := context.Background()
+	ctx := t.Context()
 	st := func(h string, exp time.Time) auth.LoginState {
 		return auth.LoginState{StateHash: h, Nonce: "n-" + h, CodeVerifier: "v-" + h, ReturnTo: "/x", ExpiresAt: exp}
 	}

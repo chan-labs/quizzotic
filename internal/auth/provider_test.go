@@ -3,7 +3,6 @@
 package auth_test
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -12,7 +11,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -119,7 +117,7 @@ func newProvider(f *fakeIDP, c *clock) *auth.Provider {
 func TestDiscovery(t *testing.T) {
 	f := newFakeIDP(t, rsaJWK(t, "a"))
 	p := auth.NewProvider(f.srv.URL)
-	d, err := p.Discovery(context.Background())
+	d, err := p.Discovery(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +127,7 @@ func TestDiscovery(t *testing.T) {
 	if !d.SupportsDeviceFlow() {
 		t.Error("device flow should be advertised")
 	}
-	if _, err := p.Discovery(context.Background()); err != nil || f.nDisc.Load() != 1 {
+	if _, err := p.Discovery(t.Context()); err != nil || f.nDisc.Load() != 1 {
 		t.Errorf("discovery should be cached (fetches=%d, err=%v)", f.nDisc.Load(), err)
 	}
 }
@@ -138,10 +136,10 @@ func TestDiscoveryIssuerMismatchRejected(t *testing.T) {
 	f := newFakeIDP(t, rsaJWK(t, "a"))
 	f.iss = "https://evil.example.com"
 	p := auth.NewProvider(f.srv.URL)
-	if _, err := p.Key(context.Background(), "a"); err == nil {
+	if _, err := p.Key(t.Context(), "a"); err == nil {
 		t.Fatal("want error for issuer mismatch")
 	}
-	if err := p.Ready(context.Background()); err == nil {
+	if err := p.Ready(t.Context()); err == nil {
 		t.Fatal("must not be ready after issuer mismatch")
 	}
 	if f.nJWKS.Load() != 0 {
@@ -150,7 +148,7 @@ func TestDiscoveryIssuerMismatchRejected(t *testing.T) {
 }
 
 func TestKeyRotation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	old := rsaJWK(t, "old")
 	f := newFakeIDP(t, old)
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
@@ -197,7 +195,7 @@ func TestKeyRotation(t *testing.T) {
 
 func mustKey(t *testing.T, p *auth.Provider, kid string) *auth.Key {
 	t.Helper()
-	k, err := p.Key(context.Background(), kid)
+	k, err := p.Key(t.Context(), kid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +203,7 @@ func mustKey(t *testing.T, p *auth.Provider, kid string) *auth.Key {
 }
 
 func TestUnknownKidRefreshIsRateLimited(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	f := newFakeIDP(t, rsaJWK(t, "a"))
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
 	p := newProvider(f, c)
@@ -232,7 +230,7 @@ func TestUnknownKidRefreshIsRateLimited(t *testing.T) {
 }
 
 func TestTTLRefreshAndStaleServing(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	f := newFakeIDP(t, rsaJWK(t, "a"))
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
 	p := newProvider(f, c)
@@ -268,7 +266,7 @@ func TestConcurrentLookupsFetchOnce(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := p.Key(context.Background(), "a"); err != nil {
+			if _, err := p.Key(t.Context(), "a"); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -284,7 +282,7 @@ func TestReadinessCheck(t *testing.T) {
 	f.setDown(true)
 	p := auth.NewProvider(f.srv.URL)
 
-	health := platform.NewHealth(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	health := platform.NewHealth(slog.New(slog.DiscardHandler))
 	health.AddCheck("jwks", p.Ready)
 	mux := http.NewServeMux()
 	health.Register(mux)
@@ -328,7 +326,7 @@ func TestKeyTypesAndSkips(t *testing.T) {
 		map[string]string{"kty": "OKP", "crv": "Ed25519", "x": b64(edPub)}, // no kid
 	)
 	p := auth.NewProvider(f.srv.URL)
-	ctx := context.Background()
+	ctx := t.Context()
 	if k, err := p.Key(ctx, "ec"); err != nil {
 		t.Fatal(err)
 	} else if _, ok := k.Public.(*ecdsa.PublicKey); !ok {
@@ -348,7 +346,7 @@ func TestKeyTypesAndSkips(t *testing.T) {
 
 func TestEmptyJWKSNotReady(t *testing.T) {
 	f := newFakeIDP(t)
-	if err := auth.NewProvider(f.srv.URL).Ready(context.Background()); err == nil {
+	if err := auth.NewProvider(f.srv.URL).Ready(t.Context()); err == nil {
 		t.Fatal("a JWKS without usable keys must not count as loaded")
 	}
 }
@@ -361,7 +359,7 @@ func TestIdPCallsAreChildSpans(t *testing.T) {
 	t.Cleanup(func() { otel.SetTracerProvider(prev) })
 
 	f := newFakeIDP(t, rsaJWK(t, "a"))
-	ctx, parent := tp.Tracer("test").Start(context.Background(), "request")
+	ctx, parent := tp.Tracer("test").Start(t.Context(), "request")
 	if _, err := auth.NewProvider(f.srv.URL).Key(ctx, "a"); err != nil {
 		t.Fatal(err)
 	}
