@@ -4,7 +4,7 @@
 #
 # Prints one line per check: OK, MISSING or WARN, and for anything missing,
 # what it disables and the workaround. Exits non-zero only when a tool that
-# `mise run test ::: lint` needs (go, golangci-lint, node) is missing.
+# `mise run test ::: lint` needs (go, golangci-lint, node, actionlint) is missing.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
@@ -46,6 +46,13 @@ if command -v goreleaser >/dev/null 2>&1; then
 	ok goreleaser "$(goreleaser --version 2>/dev/null | sed -n 's/^GitVersion: *//p')"
 else
 	missing goreleaser "mise install; 'mise run release-check' can't run (CI still runs it)"
+fi
+
+if command -v actionlint >/dev/null 2>&1; then
+	ok actionlint "$(version actionlint -version)"
+else
+	missing actionlint "mise install; 'mise run lint' (lint-actions) can't run"
+	required_missing=1
 fi
 
 echo
